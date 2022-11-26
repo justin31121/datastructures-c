@@ -15,15 +15,8 @@
 
 //----------- JSON -------------
 
-#define JSON_STRING_BUFFER_CAP 64
-
-typedef struct{
-  char data[JSON_STRING_BUFFER_CAP];
-  size_t size;
-}JsonString;
-
-JsonString json_create_string(const char* cstr);
-JsonString json_create_string_from_parts(const char* cstr, size_t len);
+char *json_create_cstr(const char* cstr);
+char *json_create_cstr_from_parts(const char* cstr, size_t len);
 
 typedef enum {
   JSON_NULL,
@@ -45,7 +38,7 @@ typedef struct{
     float floatVal;
     double doubleVal;
     bool boolVal;
-    JsonString stringVal;
+    char *stringVal;
     Ht *objVal;
     Arr *arrVal;
   };
@@ -73,7 +66,7 @@ bool json_get_bool(Json obj, const char *key);
 int json_get_int(Json obj, const char *key);
 float json_get_float(Json obj, const char *key);
 double json_get_double(Json obj, const char *key);
-JsonString json_get_string(Json obj, const char *key);
+char* json_get_string(Json obj, const char *key);
 Json json_get_object(Json obj, const char *key);
 Json json_get_array(Json obj, const char *key);
 //END JSON_OBJECT
@@ -95,12 +88,13 @@ bool json_opt_bool(Json obj, int p);
 int json_opt_int(Json obj, int p);
 float json_opt_float(Json obj, int p);
 double json_opt_double(Json obj, int p);
-JsonString json_opt_string(Json obj, int p);
+char *json_opt_string(Json obj, int p);
 Json json_opt_object(Json obj, int p);
 Json json_opt_array(Json obj, int p);
 //END JSON_ARRAY
 
 void json_fprint(FILE *f, Json json);
+size_t json_write(Json json,size_t (*write_callback)(void *, size_t size, void *userdata), void *userdata);
 char *json_to_cstr(Json json);
 
 int json_size(Json json);
@@ -116,7 +110,7 @@ bool parseJsonBool(const char *buffer, size_t buffer_size, Json *json, size_t *m
 bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 
-bool parsePair(const char *buffer, size_t buffer_size, JsonString *key, Json *value, size_t *m);
+bool parsePair(const char *buffer, size_t buffer_size, char **key, Json *value, size_t *m);
 bool parseJsonArray(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJson(const char *buffer, size_t buffer_size, Json *json, size_t *m);
@@ -137,31 +131,24 @@ bool json_parse_len(const char* buffer, size_t buffer_size, Json *json);
     }									\
   }while(0)
 
-JsonString json_create_string(const char* cstr) {
-  JsonString string;
-  size_t size = 0;  
-  while(cstr[size++]!=0);
-  if(size>=JSON_STRING_BUFFER_CAP) {
-    fprintf(stderr, "Json_String-Buffer-Overflow: %lld>%d", size, JSON_STRING_BUFFER_CAP);
+char *json_create_string_from_parts(const char* cstr, size_t size) {
+
+  char *json_cstr = (char *) malloc(size + 1);
+  if(!json_cstr) {
+    fprintf(stderr, "ERROR: Can not allocate enough memory: json_create_string\n");
     exit(1);
-  }
-  memcpy(string.data, cstr, size);
-  string.data[size] = 0;
-  string.size = size;
-  return string;
+  }  
+  memcpy(json_cstr, cstr, size);
+  json_cstr[size] = 0;
+  
+  return json_cstr;
 }
 
-JsonString json_create_string_from_parts(const char* cstr, size_t len) {
-  if(len>=JSON_STRING_BUFFER_CAP) {
-    fprintf(stderr, "Json_String-Buffer-Overflow: %lld>%d", len, JSON_STRING_BUFFER_CAP);
-    exit(1);
-  }
-
-  JsonString string;
-  memcpy(string.data, cstr, len);
-  string.data[len] = 0;
-  string.size = len;
-  return string;
+char *json_create_string(const char* cstr) {
+  size_t size = 0;
+  while(cstr[size++]!=0);
+  size--;
+  return json_create_string_from_parts(cstr, size);
 }
 
 bool json_type_to_cstr(char *buffer, size_t buffer_size, int type) {
@@ -314,7 +301,7 @@ double json_get_double(Json obj, const char *key) {
   return json.doubleVal;    
 }
 
-JsonString json_get_string(Json obj, const char *key) {
+char *json_get_string(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_STRING);
   return json.stringVal;
@@ -435,7 +422,7 @@ double json_opt_double(Json obj, int p) {
   return json.doubleVal;
 }
 
-JsonString json_opt_string(Json obj, int p) {
+char *json_opt_string(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_STRING);
   return json.stringVal;
@@ -463,7 +450,7 @@ void json_fprint(FILE *f, Json json) {
     int last = -1;
     Ht_Entry *entry;
     while(ht_next(json.objVal, &last, &entry)) {
-      fprintf(f, "\"%s\": ", entry->key);
+      fprintf(f, "\"%s\":", entry->key);
       json_fprint(f, *(Json *) entry->value);
       if(last != (int) (json.objVal)->count - 1) fprintf(f, ", ");
     }
@@ -473,7 +460,7 @@ void json_fprint(FILE *f, Json json) {
     fputc('[', f);
     for(size_t i=0;i<json.arrVal->count;i++) {
       json_fprint(f, * (Json *) arr_get(json.arrVal, i));
-      if(i!=json.arrVal->count-1) fprintf(f, ", ");
+      if(i!=json.arrVal->count-1) fprintf(f, ",");
     }
     fputc(']', f);
     break;
@@ -493,13 +480,90 @@ void json_fprint(FILE *f, Json json) {
     fprintf(f, "%s", json.boolVal ? "true" : "false");
     break;
   case JSON_STRING:
-    fprintf(f, "\"%.*s\"", (int) json.stringVal.size, json.stringVal.data);
+    fprintf(f, "\"%s\"", json.stringVal);
     break;
   default:
     fprintf(stderr, "ERROR: Unknown JSON_TYPE: %d\n", json.type);
     exit(1);
     return;
   }
+}
+
+#define WRITE_CB(ptr, size) do{ \
+  if(!(temp = write_callback(ptr, size, userdata))) return acc; \
+  acc += temp;							   \
+  }while(0)
+
+size_t json_write(Json json, size_t (*write_callback)(void *,size_t,void *), void *userdata) {
+  static char* chars = "{}[],\":nulltruefalse";
+  static char tmp_buf[64];
+  size_t acc = 0;
+  size_t temp;
+  switch(json.type) {
+  case JSON_OBJECT:
+    WRITE_CB(chars, 1);// {
+    int last = -1;
+    Ht_Entry *entry;
+    while(ht_next(json.objVal, &last, &entry)) {      
+      WRITE_CB(chars + 5, 1);// "
+      WRITE_CB(entry->key, entry->key_size - 1);// %s
+      WRITE_CB(chars + 5, 1);// "
+      WRITE_CB(chars + 6, 1);// :
+
+      if(!json_write(*(Json *) entry->value, write_callback, userdata)) return acc;
+      if(last != (int) (json.objVal)->count - 1) {
+	WRITE_CB(chars + 4, 1);
+      }
+    }
+    WRITE_CB(chars + 1, 1);// }
+    break;
+  case JSON_ARRAY:
+    WRITE_CB(chars + 2, 1);// [
+    for(size_t i=0;i<json.arrVal->count;i++) {
+      if(!json_write(* (Json *) arr_get(json.arrVal, i), write_callback, userdata)) return acc;
+      if(i!=json.arrVal->count-1) {
+	WRITE_CB(chars + 4, 1);
+      }
+    }
+    WRITE_CB(chars + 3, 1);// ]
+    break;
+  case JSON_NULL:
+    WRITE_CB(chars + 7, 4);// null
+    break;
+  case JSON_INT:
+    if(!(temp = snprintf(tmp_buf, 64, "%d", json.intVal))) return acc;
+    WRITE_CB(tmp_buf, temp);
+    break;
+  case JSON_FLOAT:
+    if(!(temp = snprintf(tmp_buf, 64, "%f", json.floatVal))) return acc;
+    WRITE_CB(tmp_buf, temp);
+    break;
+  case JSON_DOUBLE:
+    if(!(temp = snprintf(tmp_buf, 64, "%lf", json.doubleVal))) return acc;
+    WRITE_CB(tmp_buf, temp);
+    break;
+  case JSON_BOOL:
+    if(json.boolVal) {
+      WRITE_CB(chars + 11, 4);// true
+    } else {
+      WRITE_CB(chars + 15, 5);// false
+    }
+    break;
+  case JSON_STRING:
+    WRITE_CB(chars + 5, 1);// "
+    // %s
+    size_t size = 0;
+    while(json.stringVal[size++]!=0);
+    size--;
+    WRITE_CB(json.stringVal, size);
+    WRITE_CB(chars + 5, 1);// "
+    break;
+  default:
+    fprintf(stderr, "ERROR: Unknown JSON_TYPE: %d\n", json.type);
+    exit(1);
+    return acc;
+  }
+  return acc;
 }
 
 char *json_to_cstr(Json json) {
@@ -552,6 +616,9 @@ void json_free(Json json) {
   else if(json.type==JSON_ARRAY) {
     if(json.arrVal) arr_free(json.arrVal);
   }
+  else if(json.type==JSON_STRING) {
+    if(json.stringVal) free(json.stringVal);
+  }
   else {
     
   }
@@ -575,6 +642,9 @@ void json_free_all(Json json) {
       json_free_all(*(Json *) arr_get(json.arrVal, i));
     }
     arr_free(json.arrVal);
+  }
+  else if(json.type==JSON_STRING) {
+    if(json.stringVal) free(json.stringVal);
   }
   else {
     
@@ -625,14 +695,14 @@ bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m)
 
 bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
   size_t i = 0;
-  if(parseChar('\"', buffer, buffer_size) == 0) {
+  if((parseChar('\"', buffer, buffer_size) == 0) && (parseChar('\'', buffer, buffer_size) == 0)){
     return false;
   }
   i++;
 
   i += skipCharIf(normalChar, buffer+i, buffer_size-1);
 
-  if(parseChar('\"', buffer + i, buffer_size - i) == 0) {
+  if((parseChar('\"', buffer, buffer_size) == 0) && (parseChar('\'', buffer, buffer_size) == 0)) {
     return false;
   }
   i++;
@@ -645,14 +715,14 @@ bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t 
   return true;
 }
 
-bool parsePair(const char *buffer, size_t buffer_size, JsonString *key, Json *value, size_t *m) {
+bool parsePair(const char *buffer, size_t buffer_size, char **key, Json *value, size_t *m) {
   Json json;
   size_t n;
   if(!parseJsonString(buffer, buffer_size, &json, &n)) {
     return false;
   }
-  
-  memcpy(key, &json.stringVal, sizeof(JsonString));
+
+  *key = json.stringVal;
 
   size_t i = n;
   i += skipCharIf(isSpace, buffer+i, buffer_size-1);
@@ -730,16 +800,13 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
 
   //SEP_BY
   Json obj = json_init_object();
-  JsonString key;
+  char *key;
   Json value;
   size_t n;
   while(parsePair(buffer + i, buffer_size - i, &key, &value, &n)) {
     //CSTR TO INSERT IN HASHTABLE
-    char cstr[key.size+1];
-    memcpy(cstr, key.data, key.size);
-    cstr[key.size] = 0;
     
-    ht_insert(obj.objVal, cstr, &value, sizeof(Json));
+    ht_insert(obj.objVal, key, &value, sizeof(Json));
     i += n;
     
     //WHITESPACE
