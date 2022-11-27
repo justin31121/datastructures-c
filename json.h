@@ -118,6 +118,19 @@ bool parseJson(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool json_parse(const char* buffer, Json *json);
 bool json_parse_len(const char* buffer, size_t buffer_size, Json *json);
 
+//----------- XML_PARSE -------------------
+
+bool parseXmlString(const char *buffer, size_t buffer_size, Json *json, size_t *m);
+bool parseXmlInt(const char *buffer, size_t buffer_size, Json *value, size_t *m);
+bool parseXmlValue(const char *buffer, size_t buffer_size, Json *value, size_t *m);
+bool parseXmlPair(const char *buffer, size_t buffer_size, char **key, Json *value, size_t *m);
+bool parseXmlTag(const char *buffer, size_t buffer_size, Json *json, size_t *m);
+bool parseXmlSelfClosingTag(const char *buffer, size_t buffer_size, Json *json, size_t *m);
+bool parseXml(const char* buffer, size_t buffer_size, Json *json, size_t *m);
+
+bool xml_parse(const char *source, Json *json);
+bool xml_parse_len(const char *source, size_t source_len, Json *json);
+
 #ifdef JSON_IMPLEMENTATION
 
 #define ASSERT_TYPE(type, goal) do{					\
@@ -131,7 +144,7 @@ bool json_parse_len(const char* buffer, size_t buffer_size, Json *json);
     }									\
   }while(0)
 
-char *json_create_string_from_parts(const char* cstr, size_t size) {
+char *json_create_cstr_from_parts(const char* cstr, size_t size) {
 
   char *json_cstr = (char *) malloc(size + 1);
   if(!json_cstr) {
@@ -148,7 +161,7 @@ char *json_create_string(const char* cstr) {
   size_t size = 0;
   while(cstr[size++]!=0);
   size--;
-  return json_create_string_from_parts(cstr, size);
+  return json_create_cstr_from_parts(cstr, size);
 }
 
 bool json_type_to_cstr(char *buffer, size_t buffer_size, int type) {
@@ -708,7 +721,7 @@ bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t 
   i++;
 
   json->type = JSON_STRING;
-  json->stringVal = json_create_string_from_parts(buffer+1, i-2);
+  json->stringVal = json_create_cstr_from_parts(buffer+1, i-2);
 
   *m = i;
   
@@ -717,7 +730,7 @@ bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t 
 
 bool parsePair(const char *buffer, size_t buffer_size, char **key, Json *value, size_t *m) {
   Json json;
-  size_t n;
+  size_t n;  
   if(!parseJsonString(buffer, buffer_size, &json, &n)) {
     return false;
   }
@@ -775,7 +788,7 @@ bool parseJsonArray(const char *buffer, size_t buffer_size,
   i += skipCharIf(isSpace, buffer+i, buffer_size-1);
 
   if(parseChar(']', buffer + i, buffer_size - i) == 0) {
-    json_free(arr);
+    json_free_all(arr);
     return false;
   }
   i++;
@@ -808,6 +821,8 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
     
     ht_insert(obj.objVal, key, &value, sizeof(Json));
     i += n;
+
+    free(key);
     
     //WHITESPACE
     i += skipCharIf(isSpace, buffer+i, buffer_size-1);
@@ -824,6 +839,7 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
   i += skipCharIf(isSpace, buffer+i, buffer_size-1);
   
   if(parseChar('}', buffer + i, buffer_size - i) == 0) {
+    json_free_all(obj);
     return false;
   }
   i++;
@@ -868,8 +884,317 @@ bool json_parse_len(const char *buffer, size_t buffer_size, Json *json) {
   return true;
 }
 
+bool parseXmlInt(const char *buffer, size_t buffer_size, Json *value, size_t *m) {
+  return parseJsonInt(buffer, buffer_size, value, m);
+}
+
+bool normalCharXml(char c) {
+  if(c=='>' || c=='<') return false;
+  return true;
+}
+
+bool parseXmlString(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
+  size_t i = 0;  
+  i += skipCharIf(normalCharXml, buffer+i, buffer_size-i);
+  
+  if(i == 0) {
+    return false;
+  }
+
+  size_t end = i - 1;
+  while(isSpace(buffer[end])) {
+    end--;
+  }
+
+  json->type = JSON_STRING;
+  json->stringVal = json_create_cstr_from_parts(buffer, end + 1);
+
+  *m = i;  
+  return true;
+}
+
+bool parseXmlValue(const char *buffer, size_t buffer_size, Json *value, size_t *m) {
+  if(parseXmlInt(buffer, buffer_size, value, m)) {
+    return true;
+  } else if(parseXmlString(buffer, buffer_size, value, m)) {
+    return true;
+  }
+  return false;
+}
+
+bool normalCharNoEq(char c) {
+  if(c == '=' || isSpace(c)) return false;
+  return normalChar(c);
+}
+
+bool normalCharNoParent(char c) {
+  if(c == '\"' || isSpace(c)) return false;
+  return true;
+}
+
+bool xmlTagNameChar(char c) {
+  if(isSpace(c)) return false;
+  if(c == '/' || c=='=' || c=='>' || c=='<') return false;
+  return normalChar(c);
+}
+
+bool parseXmlPair(const char *buffer, size_t buffer_size, char **key, Json *value, size_t *m) {
+  size_t i=0;
+  
+  i += skipCharIf(normalCharNoEq, buffer+i, buffer_size-i);
+  if(i==0) {
+    return false;
+  }
+  size_t key_len = i;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+  
+  if((parseChar('=', buffer + i, buffer_size - i) == 0)) {
+    return false;
+  }
+  i++;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  if((parseChar('\"', buffer + i, buffer_size - i) == 0)) {
+    return false;
+  }
+  i++;
+
+  size_t value_start = i;
+  i += skipCharIf(normalCharNoParent, buffer+i, buffer_size-i);
+  size_t value_len = i - value_start;
+
+  if((parseChar('\"', buffer + i, buffer_size - i) == 0)) {
+    return false;
+  }
+  i++;
+
+  *key = json_create_cstr_from_parts(buffer, key_len);
+  value->type = JSON_STRING;
+  value->stringVal = json_create_cstr_from_parts(buffer + value_start, value_len);
+  *m = i;
+
+  return true;
+}
+
 bool json_parse(const char *buffer, Json *json) {
   return json_parse_len(buffer, strlen(buffer), json);
+}
+
+bool parseXmlTag(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
+  size_t i = 0;
+  //CLEAN UP BEFORE
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+  
+  if((parseChar('<', buffer + i, buffer_size - i) == 0)) {
+    return false;
+  }
+  i++;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+  size_t start = i;
+
+  i += skipCharIf(xmlTagNameChar, buffer+i, buffer_size-i);
+  size_t len = i - start;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  Json obj = json_init_object();
+
+  //SEP BY ATTRIBUTES
+  Json value;
+  size_t n;  
+  char *key;
+  while(parseXmlPair(buffer + i, buffer_size - i, &key, &value, &n)) {
+    ht_insert(obj.objVal, key, &value, sizeof(Json));
+    i += n;
+
+    free(key);
+
+    size_t temp = skipCharIf(isSpace, buffer + i, buffer_size - i);
+    if(temp == 0) {
+      break;
+    }   
+    i += temp;
+  }
+
+  if((parseChar('>', buffer + i , buffer_size - i) == 0)) {
+    json_free_all(obj);
+    return false;
+  }
+  i++;
+  
+  Json arr;
+  arr.type = JSON_NULL;
+  //SEP BY CHILDRENS
+  while(parseXml(buffer + i, buffer_size - i, &value, &n)) {
+    if(arr.type == JSON_NULL) {
+      arr = json_init_array();
+    }
+    arr_push(arr.arrVal, &value);
+    i += n;
+
+    size_t temp = skipCharIf(isSpace, buffer + i, buffer_size - i);
+    /*
+    if(temp == 0) {
+      break;
+    }
+    */
+    i += temp;
+  }
+
+  //TRY TO PARSE A VALUE
+  Json val;
+  val.type = JSON_NULL;
+  if(arr.type == JSON_NULL) {
+    i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+    if(parseXmlValue(buffer + i, buffer_size - i, &val, &n)) {
+      i += n;
+    }
+  }
+
+  i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  if((parseChar('<', buffer + i, buffer_size - i) == 0)) {
+    json_free_all(obj);
+    json_free_all(arr);
+    return false;
+  }
+  i++;
+
+  i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  if((parseChar('/', buffer + i, buffer_size - i) == 0)) {
+    json_free_all(obj);
+    json_free_all(arr);
+    return false;
+  }
+  i++;
+  
+  i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  if(!parseString(buffer + start, len, buffer + i, buffer_size - i)) {
+    json_free_all(obj);
+    json_free_all(arr);
+    return false;
+  }
+  i+=len;
+
+  i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  if((parseChar('>', buffer + i, buffer_size - i) == 0)) {    
+    json_free_all(obj);
+    json_free_all(arr);
+    return false;
+  }
+  i++;
+
+  //CLEAN UP AFTER
+  i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  Json string;
+  string.type = JSON_STRING;
+  string.stringVal = json_create_cstr_from_parts(buffer + start, len);
+  
+  ht_insert(obj.objVal, "XML_NAME", &string, sizeof(Json));
+  if(arr.type != JSON_NULL) ht_insert(obj.objVal, "XML_CHILDREN", &arr, sizeof(Json));
+  if(val.type != JSON_NULL) ht_insert(obj.objVal, "XML_VALUE", &val, sizeof(Json));
+  
+  json->type = JSON_OBJECT;
+  json->objVal = obj.objVal;
+  
+  *m = i;
+
+  return true;
+}
+
+bool parseXmlSelfClosingTag(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
+  size_t i = 0;
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+  
+  if((parseChar('<', buffer + i, buffer_size - i) == 0)) {
+    return false;
+  }
+  i++;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+  size_t start = i;
+
+  i += skipCharIf(xmlTagNameChar, buffer+i, buffer_size-i);
+  size_t len = i - start;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  Json obj = json_init_object();
+
+  //SEP BY
+  char *key;
+  Json value;
+  size_t n;
+  while(parseXmlPair(buffer + i, buffer_size - i, &key, &value, &n)) {
+    ht_insert(obj.objVal, key, &value, sizeof(Json));
+    i += n;
+
+    free(key);
+        
+    size_t temp = skipCharIf(isSpace, buffer + i, buffer_size - i);
+    if(temp == 0) {
+      break;
+    }
+    
+    i += temp;
+  }
+
+  if((parseChar('/', buffer + i , buffer_size - i) == 0)) {
+    json_free_all(obj);
+    return false;
+  }
+  i++;
+
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  if((parseChar('>', buffer + i , buffer_size - i) == 0)) {
+    json_free_all(obj);
+    return false;
+  }
+  i++;
+
+  i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
+
+  Json string;
+  string.type = JSON_STRING;
+  string.stringVal = json_create_cstr_from_parts(buffer + start, len);
+  
+  ht_insert(obj.objVal, "XML_NAME", &string, sizeof(Json));
+  
+  json->type = JSON_OBJECT;
+  json->objVal = obj.objVal;
+  
+  *m = i;
+
+  return true;
+}
+
+bool parseXml(const char* buffer, size_t buffer_size, Json *json, size_t *m) {
+  if(parseXmlSelfClosingTag(buffer, buffer_size, json, m)) {
+    return true;
+  } else if(parseXmlTag(buffer, buffer_size, json, m)) {
+    return true;
+  }
+  return false;
+}
+
+bool xml_parse_len(const char *source, size_t source_len, Json *json) {
+  size_t m;
+  if(!parseXml(source, source_len, json, &m)) return false;
+  if(m!=source_len) return false;
+  return true;
+}
+
+bool xml_parse(const char *source, Json *json) {
+  size_t size = strlen(source);
+  return xml_parse_len(source, size, json);
 }
 
 #endif
