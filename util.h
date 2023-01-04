@@ -25,7 +25,8 @@ typedef struct {
   const char* data;
 } string;
 
-#define STRING(cstr_lit) string_from_parts(cstr_lit, sizeof(cstr_lit) - 1)
+#define STRING_STATIC(cstr_lit) {.len=sizeof(cstr_lit), .data=cstr_lit}
+#define STRING(cstr_lit) string_from_parts(cstr_lit, sizeof(cstr_lit) -1)
 #define STRING_FMT "%.*s"
 #define STRING_ARG(s) (int) (s).len, (s).data
 

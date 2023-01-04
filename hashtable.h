@@ -55,7 +55,6 @@ bool ht_next(const Ht *ht, int *last, Ht_Entry **entry) {
   HT_CHECK_NOTNULL(ht);
   if(!entry) return false;
   if(!last) return false;
-
   int c = 0;
   for(size_t i=0;i<ht->size;i++) {
     if(ht->items[i].size==0) continue;
