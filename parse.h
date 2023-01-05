@@ -2,6 +2,7 @@
 #define PARSE_H_H
 
 bool isDigit(char c);
+bool isHexDigit(char c);
 bool normalChar(char c);
 bool isSpace(char c);
 
@@ -16,6 +17,10 @@ size_t skipCharIf(bool (*f)(char c), const char *buffer, size_t buffer_size);
 
 bool isDigit(char c) {
   return '0' <= c && c <= '9';
+}
+
+bool isHexDigit(char c) {
+  return ('0' <= c && c <= '9') || ('A' <= c && c <= 'F') || ('a' <= c && c <= 'f');
 }
 
 bool normalChar(char c) {

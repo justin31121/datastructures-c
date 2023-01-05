@@ -17,6 +17,7 @@
 
 char *json_create_cstr(const char* cstr);
 char *json_create_cstr_from_parts(const char* cstr, size_t len);
+char *json_create_cstr_from_parts_escape_chars(const char* cstr, size_t len, size_t escape_chars_count);
 
 typedef enum {
   JSON_NULL,
@@ -145,7 +146,6 @@ bool xml_parse_len(const char *source, size_t source_len, Json *json);
   }while(0)
 
 char *json_create_cstr_from_parts(const char* cstr, size_t size) {
-
   char *json_cstr = (char *) malloc(size + 1);
   if(!json_cstr) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: json_create_string\n");
@@ -155,6 +155,65 @@ char *json_create_cstr_from_parts(const char* cstr, size_t size) {
   json_cstr[size] = 0;
   
   return json_cstr;
+}
+
+char *json_create_cstr_from_parts_escape_chars(const char* cstr, size_t size, size_t escape_chars_count) {
+  if(escape_chars_count >= size) {
+    fprintf(stderr, "ERROR: Something went wrong, when parsing escape chars\n");
+    exit(1);
+  }  
+  size_t len = size - escape_chars_count;
+
+  char *json_cstr = (char *) malloc(size + 1 - escape_chars_count);
+  if(!json_cstr) {
+    fprintf(stderr, "ERROR: Can not allocate enough memory: json_create_string\n");
+    exit(1);
+  }  
+ size_t j = 0;
+  for(size_t i=0;i<size;i++) {
+  	char c = cstr[i];
+  	if(cstr[i] == '\\' && i<size - 1 && cstr[i+1] != 'u') {
+  		char d = cstr[i+1];
+  		char e = d;
+  		switch(d) {
+  			case '\"':
+  				e = '\"';
+  				break;
+  			case '\\':
+  				e = '\\';
+  				break;
+  			case '/':
+  				e = '/';
+  				break;
+  			case 'b':
+  				e = '\b';
+  				break;
+  			case 'f':
+  				e = '\f';
+  				break;
+  			case 'n':
+  				e = '\n';
+  				break;
+  			case 'r':
+  				e = '\r';
+  				break;
+  			case 't':
+  				e = '\t';
+  				break;  			
+  			default:
+  				fprintf(stderr, "ERROR: Unknown escape code: '%c' :json_create_string\n", d);
+    			exit(1);
+  				break;
+  		}
+  		json_cstr[j++] = e;
+  		i++;
+  	} else {
+  		json_cstr[j++] = c;	
+  	}  	
+  } 
+  json_cstr[len] = 0;
+  
+  return json_cstr;	
 }
 
 char *json_create_string(const char* cstr) {
@@ -708,12 +767,62 @@ bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m)
 
 bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
   size_t i = 0;
-  if((parseChar('\"', buffer, buffer_size) == 0) && (parseChar('\'', buffer, buffer_size) == 0)){
+  if((parseChar('\"', buffer, buffer_size) == 0) && (parseChar('\'', buffer, buffer_size) == 0)) {
     return false;
   }
   i++;
 
-  i += skipCharIf(normalChar, buffer+i, buffer_size-1);
+/*
+  char *json_cstr = (char *) malloc(size + 1);
+  if(!json_cstr) {
+    fprintf(stderr, "ERROR: Can not allocate enough memory: json_create_string\n");
+    exit(1);
+  }  
+  memcpy(json_cstr, cstr, size);
+  json_cstr[size] = 0;
+  
+  return json_cstr;
+  */
+
+	// \n
+    // \u1234
+  size_t j = 0;
+  int escape_chars_count = 0;
+  while(j < buffer_size - i) {
+  	char c = buffer[i+j];
+
+  	if(c == '\\' && j < buffer_size - i - 1) {
+  		char d = buffer[i+j+1];
+  		if(d == '\"' || d == '\\' || d=='/' || d=='b' || d=='f' || d=='n' || d=='r' || d=='t') {
+			escape_chars_count++;
+			j++;
+  		} else if(d == 'u') {
+  			if(j >= buffer_size - i - 1 - 4) {
+  				break;
+  			}
+  			bool loop_breaked = false;
+  			for(size_t k=0;k<4;k++) {
+  				char e = buffer[i+j+2+k];
+  				if(!isHexDigit(e)) {
+  					loop_breaked = true;
+  					break;
+  				}
+  			}
+  			if(loop_breaked) {
+  				break;
+  			}
+  			j+=5;
+  		} else {
+  			break;
+  		}
+  	} else if(!normalChar(c)) {
+  		break;
+  	}  	
+  	j++;
+  }
+
+  i += j;
+  //i += skipCharIf(normalChar, buffer+i, buffer_size-i);
 
   if((parseChar('\"', buffer, buffer_size) == 0) && (parseChar('\'', buffer, buffer_size) == 0)) {
     return false;
@@ -721,7 +830,9 @@ bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t 
   i++;
 
   json->type = JSON_STRING;
-  json->stringVal = json_create_cstr_from_parts(buffer+1, i-2);
+  json->stringVal = escape_chars_count==0 
+    ? json_create_cstr_from_parts(buffer+1, i-2) 
+  	: json_create_cstr_from_parts_escape_chars(buffer+1, i-2, escape_chars_count);
 
   *m = i;
   
@@ -976,6 +1087,19 @@ bool parseXmlPair(const char *buffer, size_t buffer_size, char **key, Json *valu
   *m = i;
 
   return true;
+}
+
+size_t strlen_unicode(const char *cstr) {
+	size_t i = 0;
+	while(true) {
+		if(cstr[i] == '\\' && cstr[i]=='u') {
+			i+=5;
+		} else if(cstr[i] == 0) {
+			break;
+		}
+		i++;
+	}
+	return i;
 }
 
 bool json_parse(const char *buffer, Json *json) {

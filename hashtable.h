@@ -184,9 +184,11 @@ void ht_insert(Ht *ht,
     ht_item_increment(item);
   }
 
+/*
   if(item->count!=0) {
     printf("collision\n");
   }
+  */
 
   for(size_t i=0;i<item->count;i++) {
     if(strcmp(item->entries[i].key, key)==0) {
