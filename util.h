@@ -45,40 +45,40 @@ char *slurp_file(const char* file_path, size_t *size) {
   
   FILE *f = fopen(file_path, "rb");
   if(!f) {
-    fprintf(stderr, "ERORR: Can not open file '%s' because: %s\n", file_path, strerror(errno));
-    exit(1);
+    fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
+    return NULL;
   }
 
   if(fseek(f, 0, SEEK_END) < 0) {
-    fprintf(stderr, "ERORR: Can not read file '%s' because: %s\n", file_path, strerror(errno));
+    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
     fclose(f);
-    exit(1);    
+    return NULL;
   }
 
   long m = ftell(f);
   if(m < 0) {
-    fprintf(stderr, "ERORR: Can not read file '%s' because: %s\n", file_path, strerror(errno));
+    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
     fclose(f);
-    exit(1);   
+    return NULL;
   }  
 
   if(fseek(f, 0, SEEK_SET) < 0) {
-    fprintf(stderr, "ERORR: Can not read file '%s' because: %s\n", file_path, strerror(errno));
+    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
     fclose(f);
-    exit(1);    
+    return NULL;
   }
 
   res = (char *) malloc(m + 1);
   if(!res) {
-    fprintf(stderr, "ERORR: Can not allocate enough memory for file '%s'\n", file_path);
+    fprintf(stderr, "[WARNING]: Can not allocate enough memory for file '%s'\n", file_path);
     fclose(f);
-    exit(1);
+    return NULL;
   }
 
   size_t _m = (size_t) m;
   size_t n = fread(res, 1, _m, f);
   if(n != _m) {
-    fprintf(stderr, "ERORR: Can not read file '%s' because: %s\n", file_path, strerror(errno));
+    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
     fclose(f);
     exit(1);    
   }

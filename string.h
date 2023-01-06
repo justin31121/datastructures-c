@@ -13,7 +13,7 @@ typedef struct {
 } string;
 
 #define STRING_STATIC(cstr_lit) {.len=sizeof(cstr_lit), .data=cstr_lit}
-#define STRING(cstr_lit) string_from_parts(cstr_lit, sizeof(cstr_lit) -1)
+#define STRING(cstr_lit) string_from(cstr_lit, sizeof(cstr_lit) -1)
 #define String_Fmt "%.*s"
 #define String_Arg(s) ((int) (s).len), (s).data
 
@@ -30,6 +30,7 @@ bool string_chop_int64_t(string *s, int64_t *n);
 int string_index_of(string s, const char *cstr);
 int string_index_of_offset(string s, const char *cstr, size_t offset);
 string string_substring(string s, size_t start, size_t end);
+bool string_eq(string s, string t);
 
 char* string_to_cstr(string *s);
 bool string_to_int(const string s, int *n);
@@ -59,7 +60,6 @@ bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t v
 }
 
 int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
-
   for(size_t i=0;i<cstr_size - val_size;i++) {
     int found = 1;
     for(size_t j=0;j<val_size;j++) {
@@ -168,6 +168,19 @@ string string_substring(string s, size_t start, size_t end) {
 		return (string) {0};
 	}
 	return (string) {.data = s.data + start, .len = end - start};
+}
+
+bool string_eq(string s, string t) {
+  if(s.len != t.len) {
+    return false;
+  }
+
+  for(size_t i=0;i<s.len;i++) {
+    if(s.data[i] != t.data[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void string_in_cstr(string s, char* target) {
