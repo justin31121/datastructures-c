@@ -78,7 +78,7 @@ typedef struct{
   bool used;
   String_Buffer buffer;
   pthread_t id;
-  void (*handle_request)(string method, string path, int client);
+  void (*handle_request)(string method, string path, string headers, string body, int client);
 }HttpServerThread;
 
 typedef struct{
@@ -105,11 +105,11 @@ typedef enum {
 }HttpAccept;
 
 HttpServer *http_server_init(int port);
-void http_server_listen_and_serve(HttpServer *server, void (*handle_request)(string method, string path, int client), size_t number_of_threads);
+void http_server_listen_and_serve(HttpServer *server, void (*handle_request)(string method, string path, string headers, string body, int client), size_t number_of_threads);
 void http_server_stop(HttpServer *server);
 void http_server_close(HttpServer *server);
 
-void http_server_simple_file_handler(string method, string path, int client);
+void http_server_simple_file_handler(string method, string path, string headers, string body, int client);
 
 typedef struct {
   int code;
@@ -144,10 +144,10 @@ int find_hostname(const char *url, size_t url_len,
     if(ssl) *ssl = false;
   }
 
-  int end = cstr_index_of(url + start, url_len - start, "/", 1) + start;
+  int end = cstr_index_of(url + start, url_len - start, "/", 1);
   if(end<0) end = url_len;
 
-  if(hostname_len) *hostname_len = end - start;
+  if(hostname_len) *hostname_len = end - start - 1;
   return start;
 }
 
@@ -570,8 +570,6 @@ bool http_request(Http *http, const char *url, const char *method, const char* b
 			   request_body);    
   }
 
-
-
   //TODO: If too big allocate somthing on the heap
   if(request_len >= MAX_REQUEST_LEN) {
     printf("httpuest_len >= MAX_HTTPUEST_LEN\n");
@@ -722,12 +720,12 @@ void http_sleep_ms(int ms) {
   }
 }
 
-void *http_server_accept_function(void *arg) {
+void *http_server_serve_function(void *arg) {
   HttpServerThread *thread = (HttpServerThread *) arg;
   int client = thread->socket;
   bool *used = &(thread->used);
   String_Buffer *buffer = &(thread->buffer);
-  void (*handle_request)(string method, string path, int client) = thread->handle_request;
+  void (*handle_request)(string method, string path, string headers, string body, int client) = thread->handle_request;
 
   http_make_nonblocking(client);
 
@@ -738,7 +736,7 @@ void *http_server_accept_function(void *arg) {
   timeout.tv_sec = 2;
   timeout.tv_usec = 0;
 
-  printf("[INFO] Handling client %d in Thread\n", client);
+  //  printf("[INFO] Handling client %d in Thread\n", client);
 
   while(true) {
     buffer->len = 0;
@@ -751,28 +749,55 @@ void *http_server_accept_function(void *arg) {
       break;
     }
 
-    bool methodFound = false;
+    string method = {0};
+    string path = {0};
+
+    size_t headersStart = 0;
+    size_t bodyStart = 0;
+
+    bool methodFound = 0;
+    bool headerFound = 0;
     string request = string_from(buffer->data, buffer->len);
     while(request.len) {
       string line = string_trim(string_chop_by_delim(&request, '\n'));
 
       if(!methodFound) {
-	string method = string_trim(string_chop_by_delim(&line, ' '));
-	(void) method;
-	string path = string_trim(string_chop_by_delim(&line, ' '));
-	(void) path;
+	method = string_trim(string_chop_by_delim(&line, ' '));
+	path = string_trim(string_chop_by_delim(&line, ' '));
 	methodFound = true;
-	if(handle_request != NULL) {
-	  handle_request(method, path, client);
-	}
-	break;
-      }     
+	continue;
+      }
+
+      if(headersStart == 0) {
+	headersStart = line.data - buffer->data;
+      }
+
+      if(!headerFound) {
+	if(line.len == 0) headerFound = true;
+	continue;
+      }
+
+      if(bodyStart == 0) {
+	bodyStart = line.data - buffer->data;
+      }
+
+
+      
+      break;
+    }
+
+    string body = string_from(buffer->data + bodyStart, buffer->len - bodyStart);
+    //printf("BODY: '"String_Fmt"'\n", String_Arg(body));
+
+    string headers = string_trim(string_from(buffer->data + headersStart, buffer->len - headersStart - body.len));
+    //printf("HEADERS: '"String_Fmt"'\n", String_Arg(headers));
+
+    if(handle_request != NULL) {
+      handle_request(method, path, headers, body, client);
     }
   }
 
-
-  printf("[INFO] Closing connection to client %d in Thread\n", client);
-  
+  //  printf("[INFO] Closing connection to client %d in Thread\n", client);  
   http_close_socket(client);
   *used = false;
   
@@ -784,7 +809,7 @@ void http_server_create_serve_thread(HttpServer *server, int client) {
     HttpServerThread *thread = &(server->threads[i]);
     if(thread->used==true) continue;
     thread->socket = client;
-    HTTP_SERVER_THREAD_START(&(thread->id), http_server_accept_function, thread);
+    HTTP_SERVER_THREAD_START(&(thread->id), http_server_serve_function, thread);
     thread->used = true;
     return;
   }
@@ -821,7 +846,7 @@ void *http_server_listen_function(void *arg) {
   return NULL;
 }
 
-void http_server_listen_and_serve(HttpServer *server, void (*handle_request)(string method, string path, int client), size_t number_of_threads) {
+void http_server_listen_and_serve(HttpServer *server, void (*handle_request)(string method, string path, string headers, string body, int client), size_t number_of_threads) {
   if(!server) return;
   if(number_of_threads == 0) return;
 
@@ -966,7 +991,9 @@ string http_content_type_for_filename_len(const char *file_path, size_t file_pat
   return content_type;
 }
 
-void http_server_simple_file_handler(string method, string path, int client) {
+void http_server_simple_file_handler(string method, string path, string headers, string body, int client) {
+  (void) headers;
+  (void) body;
   if(!string_eq(method, STRING("GET"))) {
     if(!http_response_send(client, NULL, HTTP_RESPONSE_NOT_FOUND)) {
       fprintf(stderr, "[WARNING] Failed to write to client\n");
