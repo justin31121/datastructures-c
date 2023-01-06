@@ -1,15 +1,12 @@
 CFLAGS = -Wall -Wextra -pedantic -Wshadow
 SDL_CURL = -lmingw32 -lSDL2main -lSDL2 -lcurl
 
-.all:
+all:
 ifeq ($(OS),Windows_NT)
 	gcc main.c $(CFLAGS) -lssl -lcrypto -o main -lws2_32 -lpthread
 else
-	gcc main.c $(CFLAGS) -lssl -lcrypto -o main -lpthread
+	gcc main.c $(CFLAGS) -ggdb -lssl -lcrypto -o main -lpthread
 endif
-
-main:
-	gcc main.c $(CFLAGS) -lssl -lcrypto -o main -lws2_32 -lpthread
 
 get_demo:
 	gcc get_demo.c $(CFLAGS) -lssl -lcrypto -o get_demo -lws2_32
