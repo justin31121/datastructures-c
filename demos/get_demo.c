@@ -2,37 +2,36 @@
 #include <stdlib.h>
 
 #define HTTP_IMPLEMENTATION
-#include "../../repos/datastructures-c/http.h"
+//#define HTTP_DEBUG
+#include "../http.h"
 
 #define UTIL_IMPLEMENTATION
-#include "../../repos/datastructures-c/util.h"
+#include "../util.h"
 
 #define STRING_IMPLEMENTATION
-#include "../../repos/datastructures-c/string.h"
+#include "../string.h"
 
 #define JSON_IMPLEMENTATION
-#include "../../repos/datastructures-c/json.h"
+#include "../json.h"
 
 String_Buffer sb;
 
-int main(int argc, char **argv) {
+int main1() {
+  Http *http = http_init();
 
-  if(argc > 1) {
-
-    printf("argv[1]: %s\n", argv[1]);
-    char *buffer = slurp_file(argv[1], NULL);
-
-    Json json;
-    if(!json_parse(buffer, &json)) {
-      panic("Can not parse json");
-    }
-
-    json_fprint(stdout, json);
-
-    free(buffer);
-  
-    return 0;
+  if(!http_get(http, "https://www.youtube.com/", string_buffer_callback, &sb)) {
+    panic("request failed");
   }
+
+  printf("sb.len = %lld\n", sb.len);
+  
+  string_buffer_free(&sb);
+  http_close(http);
+  printf("ok\n");  
+  return 0;
+}
+
+int main() {
   
   Http *http = http_init();
 
@@ -76,7 +75,7 @@ int main(int argc, char **argv) {
 
   const Json contents = json_get_array(json_get_object(json_get_object(json_get_object(json_opt_object(json_get_array(json_get_object(json_get_object(json, "contents"),"twoColumnBrowseResultsRenderer"),"tabs"),0),"tabRenderer"),"content"),"richGridRenderer"), "contents");
 
-  for(int i=0;i<json_size(contents);i++) {
+  for(i=0;i<json_size(contents);i++) {
     Json item = json_opt_object(contents, i);
     if(!json_has(item, "richItemRenderer")) continue;
     Json richItemRenderer = json_get_object(item, "richItemRenderer");
