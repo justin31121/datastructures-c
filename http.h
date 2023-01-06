@@ -154,11 +154,12 @@ HttpAccept http_accept(int socket, int *res_client) {
   return HTTP_ACCEPT_OK;
 }
 
+#define HTTP_READ_BUFFER_CAP BUFSIZ
+
 bool http_read_header(int socket, SSL *conn, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
   if(socket == -1) {
     return false;
   }
-#define HTTP_READ_BUFFER_CAP 1024 //BUFSIZ
   char buffer[HTTP_READ_BUFFER_CAP];
 
   int inHeader = -1;
@@ -178,9 +179,11 @@ bool http_read_header(int socket, SSL *conn, size_t (*write_callback)(const void
       nbytes_last = recv(socket, buffer, HTTP_READ_BUFFER_CAP, 0);
 #endif //WIN32
 #ifdef linux
-      nbytes_last = recv(socket, buffer, HTTP_READ_BUFFER_CAP, 0);
+      nbytes_last = read(socket, buffer, HTTP_READ_BUFFER_CAP);
 #endif //linux      
     }
+
+    printf("Read: %lld\n", nbytes_last);
 
     if(nbytes_last <= 0) {
       return false;
@@ -221,11 +224,10 @@ bool http_read_body(int socket, SSL *conn, size_t (*write_callback)(const void *
     return false;
   }  
   
-#define HTTP_READ_BUFFER_CAP 1024 //BUFSIZ
   char buffer[HTTP_READ_BUFFER_CAP];
   
   int inHeader = -1;
-  //  bool first = true;
+  bool first = true;
 
   char window[4] = {0};
   int s = 0;
@@ -237,7 +239,7 @@ bool http_read_body(int socket, SSL *conn, size_t (*write_callback)(const void *
     }
     else {
 #ifdef _WIN32
-      nbytes_total = recv(socket, buffer, HTTP_READ_BUFFER_CAP, 0);
+      nbytes_total = read(socket, buffer, HTTP_READ_BUFFER_CAP);
 #endif //WIN32
 #ifdef linux
       nbytes_total = read(socket, buffer, HTTP_READ_BUFFER_CAP);
@@ -250,10 +252,10 @@ bool http_read_body(int socket, SSL *conn, size_t (*write_callback)(const void *
 
     size_t offset = 0;
     if(inHeader == -1) {
-      //if(first) {
-      //memcpy(window, buffer, 4);
-      //first = false;
-      //}
+      if(first) {
+	memcpy(window, buffer, 4);
+	first = false;
+      }
       
       for(int i=0;i<BUFSIZ;i++) {
 	if(window[s]=='\r' && window[(s+1)%4]=='\n' &&
@@ -453,20 +455,34 @@ bool http_request(Http *http, const char *url, const char *method, const char* b
   const char *request_content_type = content_type == NULL ? "text/plain" : content_type;
   const int request_content_length = body == NULL ? -1 : (int) strlen(body);
 
-  int request_len = snprintf(request, MAX_REQUEST_LEN,
-			      "%s %s HTTP/1.1\r\n"
-			      "Host: %.*s\r\n"			      
-			      "DNT: 1\r\n"
-			      "Connection: close\r\n"
-			      "Pragma: no-cache\r\n"
-			      "Cache-Control: no-cache\r\n"
-			      "Content-Type: %s\r\n"
-			      "Content-Length: %d\r\n"
-			      "\r\n"
-			      "%s", method, route, (int) hostname_len, url + hostname,
-			      request_content_type,
-			      request_content_length,
-			      request_body);
+  int request_len;
+  if(body == NULL && content_type == NULL) {
+    request_len = snprintf(request, MAX_REQUEST_LEN,
+			   "%s %s HTTP/1.1\r\n"
+			   "Host: %.*s\r\n"			      
+			   "DNT: 1\r\n"
+			   "Connection: close\r\n"
+			   "Pragma: no-cache\r\n"
+			   "Cache-Control: no-cache\r\n"
+			   "\r\n", method, route, (int) hostname_len, url + hostname);
+  } else {
+    request_len = snprintf(request, MAX_REQUEST_LEN,
+			   "%s %s HTTP/1.1\r\n"
+			   "Host: %.*s\r\n"			      
+			   "DNT: 1\r\n"
+			   "Connection: close\r\n"
+			   "Pragma: no-cache\r\n"
+			   "Cache-Control: no-cache\r\n"
+			   "Content-Type: %s\r\n"			     
+			   "Content-Length: %d\r\n"
+			   "\r\n"
+			   "%s", method, route, (int) hostname_len, url + hostname,
+			   request_content_type,
+			   request_content_length,
+			   request_body);    
+  }
+
+
 
   //TODO: If too big allocate somthing on the heap
   if(request_len >= MAX_REQUEST_LEN) {

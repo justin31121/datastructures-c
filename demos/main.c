@@ -1,27 +1,27 @@
 #include <stdio.h>
 
 #define HTTP_IMPLEMENTATION
-#define HTTP_DEBUG
-#include "../../repos/datastructures-c/http.h"
+#include "../http.h"
 
 #define STRING_IMPLEMENTATION
-#include "../../repos/datastructures-c/string.h"
+#include "../string.h"
 
 #define UTIL_IMPLEMENTATION
-#include "../../repos/datastructures-c/util.h"
+#include "../util.h"
 
-#define PORT 6969
+#define PORT HTTP_PORT
 
 #define THREAD_START(threadid_ptr, thread_function, arg) if(pthread_create(threadid_ptr, NULL, thread_function, arg) != 0)  fprintf(stderr, "[WARNING]: Cannot create thread for client\n");
 
 #define THREAD_JOIN(threadid) pthread_join(threadid, NULL);
 
 const char *response =
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "Content-Length: 12\r\n"
-    "\r\n"
-    "Hello, Http!";
+  "HTTP/1.1 200 OK\r\n"
+  "Content-Type: text/html\r\n"
+  "Content-Length: 12\r\n"
+  "Connection: close\r\n"
+  "\r\n"
+  "Hello, Http!";
 ssize_t response_len;
 
 void sleep_ms(int ms) {
@@ -54,44 +54,38 @@ void *foo(void *arg) {
 
 typedef struct{
   int client;
-  bool stop;  
-}ClientAndStop;
-
-void *handleClient(void *arg) {
-  ClientAndStop *clientAndStop = (ClientAndStop *) arg;
-  bool *stop = &(clientAndStop->stop);
-  int client = clientAndStop->client;
-
-  printf("[THREAD] Handling client with id: %d\n", client);
-
-  while(!(*stop)) {
-    if(!http_read_header(client, NULL, fwrite, stdout)) {
-      fprintf(stderr, "[WARNING]: Failed to read from client\n");     
-    }
-    if(!http_send(client, NULL, response)) {
-      fprintf(stderr, "[WARNING]: Failed to write to client\n");
-    }
-  }
-
-  printf("[THREAD] Closing connection to client with id: %d\n", client);  
-  close(client);
-  
-  return NULL;
-}
+  bool used;
+} Client;
 
 #define THREAD_CAP 1
 
 pthread_t threads[THREAD_CAP] = {0};
 struct timeval threads_lifetime[THREAD_CAP] = {0};
-ClientAndStop threads_client[THREAD_CAP] = {0};
-bool threads_used[THREAD_CAP] = {0};
+Client threads_client[THREAD_CAP] = {0};
+
+void *handleClient(void *arg) {
+  Client *clientStruct = (Client *) arg;
+  int client = clientStruct->client;
+  bool *used = &(clientStruct->used);
+  
+  if(!http_read_header(client, NULL, fwrite, stdout)) {
+    fprintf(stderr, "[WARNING]: Failed to read from client\n");
+  }
+  if(!http_send(client, NULL, response)) {
+    fprintf(stderr, "[WARNING]: Failed to write to client\n");
+  }
+
+  *used = false;
+
+  return NULL;
+}
 
 void thread_create(int client) {
   for(int i=0;i<THREAD_CAP;i++) {
-    if(threads_used[i]==true) continue;
+    if(threads_client[i].used==true) continue;
     threads_client[i].client = client;
     THREAD_START(&threads[i], handleClient, &threads_client[i]);
-    threads_used[i] = true;
+    threads_client[i].used = true;
     return;
   }
   fprintf(stderr, "[WARNING]: Could not find a thread for a client");
@@ -99,10 +93,9 @@ void thread_create(int client) {
 
 void threads_join() {
   for(int i=0;i<THREAD_CAP;i++) {
-    if(threads_used[i] == false) continue;
-    threads_client[i].stop = true;
+    if(threads_client[i].used == false) continue;
     THREAD_JOIN(threads[i]);
-    threads_used[i] = false;
+    threads_client[i].used = false;
   }
 }
 

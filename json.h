@@ -1217,11 +1217,11 @@ bool parseXmlTag(const char *buffer, size_t buffer_size, Json *json, size_t *m) 
   //CLEAN UP AFTER
   i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
 
-  Json string;
-  string.type = JSON_STRING;
-  string.stringVal = json_create_cstr_from_parts(buffer + start, len);
+  Json json_string;
+  json_string.type = JSON_STRING;
+  json_string.stringVal = json_create_cstr_from_parts(buffer + start, len);
   
-  ht_insert(obj.objVal, "XML_NAME", &string, sizeof(Json));
+  ht_insert(obj.objVal, "XML_NAME", &json_string, sizeof(Json));
   if(arr.type != JSON_NULL) ht_insert(obj.objVal, "XML_CHILDREN", &arr, sizeof(Json));
   if(val.type != JSON_NULL) ht_insert(obj.objVal, "XML_VALUE", &val, sizeof(Json));
   
@@ -1286,11 +1286,11 @@ bool parseXmlSelfClosingTag(const char *buffer, size_t buffer_size, Json *json, 
 
   i+= skipCharIf(isSpace, buffer+i, buffer_size-i);
 
-  Json string;
-  string.type = JSON_STRING;
-  string.stringVal = json_create_cstr_from_parts(buffer + start, len);
+  Json json_string;
+  json_string.type = JSON_STRING;
+  json_string.stringVal = json_create_cstr_from_parts(buffer + start, len);
   
-  ht_insert(obj.objVal, "XML_NAME", &string, sizeof(Json));
+  ht_insert(obj.objVal, "XML_NAME", &json_string, sizeof(Json));
   
   json->type = JSON_OBJECT;
   json->objVal = obj.objVal;
