@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+void warn(const char* message);
 void panic(const char* message);
 
 char *slurp_file(const char* file_path, size_t *size);
@@ -14,6 +15,10 @@ void write_file_len(const char *file_path, const char *data, size_t size);
 
 
 #ifdef UTIL_IMPLEMENTATION
+
+void warn(const char* message) {
+  fprintf(stderr, "WARNING: %s\n", message);
+}
 
 void panic(const char* message) {
   fprintf(stderr, "ERORR: %s\n", message);
