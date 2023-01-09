@@ -494,11 +494,13 @@ bool http_init_ssl(Http *http) {
 
 //TODO: Recognize Transfer-Encoding: Chunked
 bool http_request(Http *http, const char *url, const char *method, const char* body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
-  
-  if(!http) {
-    printf("!http\n");
-    return false;
-  }
+
+  Http *fallbackSession = NULL;
+
+  if(http == NULL) {
+    fallbackSession = http_init();
+    http = fallbackSession;
+  }  
 
   size_t hostname_len, directory_len;
   size_t url_len = strlen(url);
@@ -607,6 +609,10 @@ bool http_request(Http *http, const char *url, const char *method, const char* b
   }
 
   if(ssl) SSL_free(conn);
+
+  if(fallbackSession) {
+    http_close(fallbackSession);
+  }
   
   return true;
 }
