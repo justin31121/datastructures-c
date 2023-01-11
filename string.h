@@ -41,13 +41,14 @@ int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t va
 //STRING_BUFFER
 
 typedef struct{
-	char *data;
-	size_t len;
-	size_t cap;
+  char *data;
+  size_t len;
+  size_t cap;
 }String_Buffer;
 
 bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size);
 bool string_buffer_append_string(String_Buffer *sb, string s);
+bool string_buffer_reserve(String_Buffer *sb, size_t data_size);
 
 size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata);
 
@@ -156,18 +157,18 @@ string string_trim(string s) {
 }
 
 int string_index_of(string s, const char *cstr) {
-	return cstr_index_of(s.data, s.len, cstr, strlen(cstr));
+  return cstr_index_of(s.data, s.len, cstr, strlen(cstr));
 }
 
 int string_index_of_offset(string s, const char *cstr, size_t offset) {
-	return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + offset;
+  return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + offset;
 }
 
 string string_substring(string s, size_t start, size_t end) {
-	if(start >= s.len || end > s.len) {
-		return (string) {0};
-	}
-	return (string) {.data = s.data + start, .len = end - start};
+  if(start >= s.len || end > s.len) {
+    return (string) {0};
+  }
+  return (string) {.data = s.data + start, .len = end - start};
 }
 
 bool string_eq(string s, string t) {
@@ -264,50 +265,74 @@ string string_chop_left(string *s, size_t n) {
 }
 
 size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata) {
-	return string_buffer_append((String_Buffer *) userdata, data, size*memb) ? size : 0;
+  return string_buffer_append((String_Buffer *) userdata, data, size*memb) ? size : 0;
 }
 
 bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size) {
-	if(!sb) {
-		return false;
-	}
+  if(!sb) {
+    return false;
+  }
 
-	if(data_size == 0) {
-		return true;
-	}
+  if(data_size == 0) {
+    return true;
+  }
 
-	if(!data) {
-		return false;
-	}
+  if(!data) {
+    return false;
+  }
 
-	size_t new_cap = sb->cap == 0 ? 64 : sb->cap;
-	while(sb->len + data_size >= new_cap) new_cap *=2;
-	if(new_cap != sb->cap) {
-		sb->cap = new_cap;
-		sb->data = (char *) realloc(sb->data, sb->cap);
-		if(!sb->data) {
-			return false;
-		}
-	}
-	memcpy(sb->data + sb->len, data, data_size);
-	sb->len += data_size;
-	return true;
+  size_t new_cap = sb->cap == 0 ? 64 : sb->cap;
+  while(sb->len + data_size >= new_cap) new_cap *=2;
+  if(new_cap != sb->cap) {
+    sb->cap = new_cap;
+    sb->data = (char *) realloc(sb->data, sb->cap);
+    if(!sb->data) {
+      return false;
+    }
+  }
+  memcpy(sb->data + sb->len, data, data_size);
+  sb->len += data_size;
+  return true;
+}
+
+bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
+  if(!sb) {
+    return false;
+  }
+
+  if(data_size == 0) {
+    return true;
+  }
+
+  if(sb->cap >= data_size) {
+    return true;
+  }
+
+  size_t new_cap = sb->cap == 0 ? 64 : sb->cap;
+  while(data_size >= new_cap) new_cap*=2;
+  sb->cap = new_cap;
+  sb->data = (char *) realloc(sb->data, sb->cap);
+  if(!sb->data) {
+    return false;
+  }
+
+  return true;
 }
 
 bool string_buffer_append_string(String_Buffer *sb, string s) {
-	return string_buffer_append(sb, s.data, s.len);
+  return string_buffer_append(sb, s.data, s.len);
 }
 
 void string_buffer_clear(String_Buffer *sb) {
-	if(!sb) return;
-	sb->data = NULL;
-	sb->len = 0;
-	sb->cap = 0;
+  if(!sb) return;
+  sb->data = NULL;
+  sb->len = 0;
+  sb->cap = 0;
 }
 
 void string_buffer_free(String_Buffer *sb) {
-	if(sb) free(sb->data);
-	string_buffer_clear(sb);	
+  if(sb) free(sb->data);
+  string_buffer_clear(sb);	
 }
 
 #endif //STRING_IMPLEMENTATION

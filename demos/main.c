@@ -1,77 +1,79 @@
-#include <stdio.h>
-
 #define HTTP_IMPLEMENTATION
 #include "../http.h"
 
-#define JSON_IMPLEMENTATION
-#include "../json.h"
+#define THREADS_CAP 128
 
-Http *http;
+typedef struct{
+  String_Buffer sb;
+  String_Buffer res;
+}Context;
 
-void handle_post(string headers, string body, int client) {
-  (void) headers;
-
-  /*
-  Json json;
-  if(!json_parse_len(body.data, body.len, &json)) {
-    printf("Failed to parse json: '"String_Fmt"'\n", String_Arg(body));
-
-    const HttpResponse response = {
-      .code=400,
-      .message=STRING("Bad Request"),
-      .content_type=STRING("text/plain"),
-      .body=STRING("Can not parse json")
-    };
-    
-    http_response_send(client, NULL, response);    
+void handle(const HttpRequest *request, Http *client, void *arg) {
+  if(string_eq(request->method, STRING("GET"))) {
+    http_server_simple_file_handler(request, client, arg);
+    return;
+  } if(!string_eq(request->method, STRING("POST")) || !string_eq(request->route, STRING("/post"))) {
+    http_send_http_response(client, NULL, NULL, 0);
     return;
   }
-  json_free_all(json);
-  */
 
-  String_Buffer sb = {0};
-  if(!http_get(NULL, "https://www.example.com/", string_buffer_callback, &sb)) {
-    warn("http_get failed");
+  Context *context = (Context *) arg;
+  String_Buffer *sb = &(context->sb);
+  sb->len = 0;
+  String_Buffer *res = &(context->res);
+  
+  assert(request->body.len < 256 - 1);
+  char url[256];
+  memcpy(url, request->body.data, request->body.len);
+  url[request->body.len] = 0;
+
+  printf("Url: %s\n", url);
+
+  bool proxy_req = http_get(NULL, url, string_buffer_callback, sb);
+  if(!proxy_req || sb->len == 0) {
+    HttpResponse response = {0};
+    response.code = 500;
+    response.message = STRING("Internal Server Error");
+    response.body = STRING("Can not reach hostname");
+    response.content_type = STRING("text/plain");
+    http_send_http_response(client, &response, NULL, 0);
+    return;
   }
-  //printf("%s\n", sb.data);
-  string_buffer_free(&sb);
-  
-  const HttpResponse response = {
-    .code=200,
-    .message=STRING("OK"),
-    .content_type=STRING("text/plain"),
-    .body=STRING("{\"key\":\"value\"}")
-  };
 
   
-  http_response_send(client, NULL, response);
+  string_buffer_reserve(res, 2*sb->cap);
+
+  HttpResponse response = {0};
+  response.code = 200;
+  response.message = STRING("OK");
+  response.body = string_from(sb->data, sb->len);
+  response.content_type = STRING("text/plain");
+  http_send_http_response(client, &response, res->data, res->cap);
 }
 
-void handle(string method, string path, string headers, string body, int client) {
-  if(string_eq(method, STRING("POST")) && string_eq(path, STRING("/post"))) {
-    handle_post(headers, body, client);
-  } else if(string_eq(method, STRING("GET"))) {
-    http_server_simple_file_handler(method, path, headers, body, client);
-  } else {
-    http_response_send(client, NULL, HTTP_RESPONSE_NOT_FOUND);
+Context sbs[THREADS_CAP] = {0};
+
+int main() {  
+  HttpServer server;
+  if(!http_server_init(&server, HTTP_PORT)) {
+    panic("http_server_init");
   }
-}
-
-#define THREADS_CAP 12
-String_Buffer sbs[THREADS_CAP] = {0};
-
-int main() {
-  HttpServer *server = http_server_init(6969);
-
-  http_server_listen_and_serve(server, handle, THREADS_CAP);
-
+  
+  if(!http_server_listen_and_serve(&server, handle, THREADS_CAP, sbs, sizeof(sbs[0]))) {
+    panic("http_server_listen_and_serve");
+  }
+  
   char in[64];
   while(true) {
     scanf("%s", in);
     if(strcmp("q", in) == 0) break;
   }
   
-  http_server_stop(server);
-  http_server_close(server);
+  http_server_free(&server);
+
+  for(int i=0;i<THREADS_CAP;i++) {
+    string_buffer_free(&sbs[i].sb);
+    string_buffer_free(&sbs[i].res);
+  }
   return 0;
 }

@@ -8,6 +8,9 @@ else
 	gcc main.c $(CFLAGS) -ggdb -lssl -lcrypto -o main -lpthread
 endif
 
+httpcat:
+	gcc httpcat.c $(CFLAGS) -lssl -lcrypto -o httpcat -lws2_32
+
 get_demo:
 	gcc get_demo.c $(CFLAGS) -lssl -lcrypto -o get_demo -lws2_32
 
