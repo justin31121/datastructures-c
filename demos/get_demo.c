@@ -1,46 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define HTTP_IMPLEMENTATION
-//#define HTTP_DEBUG
-#include "../http.h"
-
 #define UTIL_IMPLEMENTATION
 #include "../util.h"
 
-#define STRING_IMPLEMENTATION
-#include "../string.h"
+#define HTTP_IMPLEMENTATION
+#include "../http.h"
 
 #define JSON_IMPLEMENTATION
 #include "../json.h"
 
-String_Buffer sb;
+String_Buffer sb = {0};
+String_Buffer res = {0};
 
-int main1() {
-  Http *http = http_init();
-
-  if(!http_get(http, "https://www.youtube.com/", string_buffer_callback, &sb)) {
+int main() { 
+  if(!http_get(NULL, "https://www.youtube.com/", string_buffer_callback, &sb)) {
     panic("request failed");
   }
 
-  printf("sb.len = %lld\n", sb.len);
-  
-  string_buffer_free(&sb);
-  http_close(http);
-  printf("ok\n");  
-  return 0;
-}
-
-int main() {
-  
-  Http *http = http_init();
-
-  if(!http_get(http, "https://www.youtube.com/", string_buffer_callback, &sb)) {
-    panic("request failed");
+  if(sb.len == 0) {
+    panic("No bytes in the string buffer");
   }
 
-  String_Buffer res = {0};
-
+  //FIX Transfer-Encoding: Chunked
   string response = string_from(sb.data, sb.len);
   int i = 0;
   while(response.len) {
@@ -55,6 +37,7 @@ int main() {
   }
   string_buffer_free(&sb);
 
+  //PARSE JSON
   response = string_from(res.data, res.len);
   int pos = string_index_of(response, "ytInitialData = ");
 
@@ -71,9 +54,12 @@ int main() {
     panic("Can not parse json");
   }
 
-  string_buffer_free(&res);
+  string_buffer_clear(&res);
 
+  //EXTRACT JSON
   const Json contents = json_get_array(json_get_object(json_get_object(json_get_object(json_opt_object(json_get_array(json_get_object(json_get_object(json, "contents"),"twoColumnBrowseResultsRenderer"),"tabs"),0),"tabRenderer"),"content"),"richGridRenderer"), "contents");
+
+  bool written = false;
 
   for(i=0;i<json_size(contents);i++) {
     Json item = json_opt_object(contents, i);
@@ -100,11 +86,23 @@ int main() {
     if(json_size(thumbnails) == 0) continue;
     Json pic = json_opt_object(thumbnails, json_size(thumbnails) - 1);
     if(!json_has(pic, "url")) continue;
-    printf("%s\n", json_get_string(pic, "url"));
+    char * pic_url = json_get_string(pic, "url");
+    printf("%s\n", pic_url);
+
+    if(!written) {
+      printf("\tTrying to safe %s\n", pic_url);
+      written = true;
+
+      if(!http_get(NULL, pic_url, string_buffer_callback, &res)) {
+	panic("failed to download pic");
+      }
+
+      printf("\tSuccesfully downloaded pic\n");
+      write_file_len("test.jpg", res.data, res.len);
+    }
   }
 
+  string_buffer_free(&res);
   json_free_all(json);
-
-  http_close(http);  
   return 0;
 }

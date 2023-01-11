@@ -5,6 +5,25 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
+
+#define UNIMPLEMENTED() do{ fprintf(stderr, "%s:%d:ERROR: %s is not implemented\n", __FILE__, __LINE__, __func__); exit(1);}while(0)
+
+/*
+#define UNIMPLEMENTED_2(_num_args, ...) do{				
+  int num_args = _num_args;						
+  va_list args;								
+  void *p = NULL;							
+  va_start(args, num_args);						
+  while(num_args--) { p = (void *) va_arg(args, void*);	}	    
+va_end(args);							
+(void) p;							
+  }while(0)
+
+
+							
+*/
+
 
 void warn(const char* message);
 void panic(const char* message);
@@ -12,7 +31,6 @@ void panic(const char* message);
 char *slurp_file(const char* file_path, size_t *size);
 void write_file(const char *file_path, const char *data);
 void write_file_len(const char *file_path, const char *data, size_t size);
-
 
 #ifdef UTIL_IMPLEMENTATION
 
