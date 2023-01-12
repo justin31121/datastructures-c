@@ -4,9 +4,6 @@
 #define HTTP_IMPLEMENTATION
 #include "../http.h"
 
-#define UTIL_IMPLEMENTATION
-#include "../util.h"
-
 int main(int argc, char **argv) {
 
   char *http_method = "GET";

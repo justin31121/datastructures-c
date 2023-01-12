@@ -1,8 +1,8 @@
 #ifndef HTTP_H_
 #define HTTP_H_
 
-//NOTE: WSACleanup is never called
-//NOTE: SSLContext is never freed
+//NOTE: WSACleanup is never called, if called make sure to set http_global_wsa_startup to false
+//NOTE: SSLContext is never freed, if freed make sure to set http_global_ssl_ctx to NULL
 
 //MAYBE: Remove some null checks
 
@@ -82,14 +82,13 @@ typedef struct{
 typedef struct{
 #ifdef _WIN32
   SOCKET socket;
-#endif //_WIN32
-  
+#endif //_WIN32  
 #ifdef linux  
   int socket;
-#endif //linux
-
+#endif //linux  
   HttpServerThread *threads;
   size_t threads_count;
+  bool ssl;
 }HttpServer;
 
 typedef enum {
@@ -117,13 +116,13 @@ static const string HTTP_CONTENT_TYPE_PLAIN = STRING_STATIC("text/plain");
 static const string HTTP_CONTENT_TYPE_HTML = STRING_STATIC("text/html");
 static const string HTTP_CONTENT_TYPE_JS = STRING_STATIC("application/javascript");
 
-bool http_server_init(HttpServer *server, size_t port);
+bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
 bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
 void http_server_stop(HttpServer *server);
 void http_server_free(HttpServer *server);
 
 void *http_server_listen_function(void *arg);
-bool http_server_create_serve_thread(HttpServer *server, int client);
+bool http_server_create_serve_thread(HttpServer *server, Http client);
 void *http_server_serve_function(void *arg);
 
 // -- UTIL
@@ -151,7 +150,7 @@ bool http_send_len(int socket, SSL *conn, const char *buffer, size_t buffer_len)
 bool http_read(int socket, SSL *conn, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 bool http_read_body(int socket, SSL *conn, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
-void http_init_external_libs();
+void http_init_external_libs(const char *cert_file, const char *key_file);
 //----------END SOCKET----------
 
 size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata);
@@ -159,8 +158,9 @@ size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata);
 #ifdef HTTP_IMPLEMENTATION
 
 
-static SSL_CTX *http_global_ssl_ctx = NULL;
-static boolean http_global_wsa_startup = false;
+static SSL_CTX *http_global_ssl_client_ctx = NULL;
+static SSL_CTX *http_global_ssl_server_ctx = NULL;
+static bool http_global_wsa_startup = false;
 
 //----------BEGIN HTTP----------
 
@@ -169,14 +169,14 @@ bool http_init(Http *http) {
     return false;
   }
 
-  http_init_external_libs();
+  http_init_external_libs(NULL, NULL);
 
   http->socket = http_open();
   if(!http_valid(http->socket)) {
     return false;
   }
 
-  http->conn = SSL_new(http_global_ssl_ctx);
+  http->conn = SSL_new(http_global_ssl_client_ctx);
   if(!http->conn) {
     return false;
   }
@@ -338,22 +338,26 @@ void http_free(Http *http) {
     http_close(http->socket);
   }
   
-  SSL_free(http->conn);
+  if(http->conn) {
+    SSL_free(http->conn);
+  }
 }
 
 //----------END HTTP----------
 
 
 //----------BEGIN HTTP_SERVER----------
-bool http_server_init(HttpServer *server, size_t port) {
+bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file) {
+
   if(server == NULL) {
     return false;
   }
 
   server->threads = NULL;
   server->threads_count = 0;
+  server->ssl = cert_file != NULL && key_file != NULL;
 
-  http_init_external_libs();
+  http_init_external_libs(cert_file, key_file);
 
   server->socket = http_open();
   if(!http_valid(server->socket)) {
@@ -475,7 +479,25 @@ void *http_server_listen_function(void *arg) {
     } else if(accept == HTTP_ACCEPT_ERROR) {
       //WARN
     } else {
-      if(!http_server_create_serve_thread(server, client)) {
+      Http http = {0};
+      http.socket = client;
+      if(server->ssl) {
+	http.conn = SSL_new(http_global_ssl_server_ctx);
+	if(!http.conn) {
+	  fprintf(stderr, "WARNING: Https client to generate SSL_connection\n");
+	  continue;
+	}
+	SSL_set_fd(http.conn, client);
+	int accept_res = SSL_accept(http.conn);
+	if(accept_res <= 0) {
+	  printf("accpet_res: %d\n", accept_res);
+	  ERR_print_errors_fp(stderr);
+	  http_free(&http);
+	  fprintf(stderr, "WARNING: Https client failed to connect\n");
+	  continue;
+	}
+      }
+      if(!http_server_create_serve_thread(server, http)) {
 	fprintf(stderr, "WARNING: No server thread is avaible\n");
 	//TODO: Maybe serve client once on listen thread
       }
@@ -485,12 +507,11 @@ void *http_server_listen_function(void *arg) {
   return NULL;
 }
 
-bool http_server_create_serve_thread(HttpServer *server, int client) {  
+bool http_server_create_serve_thread(HttpServer *server, Http client) {  
   for(size_t i=1;i<server->threads_count;i++) {
     HttpServerThread *thread = &(server->threads[i]);
     if(thread->used==true) continue;
-    thread->client = (Http) {0};
-    thread->client.socket = client;
+    thread->client = client;
     if(pthread_create(&(thread->id), NULL, http_server_serve_function, thread) != 0) {
       return false;
     }
@@ -725,9 +746,11 @@ int http_open() {
 #endif //_WIN32
 #ifdef linux
   struct protoent *protoent = getprotobyname("tcp");
-  if(!protoent) return -1;
+  if(!protoent) {
+    return -1;
+  }
   
-  return socket = socket(AF_INET, SOCK_STREAM, protoent->p_proto);
+  return socket(AF_INET, SOCK_STREAM, protoent->p_proto);
 #endif //linux
 }
 
@@ -739,7 +762,7 @@ bool http_bind(int socket, int port) {
 #ifdef _WIN32
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_addr.s_addr = htonl(INADDR_ANY);
   addr.sin_port = htons(port);
 
   if(bind(socket, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -1036,16 +1059,37 @@ bool http_read_body(int socket, SSL *conn, size_t (*write_callback)(const void *
   return true;
 }
 
-void http_init_external_libs() {
-  if(!http_global_ssl_ctx) {
+void http_init_external_libs(const char *cert_file, const char *key_file) {  
+  if(!http_global_ssl_client_ctx) {
     SSL_library_init();
     OpenSSL_add_all_algorithms();
-    http_global_ssl_ctx = SSL_CTX_new(TLS_client_method());
+    SSL_load_error_strings();
+    http_global_ssl_client_ctx = SSL_CTX_new(TLS_client_method());
+    http_global_ssl_server_ctx = SSL_CTX_new(TLS_server_method());
 
-    if(!http_global_ssl_ctx) {
-      fprintf(stderr, "ERROR: Can not initialize libopenssl\n");
-      exit(1);
+    if(!http_global_ssl_client_ctx) {
+      ERR_print_errors_fp(stderr);
+      panic("Can not initialize libopenssl");
     }
+
+    if(!http_global_ssl_server_ctx) {
+      ERR_print_errors_fp(stderr);
+      panic("Can not initialize libopenssl");
+    }    
+  }
+  
+  if (cert_file != NULL && SSL_CTX_use_certificate_file(http_global_ssl_server_ctx, cert_file, SSL_FILETYPE_PEM) <= 0) {
+    ERR_print_errors_fp(stderr);
+    panic("Can not initialize libopenssl: cert_file");
+  }
+
+  if (key_file != NULL && SSL_CTX_use_PrivateKey_file(http_global_ssl_server_ctx, key_file, SSL_FILETYPE_PEM) <= 0 ) {
+    ERR_print_errors_fp(stderr);
+    panic("Can not initialize libopenssl: key_file");
+  }
+
+  if (!SSL_CTX_check_private_key(http_global_ssl_server_ctx)) {
+    panic("Private key does not match the public certificate\n");
   }
   
 #ifdef _WIN32
@@ -1056,9 +1100,13 @@ void http_init_external_libs() {
       exit(1);
     }
     
+    
     http_global_wsa_startup = true;
   }
 #endif //_WIN32
+#ifdef linux
+  (void) http_global_wsa_startup;
+#endif //linux
 }
 //----------END SOCKET----------
 
