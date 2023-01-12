@@ -43,6 +43,14 @@
 //link with -lws2_32
 #endif //_WIN32
 
+#ifdef linux
+#include <netdb.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#endif //linux
+
 typedef struct{
 #ifdef _WIN32
   SOCKET socket;
@@ -234,16 +242,14 @@ bool http_request(Http *http, const char *url, const char *method,
 		  size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata),
 		  void *userdata)  
 {
-  Http *fallback = NULL;
+  Http fallbackHttp;
   
   //IF NULL INIT 
-  if(http == NULL) {
-    Http fallbackHttp;
+  if(http == NULL) {    
     if(!http_init(&fallbackHttp)) {
       return false;
     }
-    fallback = &fallbackHttp;
-    http = fallback;
+    http = &fallbackHttp;
   }
 
   //GET HOSTNAME
@@ -322,8 +328,8 @@ bool http_request(Http *http, const char *url, const char *method,
     return false;
   }
 
-  if(fallback != NULL) {
-    http_free(fallback);    
+  if(http_valid(fallbackHttp.socket)) {
+    http_free(&fallbackHttp);    
   }
   
   return true;
@@ -484,13 +490,12 @@ void *http_server_listen_function(void *arg) {
       if(server->ssl) {
 	http.conn = SSL_new(http_global_ssl_server_ctx);
 	if(!http.conn) {
-	  fprintf(stderr, "WARNING: Https client to generate SSL_connection\n");
+	  fprintf(stderr, "WARNING: Https failed to generate SSL_connection\n");
 	  continue;
 	}
 	SSL_set_fd(http.conn, client);
 	int accept_res = SSL_accept(http.conn);
 	if(accept_res <= 0) {
-	  printf("accpet_res: %d\n", accept_res);
 	  ERR_print_errors_fp(stderr);
 	  http_free(&http);
 	  fprintf(stderr, "WARNING: Https client failed to connect\n");
@@ -548,7 +553,7 @@ void *http_server_serve_function(void *_arg) {
       break;
     }
 
-    if(!http_read(client.socket, NULL, string_buffer_callback, buffer)) {
+    if(!http_read(client.socket, client.conn, string_buffer_callback, buffer)) {
       break;
     }
 
@@ -655,7 +660,6 @@ string http_server_content_type_from_name(string file_name) {
   } else if(string_eq(ext, STRING("js"))) {
     content_type = HTTP_CONTENT_TYPE_JS;
   } else {
-    printf(String_Fmt" (%lld) == html (4): %d\n", String_Arg(ext), ext.len, string_eq(ext, STRING("html")));
     fprintf(stderr, "[WARNING] Unknown extension: "String_Fmt"\n", String_Arg(ext));
   }
   
@@ -750,7 +754,7 @@ int http_open() {
     return -1;
   }
   
-  return socket(AF_INET, SOCK_STREAM, protoent->p_proto);
+  return socket(AF_INET, SOCK_STREAM, /*protoent->p_proto*/ 0);
 #endif //linux
 }
 
@@ -762,7 +766,7 @@ bool http_bind(int socket, int port) {
 #ifdef _WIN32
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(port);
 
   if(bind(socket, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -890,10 +894,10 @@ bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_le
   }
 
 #ifdef _WIN32
-  SOCKADDR_IN addr;
+  SOCKADDR_IN addr = {0};
 #endif //WIN32
 #ifdef linux
-  struct sockaddr_in addr;
+  struct sockaddr_in addr = {0};
 #endif //linux
 
   //HOSTNAME to Cstr
@@ -919,7 +923,8 @@ bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_le
   
   addr.sin_family = AF_INET;
   addr.sin_port = htons(ssl ? HTTPS_PORT : HTTP_PORT);
-  if(connect(socket, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
+  if(connect(socket, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    
     return false;
   }
   
@@ -1088,7 +1093,7 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
     panic("Can not initialize libopenssl: key_file");
   }
 
-  if (!SSL_CTX_check_private_key(http_global_ssl_server_ctx)) {
+  if (cert_file != NULL && key_file != NULL && !SSL_CTX_check_private_key(http_global_ssl_server_ctx)) {
     panic("Private key does not match the public certificate\n");
   }
   

@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define UTIL_IMPLEMENTATION
-#include "../util.h"
-
 #define HTTP_IMPLEMENTATION
 #include "../http.h"
 
@@ -14,7 +11,7 @@ String_Buffer sb = {0};
 String_Buffer res = {0};
 
 int main() { 
-  if(!http_get(NULL, "https://www.youtube.com/", string_buffer_callback, &sb)) {
+  if(!http_request(NULL, "https://www.youtube.com", "GET", NULL, NULL, string_buffer_callback, &sb)) {
     panic("request failed");
   }
 

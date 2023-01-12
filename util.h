@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #define UNIMPLEMENTED() do{ fprintf(stderr, "%s:%d:ERROR: %s is not implemented\n", __FILE__, __LINE__, __func__); exit(1);}while(0)
 

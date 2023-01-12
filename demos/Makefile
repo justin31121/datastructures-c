@@ -9,10 +9,18 @@ else
 endif
 
 httpcat:
-	gcc httpcat.c $(CFLAGS) -lssl -lcrypto -o httpcat -lws2_32
+ifeq ($(OS),Windows_NT)
+	gcc httpcat.c $(CFLAGS) -lssl -lcrypto -o httpcat -lws2_32 -lpthread
+else
+	gcc httpcat.c $(CFLAGS) -ggdb -lssl -lcrypto -o httpcat -lpthread
+endif
 
 get_demo:
-	gcc get_demo.c $(CFLAGS) -lssl -lcrypto -o get_demo -lws2_32
+ifeq ($(OS),Windows_NT)
+	gcc get_demo.c $(CFLAGS) -lssl -lcrypto -o get_demo -lws2_32 -lpthread
+else
+	gcc get_demo.c $(CFLAGS) -ggdb -lssl -lcrypto -o get_demo -lpthread
+endif
 
 array_demo:
 	gcc array_demo.c $(CFLAGS) -o array_demo
