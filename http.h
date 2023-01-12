@@ -493,10 +493,18 @@ void *http_server_listen_function(void *arg) {
 	  fprintf(stderr, "WARNING: Https failed to generate SSL_connection\n");
 	  continue;
 	}
+	
+	//WTF
+#ifdef _WIN32
+	unsigned long mode = 0;
+	ioctlsocket(client, FIONBIO, &mode);
+#endif //_WIN32
+ 
 	SSL_set_fd(http.conn, client);
 	int accept_res = SSL_accept(http.conn);
 	if(accept_res <= 0) {
 	  ERR_print_errors_fp(stderr);
+	  printf("%d %d\n", SSL_get_error(http.conn, accept_res), SSL_ERROR_WANT_READ);
 	  http_free(&http);
 	  fprintf(stderr, "WARNING: Https client failed to connect\n");
 	  continue;
