@@ -15,7 +15,12 @@ typedef struct {
 #define STRING_STATIC(cstr_lit) {.len=sizeof(cstr_lit), .data=cstr_lit}
 #define STRING(cstr_lit) string_from(cstr_lit, sizeof(cstr_lit) -1)
 #define String_Fmt "%.*s"
+#ifdef _WIN32
 #define String_Arg(s) ((int) (s).len), (s).data
+#endif //_WIN32
+#ifdef linux
+#define String_Arg(s) ((int) (s).len), (s).data
+#endif //linux
 
 string string_from(const char* data, size_t count);
 string string_from_cstr(const char* data);

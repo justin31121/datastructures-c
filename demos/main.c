@@ -9,6 +9,7 @@ typedef struct{
 }Context;
 
 void handle(const HttpRequest *request, Http *client, void *arg) {
+  
   if(string_eq(request->method, STRING("GET"))) {
     http_server_simple_file_handler(request, client, arg);
     return;
@@ -54,8 +55,8 @@ Context sbs[THREADS_CAP] = {0};
 
 int main() {  
   HttpServer server;
-  //if(!http_server_init(&server, HTTPS_PORT, NULL, NULL)) {
-  if(!http_server_init(&server, HTTPS_PORT, "cert.pem", "key.pem")) {
+  //if(!http_server_init(&server, HTTP_PORT, NULL, NULL)) {
+  if(!http_server_init(&server, 6969, "cert.pem", "key.pem")) {
     panic("http_server_init");
   }
   
