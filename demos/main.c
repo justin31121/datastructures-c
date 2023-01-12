@@ -20,16 +20,16 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
   Context *context = (Context *) arg;
   String_Buffer *sb = &(context->sb);
   sb->len = 0;
-  String_Buffer *res = &(context->res);
   
-  assert(request->body.len < 256 - 1);
-  char url[256];
-  memcpy(url, request->body.data, request->body.len);
-  url[request->body.len] = 0;
+  String_Buffer *res = &(context->res);
+  res->len = 0;
+  
+  string_buffer_append(res, request->body.data, request->body.len);
+  string_buffer_append(res, "\0", 1);
 
-  printf("Url: %s\n", url);
+  printf("%s\n", res->data);
 
-  bool proxy_req = http_get(NULL, url, string_buffer_callback, sb);
+  bool proxy_req = http_get(NULL, res->data, string_buffer_callback, sb);
   if(!proxy_req || sb->len == 0) {
     HttpResponse response = {0};
     response.code = 500;
@@ -39,7 +39,6 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
     http_send_http_response(client, &response, NULL, 0);
     return;
   }
-
   
   string_buffer_reserve(res, 2*sb->cap);
 
@@ -55,7 +54,8 @@ Context sbs[THREADS_CAP] = {0};
 
 int main() {  
   HttpServer server;
-  if(!http_server_init(&server, HTTP_PORT)) {
+  //if(!http_server_init(&server, HTTPS_PORT, NULL, NULL)) {
+  if(!http_server_init(&server, HTTPS_PORT, "cert.pem", "key.pem")) {
     panic("http_server_init");
   }
   
