@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define HTTP_IMPLEMENTATION
-#include "../http.h"
+#include "../libs/http.h"
 
 int main(int argc, char **argv) {
 
@@ -22,14 +22,14 @@ int main(int argc, char **argv) {
   }
 
   String_Buffer sb = {0};
-  string_buffer_reserve(&sb, 1024 * 10000);
+  sb.cap = 0;
   
   if(!http_request(&http, argv[1], http_method, NULL, NULL, string_buffer_callback, &sb)) {
     panic("http_request");
   }
 
   if(sb.len > 0 && sb.len < 64000) printf("%s\n\n", sb.data);
-  printf("%ld bytes\n\n", sb.len);
+  printf("%lld bytes\n\n", sb.len);
   string_buffer_free(&sb);
 
   http_free(&http);

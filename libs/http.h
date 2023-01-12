@@ -12,8 +12,7 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-#include <openssl/conf.h>
-//link with -lssl -lcrypto
+#include <openssl/conf.h> //link with -lssl -lcrypto
 
 #ifdef HTTP_IMPLEMENTATION
 
@@ -39,8 +38,7 @@
 #define HTTP_READ_BUFFER_CAP 8192
 
 #ifdef _WIN32
-#include <winsock2.h>
-//link with -lws2_32
+#include <winsock2.h> //link with -lws2_32
 #endif //_WIN32
 
 #ifdef linux
@@ -123,6 +121,7 @@ void http_free(Http *http);
 static const string HTTP_CONTENT_TYPE_PLAIN = STRING_STATIC("text/plain");
 static const string HTTP_CONTENT_TYPE_HTML = STRING_STATIC("text/html");
 static const string HTTP_CONTENT_TYPE_JS = STRING_STATIC("application/javascript");
+static const string HTTP_CONTENT_TYPE_JSON = STRING_STATIC("application/json");
 
 bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
 bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
@@ -328,7 +327,7 @@ bool http_request(Http *http, const char *url, const char *method,
     return false;
   }
 
-  if(http_valid(fallbackHttp.socket)) {
+  if(http==NULL && http_valid(fallbackHttp.socket)) {
     http_free(&fallbackHttp);    
   }
   
@@ -495,7 +494,7 @@ void *http_server_listen_function(void *arg) {
 	}
 	
 	//WTF
-#ifdef _WIN32
+#ifdef _WIN32	
 	unsigned long mode = 0;
 	ioctlsocket(client, FIONBIO, &mode);
 #endif //_WIN32
@@ -504,7 +503,6 @@ void *http_server_listen_function(void *arg) {
 	int accept_res = SSL_accept(http.conn);
 	if(accept_res <= 0) {
 	  ERR_print_errors_fp(stderr);
-	  printf("%d %d\n", SSL_get_error(http.conn, accept_res), SSL_ERROR_WANT_READ);
 	  http_free(&http);
 	  fprintf(stderr, "WARNING: Https client failed to connect\n");
 	  continue;
@@ -655,18 +653,20 @@ bool http_send_http_response(Http *http, const HttpResponse *response, char* buf
 string http_server_content_type_from_name(string file_name) {
   string content_type = HTTP_CONTENT_TYPE_PLAIN;
 
-  string_chop_by_delim(&file_name, '.');
-  string_chop_by_delim(&file_name, '.');
-
-  if(file_name.len == 0) {
+  if(file_name.len <= 2) {
     return content_type;
   }
+
+  int i = (int) file_name.len - 1;
+  while(i>0 && file_name.data[i] != '.') i--;
   
-  string ext = file_name;
-  if(string_eq(ext, STRING("html"))) {
+  string ext = string_from(file_name.data + i, file_name.len - i);
+  if(string_eq(ext, STRING(".html"))) {
     content_type = HTTP_CONTENT_TYPE_HTML;
-  } else if(string_eq(ext, STRING("js"))) {
+  } else if(string_eq(ext, STRING(".js"))) {
     content_type = HTTP_CONTENT_TYPE_JS;
+  }else if(string_eq(ext, STRING(".json"))) {
+    content_type = HTTP_CONTENT_TYPE_JSON;
   } else {
     fprintf(stderr, "[WARNING] Unknown extension: "String_Fmt"\n", String_Arg(ext));
   }
@@ -674,6 +674,7 @@ string http_server_content_type_from_name(string file_name) {
   return content_type;
 }
 
+//TODO: either make it variable by a buffer or remove it, since it needs to allocate memroy for the response
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
 

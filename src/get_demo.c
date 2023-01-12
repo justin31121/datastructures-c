@@ -2,10 +2,10 @@
 #include <stdlib.h>
 
 #define HTTP_IMPLEMENTATION
-#include "../http.h"
+#include "../libs/http.h"
 
 #define JSON_IMPLEMENTATION
-#include "../json.h"
+#include "../libs/json.h"
 
 String_Buffer sb = {0};
 String_Buffer res = {0};
@@ -96,6 +96,7 @@ int main() {
 
       printf("\tSuccesfully downloaded pic\n");
       write_file_len("test.jpg", res.data, res.len);
+      break;
     }
   }
 

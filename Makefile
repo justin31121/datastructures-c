@@ -1,2 +1,32 @@
+CFLAGS = -Wall -Wextra -pedantic -Wshadow
+SDL_CURL = -lmingw32 -lSDL2main -lSDL2 -lcurl
+
+ifeq ($(OS),Windows_NT)
+	LDFLAGS = -lws2_32 -lpthread -lssl -lcrypto
+else
+	LDFLAGS = -lpthread -lssl -lcrypto
+endif
+
 all:
-	gcc -DSERVE_SDL main.c -lmingw32 -lSDL2main -lSDL2 -lm -Wall -Wextra -Werror -o main
+	gcc ./src/main.c $(CFLAGS) -o main $(LDFLAGS)
+
+httpcat:
+	gcc ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat 
+
+get_demo:
+	gcc ./src/get_demo.c $(CFLAGS) -o get_demo $(LDFLAGS)
+
+array_demo:
+	gcc ./src/array_demo.c $(CFLAGS) -o array_demo
+
+hashtable_demo:
+	gcc ./src/hashtable_demo.c $(CFLAGS)-o hashtable_demo
+
+json_demo:
+	gcc ./src/json_demo.c $(CFLAGS) -o json_demo
+
+json_parse_demo:
+	gcc ./src/json_parse_demo.c $(CFLAGS) -o json_parse_demo
+
+sdl_curl_json_demo:
+	gcc ./src/sdl_curl_json_demo.c $(CFLAGS) $(SDL_CURL) -o sdl_curl_json_demo
