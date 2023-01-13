@@ -8,41 +8,20 @@
 #include <stdarg.h>
 #include <errno.h>
 
-#define UNIMPLEMENTED() do{ fprintf(stderr, "%s:%d:ERROR: %s is not implemented\n", __FILE__, __LINE__, __func__); exit(1);}while(0)
+#define UNIMPLEMENTED(...) do{ fprintf(stderr, "%s:%d: error: %s is not implemented\n", __FILE__, __LINE__, __func__); exit(1);}while(0)
+#define UNUSED(...) util_unused(0, __VA_ARGS__);
+void util_unused(int n, ...) { (void) n; }
 
-/*
-#define UNIMPLEMENTED_2(_num_args, ...) do{				
-  int num_args = _num_args;						
-  va_list args;								
-  void *p = NULL;							
-  va_start(args, num_args);						
-  while(num_args--) { p = (void *) va_arg(args, void*);	}	    
-va_end(args);							
-(void) p;							
-  }while(0)
+#define not_null(ptr) do{ if(ptr==NULL) {fprintf(stderr, "%s:%d: error: %s: Expected a non NULL pointer\n", __FILE__, __LINE__, __func__); exit(1); }}while(0)
+#define panic(cstr) do{ fprintf(stderr, "%s:%d: error: %s: %s\n", __FILE__, __LINE__, __func__, cstr); exit(1);}while(0)
+#define warn(cstr) fprintf(stderr, "%s:%d: warning: %s: %s\n", __FILE__, __LINE__, __func__, cstr);
 
-
-							
-*/
-
-
-void warn(const char* message);
-void panic(const char* message);
 
 char *slurp_file(const char* file_path, size_t *size);
 void write_file(const char *file_path, const char *data);
 void write_file_len(const char *file_path, const char *data, size_t size);
 
 #ifdef UTIL_IMPLEMENTATION
-
-void warn(const char* message) {
-  fprintf(stderr, "WARNING: %s\n", message);
-}
-
-void panic(const char* message) {
-  fprintf(stderr, "ERORR: %s\n", message);
-  exit(1);
-}
 
 void write_file(const char *file_path, const char *data) {
   write_file_len(file_path, data, strlen(data));
@@ -92,7 +71,7 @@ char *slurp_file(const char* file_path, size_t *size) {
     return NULL;
   }
 
-  res = (char *) malloc(m + 1);
+  res = (char *) malloc((size_t) m + 1);
   if(!res) {
     fprintf(stderr, "[WARNING]: Can not allocate enough memory for file '%s'\n", file_path);
     fclose(f);
