@@ -7,10 +7,10 @@ else
 	LDFLAGS = -lpthread -lssl -lcrypto
 endif
 
-all:
+all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc ./src/main.c $(CFLAGS) -o main $(LDFLAGS)
 
-httpcat:
+httpcat: ./src/httpcat.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat 
 
 get_demo:
