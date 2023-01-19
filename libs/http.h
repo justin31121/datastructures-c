@@ -242,9 +242,11 @@ bool http_request(Http *http, const char *url, const char *method,
 		  void *userdata)  
 {
   Http fallbackHttp;
+
+  bool fallbackIsUsed = http == NULL;
   
   //IF NULL INIT 
-  if(http == NULL) {    
+  if(fallbackIsUsed) {    
     if(!http_init(&fallbackHttp)) {
       return false;
     }
@@ -327,7 +329,7 @@ bool http_request(Http *http, const char *url, const char *method,
     return false;
   }
 
-  if(http==NULL && http_valid(fallbackHttp.socket)) {
+  if(fallbackIsUsed && http_valid(fallbackHttp.socket)) {
     http_free(&fallbackHttp);    
   }
   
