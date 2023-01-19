@@ -29,7 +29,9 @@ string string_trim_right(string s);
 string string_trim(string s);
 string string_chop_by_delim(string *s, char delim);
 string string_chop_left(string *s, size_t n);
+string string_chop_right(string *s, size_t n);
 bool string_chop_int(string *s, int *n);
+bool string_chop_hex(string *s, uint64_t *n);
 bool string_chop_int64_t(string *s, int64_t *n);
 
 int string_index_of(string s, const char *cstr);
@@ -127,6 +129,43 @@ bool string_chop_int(string *s, int *n) {
   if(negative) sum*=-1;
   if(n) *n = sum;
 
+  return i>0;
+}
+
+bool string_chop_hex(string *s, uint64_t *n) {
+  size_t i=0;
+  uint64_t sum = 0;
+
+  while(true) {
+    if(i>=s->len) break;
+    bool isDigit = '0' <= s->data[i] && s->data[i] <= '9';
+    bool isAlphaSmall = 'a' <= s->data[i] && s->data[i] <= 'f';
+    bool isAlpha = 'A' <= s->data[i] && s->data[i] <= 'F';
+
+    if(isDigit) {
+      sum*=16;
+      int digit = (s->data[i] - '0');
+      sum+=digit;
+    } else if(isAlphaSmall) {
+      sum*=16;
+      int digit = (s->data[i] - 'W');
+      sum+=digit;
+    } else if(isAlpha) {
+      sum*=16;
+      int digit = (s->data[i] - '7');
+      sum+=digit;
+    } else {
+      break;
+    }
+
+    i++;
+  }
+
+  s->data+=i;
+  s->len-=i;
+
+  if(n) *n = sum;
+  
   return i>0;
 }
 
@@ -264,6 +303,18 @@ string string_chop_left(string *s, size_t n) {
   string result = string_from(s->data, n);
 
   s->data += n;
+  s->len -= n;
+
+  return result;
+}
+
+string string_chop_right(string *s, size_t n) {
+  if(n > s->len) {
+    n = s->len;
+  }
+
+  string result = string_from(s->data - (s->len + n), s->len - n);
+
   s->len -= n;
 
   return result;

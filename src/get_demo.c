@@ -8,10 +8,9 @@
 #include "../libs/json.h"
 
 String_Buffer sb = {0};
-String_Buffer res = {0};
 
 int main() { 
-  if(!http_request(NULL, "https://www.youtube.com", "GET", NULL, NULL, string_buffer_callback, &sb)) {
+  if(!http_get("https://www.youtube.com", string_buffer_callback, &sb)) {
     panic("request failed");
   }
 
@@ -19,28 +18,24 @@ int main() {
     panic("No bytes in the string buffer");
   }
 
-  //FIX Transfer-Encoding: Chunked
-  string response = string_from(sb.data, sb.len);
-  int i = 0;
-  while(response.len) {
-    string chunk = string_chop_by_delim(&response, '\r');
-    if(i%2==1) {
-      while(chunk.len) {
-	string line = string_chop_by_delim(&chunk, '\n');
-	string_buffer_append(&res, line.data, line.len);
-      }      
-    }
-    i++;
-  }
-  string_buffer_free(&sb);
+  write_file_len("youtube.html", sb.data, sb.len);
 
   //PARSE JSON
-  response = string_from(res.data, res.len);
+  string response = string_from(sb.data, sb.len);
   int pos = string_index_of(response, "ytInitialData = ");
+  if(pos < 0) {
+    panic("Can not find ytInitialData");
+  }
 
   int _pos = pos + strlen("ytInitialData = ");
+  if(_pos < 0) {
+    panic("Can not find ytInitialData");
+  }  
 
   int j = string_index_of_offset(response, ";</script>", pos);
+  if(j < 0) {
+    panic("Can not find ytInitialData");
+  }  
 
   string jsonString = string_trim(string_substring(response, _pos, j));
 
@@ -51,14 +46,12 @@ int main() {
     panic("Can not parse json");
   }
 
-  string_buffer_clear(&res);
-
   //EXTRACT JSON
   const Json contents = json_get_array(json_get_object(json_get_object(json_get_object(json_opt_object(json_get_array(json_get_object(json_get_object(json, "contents"),"twoColumnBrowseResultsRenderer"),"tabs"),0),"tabRenderer"),"content"),"richGridRenderer"), "contents");
 
   bool written = false;
-
-  for(i=0;i<json_size(contents);i++) {
+  
+  for(int i=0;i<json_size(contents);i++) {
     Json item = json_opt_object(contents, i);
     if(!json_has(item, "richItemRenderer")) continue;
     Json richItemRenderer = json_get_object(item, "richItemRenderer");
@@ -90,17 +83,17 @@ int main() {
       printf("\tTrying to safe %s\n", pic_url);
       written = true;
 
-      if(!http_get(NULL, pic_url, string_buffer_callback, &res)) {
+      sb.len = 0;
+      if(!http_get(pic_url, string_buffer_callback, &sb)) {
 	panic("failed to download pic");
       }
 
       printf("\tSuccesfully downloaded pic\n");
-      write_file_len("test.jpg", res.data, res.len);
+      write_file_len("test.jpg", sb.data, sb.len);
       break;
     }
   }
 
-  string_buffer_free(&res);
   json_free_all(json);
   return 0;
 }
