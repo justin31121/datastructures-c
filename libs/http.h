@@ -1150,8 +1150,6 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
     }
 
     if(body && write_callback!=NULL) {
-      
-      
       if(content_length > 0) { //CONTENT_LENGTH: 69
 	uint64_t len = (uint64_t) (nbytes_total - (ssize_t) offset);
 	if(content_length != -1 && read + len > (uint64_t) content_length) {
