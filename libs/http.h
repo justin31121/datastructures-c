@@ -139,8 +139,17 @@ void *http_server_serve_function(void *arg);
 
 // -- UTIL
 bool http_server_fill_http_request(string request_string, HttpRequest *request);
+
+bool http_send_not_found(Http *http);
+
+
 bool http_send_http_response(Http *http, const HttpResponse *response, char* buffer, size_t buffer_len);
 string http_server_content_type_from_name(string file_name);
+
+bool http_open_file(FILE **f, const char* file_path);
+bool http_send_file(FILE **f, Http *client);
+void http_close_file(FILE **f);
+
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg);
 bool http_format_http_response(const HttpResponse *response, char *buffer, size_t buffer_len, size_t *response_len);
 //----------END HTTP_SERVER----------
@@ -159,6 +168,7 @@ HttpAccept http_accept(int server, int *client);
 HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
 bool http_connect(int socket, bool ssl, const char *hostname);
 bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
+bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
 bool http_read(Http *http, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
 
@@ -275,7 +285,7 @@ bool http_request(Http *http, const char *route, const char *method,
   //SEND
   char request_buffer[HTTP_BUFFER_CAP];
   if(!hasBody) {
-    if(!sendf(http_send_len, http, request_buffer, HTTP_BUFFER_CAP,
+    if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 	      "%s %s HTTP/1.1\r\n"
 	      "Host: %s\r\n"
 	      "\r\n", method, route, http->host)) {
@@ -283,7 +293,7 @@ bool http_request(Http *http, const char *route, const char *method,
       return false;
     }
   } else {
-    if(!sendf(http_send_len, http, request_buffer, HTTP_BUFFER_CAP,
+    if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 	      "%s %s HTTP/1.1\r\n"
 	      "Host: %s\r\n"
 	      "Content-Type: %s\r\n"
@@ -628,6 +638,20 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
   return true;
 }
 
+bool http_send_not_found(Http *http) {
+  if(!http_valid(http->socket)) {
+    return false;
+  }
+
+  static const char *not_found_string =
+    "HTTP/1.1 404 Not Found\r\n"
+    "Content-Type: text/plain\r\n"
+    "Content-Length: 15\r\n"
+    "\r\n"
+    "404 - Not Found";
+  return http_send_len(not_found_string, strlen(not_found_string), http); 
+}
+
 bool http_send_http_response(Http *http, const HttpResponse *response, char* buffer, size_t buffer_len) {
   if(!http) {
     return false;
@@ -681,6 +705,107 @@ string http_server_content_type_from_name(string file_name) {
   }
   
   return content_type;
+}
+
+bool http_open_file(FILE **f, const char *file_path) {
+  FILE *file = fopen(file_path, "rb");
+  if(!file) {
+    fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
+    return false;
+  }
+  clearerr(file);
+
+  if(f) *f = file;
+  
+  return true;
+}
+
+bool http_send_file(FILE **f, Http *http) {
+  if(!http_valid(http->socket)) {
+    return false;
+  }
+  if(!f) {
+    return false;
+  }
+
+  char buffer[HTTP_BUFFER_CAP];
+  size_t buffer_off = 0;
+  size_t buffer_cap = HTTP_BUFFER_CAP;
+
+  //TODO: make Content-Type a parameter
+  static const char *headers = "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/html\r\n"
+    "Connection: keep-alive\r\n"
+    "Transfer-Encoding: chunked\r\n"
+    "\r\n";
+
+  size_t buffer_size = snprintf(buffer, HTTP_BUFFER_CAP, "%s", headers);
+  if(buffer_size >= HTTP_BUFFER_CAP) {
+    panic("The Content-Type is too big, to fit into the HTTP_BUFFER_CAP.");
+    return false;
+  }
+
+  buffer_off = buffer_size;
+  buffer_cap = HTTP_BUFFER_CAP - buffer_off;
+
+  static const char *end_carriage = "0\r\n\r\n";
+  static const size_t end_carriage_len = 5;
+  
+  while(true) {
+    bool bbreak = false;//0129\r\n ... body ... \r\n
+    size_t nbytes = fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, *f);
+    if(nbytes != buffer_cap - 2 - 6) {
+      if(ferror(*f)) {
+	fprintf(stderr, "[WARNING]: Can not read file because: %s\n", strerror(errno));
+	return false;
+      }
+      if(feof(*f)) {
+	bbreak = true;
+      }
+    }
+    buffer[buffer_off + 4] = '\r';
+    buffer[buffer_off + 5] = '\n';
+    buffer[buffer_off + 6 + nbytes] = '\r';
+    buffer[buffer_off + 6 + nbytes + 1] = '\n';
+    if(nbytes > 0) {
+      //4 := 0x2000 = HTTP_BUFFER_CAP
+      //If HTTP_BUFFER_CAP exceeds 4 digits in hexadecimal, adjust 4 to 5, ...
+      //CONVERTING nbytes to hex in buffer[0] - buffer[3]
+      size_t n = nbytes;
+      int i = 0;
+      while(n > 0) {
+	size_t m = n % 16;
+	buffer[buffer_off + 4 - i++ - 1] = m  + '0';
+	n /= 16;
+      }
+      while(i < 4) buffer[buffer_off + 4 - i++ - 1] = '0';
+
+      if(bbreak && (6 + nbytes + 2 + end_carriage_len < buffer_cap)) {
+	memcpy(buffer + buffer_off + 6 + nbytes + 2, end_carriage, end_carriage_len);
+	nbytes += end_carriage_len;
+      }
+      if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {
+
+	return false;
+      }
+    }
+    if(bbreak) {
+      if(6 + nbytes + 2 + 5 >= buffer_cap) {
+	if(!http_send_len(end_carriage, end_carriage_len, http)) {	  
+	  return false;
+	}
+      }
+      break;
+    }
+    buffer_cap = HTTP_BUFFER_CAP;
+    buffer_off = 0;
+  }
+
+  return true;
+}
+
+void http_close_file(FILE **f) {
+  if(f) fclose(*f);
 }
 
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
@@ -976,6 +1101,10 @@ bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   }
   
   return true;
+}
+
+bool http_send_len2(const char *buffer, size_t buffer_len, void *http) {
+  return http_send_len(buffer, buffer_len, (Http *) http);
 }
 
 bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {

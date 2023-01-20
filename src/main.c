@@ -1,5 +1,5 @@
 #define HTTP_IMPLEMENTATION
-#define HTTP_NO_SSL
+//#define HTTP_NO_SSL
 #include "../libs/http.h"
 
 #define THREADS_CAP 128
@@ -88,15 +88,24 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
 }
 
 void handle2(const HttpRequest *request, Http *client, void *arg) {
-  UNUSED(request, client, arg);  
+  (void) arg;
+  (void) request;
+  
+  FILE *f;
+  if(!http_open_file(&f, "./rsc/index.html")) {
+    http_send_not_found(client);
+    return;
+  }
+  http_send_file(&f, client);
+  http_close_file(&f);
 }
 
 Context sbs[THREADS_CAP] = {0};
 
 int main() {  
   HttpServer server;  
-  //if(!http_server_init(&server, HTTPS_PORT, "./rsc/cert.pem", "./rsc/key.pem")) {
-  if(!http_server_init(&server, HTTP_PORT, NULL, NULL)) {
+  if(!http_server_init(&server, HTTPS_PORT, "./rsc/cert.pem", "./rsc/key.pem")) {
+    //if(!http_server_init(&server, HTTP_PORT, NULL, NULL)) {
     panic("http_server_init");
   }
   

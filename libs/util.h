@@ -152,7 +152,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
   context.last = false;
 
   va_list va;
-  va_start(va, format); // va_arg(va, int);
+  va_start(va, format);
   
   size_t buffer_size = 0;
   size_t format_len = strlen(format);
