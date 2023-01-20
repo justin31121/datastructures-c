@@ -3,6 +3,6 @@ function foo(data) {
     document.body.innerHTML = data;
 }
 
-fetch("./post", { method: "POST", body: "https://www.example.com/"} )
+fetch("./post", { method: "POST", body: "http://www.example.com/"} )
     .then(res => res.text())
     .then(data => foo(data));

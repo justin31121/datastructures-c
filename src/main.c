@@ -1,4 +1,5 @@
 #define HTTP_IMPLEMENTATION
+#define HTTP_NO_SSL
 #include "../libs/http.h"
 
 #define THREADS_CAP 128
@@ -40,7 +41,7 @@ void file_handle(const HttpRequest *request, Http *client, void *arg) {
   response.body = string_from(content, size);
   response.content_type = http_server_content_type_from_name(file_path);
 
-  printf("%d", http_send_http_response(client, &response, res->data, res->cap));
+  http_send_http_response(client, &response, res->data, res->cap);
   
   free(content);
 }
@@ -86,15 +87,20 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
   http_send_http_response(client, &response, res->data, res->cap);
 }
 
+void handle2(const HttpRequest *request, Http *client, void *arg) {
+  UNUSED(request, client, arg);  
+}
+
 Context sbs[THREADS_CAP] = {0};
 
 int main() {  
-  HttpServer server;
-  if(!http_server_init(&server, HTTPS_PORT, "./rsc/cert.pem", "./rsc/key.pem")) {
+  HttpServer server;  
+  //if(!http_server_init(&server, HTTPS_PORT, "./rsc/cert.pem", "./rsc/key.pem")) {
+  if(!http_server_init(&server, HTTP_PORT, NULL, NULL)) {
     panic("http_server_init");
   }
   
-  if(!http_server_listen_and_serve(&server, handle, THREADS_CAP, sbs, sizeof(sbs[0]))) {
+  if(!http_server_listen_and_serve(&server, handle2, THREADS_CAP, sbs, sizeof(sbs[0]))) {
     panic("http_server_listen_and_serve");
   }
   
