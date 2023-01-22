@@ -72,12 +72,11 @@ typedef struct{
   string body;
 }HttpRequest;
 
-typedef struct{
-  int code;
-  string message;
-  string body;
-  string content_type;
-}HttpResponse;
+typedef enum{
+  HTTP_STATUS_OK = 0,
+  HTTP_STATUS_INTERNAL_ERROR,
+  COUNT_HTTP_STATUS
+}HttpStatus;
 
 typedef struct{
   Http client;
@@ -123,10 +122,10 @@ void http_free(Http *http);
 
 
 //----------BEGIN HTTP_SERVER----------
-static const string HTTP_CONTENT_TYPE_PLAIN = STRING_STATIC("text/plain");
-static const string HTTP_CONTENT_TYPE_HTML = STRING_STATIC("text/html");
-static const string HTTP_CONTENT_TYPE_JS = STRING_STATIC("application/javascript");
-static const string HTTP_CONTENT_TYPE_JSON = STRING_STATIC("application/json");
+static const char* HTTP_CONTENT_TYPE_PLAIN = "text/plain";
+static const char* HTTP_CONTENT_TYPE_HTML = "text/html";
+static const char* HTTP_CONTENT_TYPE_JS = "application/javascript";
+static const char* HTTP_CONTENT_TYPE_JSON = "application/json";
 
 bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
 bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
@@ -137,21 +136,21 @@ void *http_server_listen_function(void *arg);
 bool http_server_create_serve_thread(HttpServer *server, Http client);
 void *http_server_serve_function(void *arg);
 
-// -- UTIL
 bool http_server_fill_http_request(string request_string, HttpRequest *request);
 
+// -- UTIL
 bool http_send_not_found(Http *http);
 
-
-bool http_send_http_response(Http *http, const HttpResponse *response, char* buffer, size_t buffer_len);
-string http_server_content_type_from_name(string file_name);
+const char* http_server_content_type_from_name(string file_name);
+void http_send_files(Http *client, const char *dir, const char *home, string file_path);
 
 bool http_open_file(FILE **f, const char* file_path);
-bool http_send_file(FILE **f, Http *client);
+bool http_open_file2(FILE **f, string file_path);
+bool http_open_file3(FILE **f, const char *dir, string file_path);
+bool http_send_file(FILE **f, Http *http, const char *add_headers);
 void http_close_file(FILE **f);
 
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg);
-bool http_format_http_response(const HttpResponse *response, char *buffer, size_t buffer_len, size_t *response_len);
 //----------END HTTP_SERVER----------
 
 
@@ -167,6 +166,8 @@ void http_make_nonblocking(int socket);
 HttpAccept http_accept(int server, int *client);
 HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
 bool http_connect(int socket, bool ssl, const char *hostname);
+bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
+bool http_sendf(Http *http, const char *fmt, ...);
 bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
 bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
 bool http_read(Http *http, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
@@ -202,6 +203,7 @@ bool http_init(Http *http, const char *hostname, bool ssl) {
     return false;
   }
 
+
 #ifndef HTTP_NO_SSL
   if(ssl) {
     http->conn = SSL_new(http_global_ssl_client_ctx);
@@ -211,6 +213,11 @@ bool http_init(Http *http, const char *hostname, bool ssl) {
     SSL_set_fd(http->conn, http->socket);
   } else {
     http->conn = NULL;
+  }
+#else
+  if(ssl) {
+    warn("Compile with openssl and remove HTTP_NO_SSL, to request the url");
+    return false;
   }
 #endif //HTTP_NO_SSL
 
@@ -652,39 +659,8 @@ bool http_send_not_found(Http *http) {
   return http_send_len(not_found_string, strlen(not_found_string), http); 
 }
 
-bool http_send_http_response(Http *http, const HttpResponse *response, char* buffer, size_t buffer_len) {
-  if(!http) {
-    return false;
-  }
-
-  if(response == NULL) {    
-    const char *not_found_string =
-      "HTTP/1.1 404 Not Found\r\n"
-      "Content-Type: text/plain\r\n"
-      "Content-Length: 15\r\n"
-      "\r\n"
-      "404 - Not Found";
-    return http_send_len(not_found_string, strlen(not_found_string), http);
-  }
-
-  char **buffer_ptr = &buffer;
-
-  if(buffer == NULL) {
-    char stack_buffer[HTTP_BUFFER_CAP];
-    buffer_ptr = (char **) (void *) &stack_buffer;
-    buffer_len = HTTP_BUFFER_CAP;
-  }  
-
-  size_t response_len;
-  if(!http_format_http_response(response, *buffer_ptr, buffer_len, &response_len)) {
-    return false;
-  }
-  
-  return http_send_len(buffer, response_len, http);
-}
-
-string http_server_content_type_from_name(string file_name) {
-  string content_type = HTTP_CONTENT_TYPE_PLAIN;
+const char* http_server_content_type_from_name(string file_name) {
+  const char *content_type = HTTP_CONTENT_TYPE_PLAIN;
 
   if(file_name.len <= 2) {
     return content_type;
@@ -707,6 +683,20 @@ string http_server_content_type_from_name(string file_name) {
   return content_type;
 }
 
+void http_send_files(Http *client, const char *dir, const char *home, string file_path) {
+  if(string_eq(file_path, STRING("/"))) {
+    file_path = string_from_cstr(home);
+  }
+  
+  FILE *f;
+  if(!http_open_file3(&f, dir, file_path)) {
+    http_send_not_found(client);
+    return;
+  }
+  http_send_file(&f, client, http_server_content_type_from_name(file_path));
+  http_close_file(&f);
+}
+
 bool http_open_file(FILE **f, const char *file_path) {
   FILE *file = fopen(file_path, "rb");
   if(!file) {
@@ -720,11 +710,37 @@ bool http_open_file(FILE **f, const char *file_path) {
   return true;
 }
 
-bool http_send_file(FILE **f, Http *http) {
+bool http_open_file2(FILE **f, string file_path) {
+  char buffer[MAX_PATH+1];
+  assert(file_path.len < MAX_PATH);
+  memcpy(buffer, file_path.data, file_path.len);
+  buffer[file_path.len] = 0;
+  return http_open_file(f, buffer);
+}
+
+bool http_open_file3(FILE **f, const char *dir, string file_path) {
+  size_t dir_len = strlen(dir);
+  if(dir_len == 0) {
+    return false;
+  }
+  
+  char buffer[MAX_PATH+1];
+  assert(file_path.len + dir_len < MAX_PATH);
+  memcpy(buffer, dir, dir_len);
+  memcpy(buffer + dir_len, file_path.data, file_path.len);
+  buffer[dir_len + file_path.len] = 0;
+  
+  return http_open_file(f, buffer);
+}
+
+bool http_send_file(FILE **f, Http *http, const char *content_type) {
   if(!http_valid(http->socket)) {
     return false;
   }
   if(!f) {
+    return false;
+  }
+  if(!content_type) {
     return false;
   }
 
@@ -732,14 +748,11 @@ bool http_send_file(FILE **f, Http *http) {
   size_t buffer_off = 0;
   size_t buffer_cap = HTTP_BUFFER_CAP;
 
-  //TODO: make Content-Type a parameter
-  static const char *headers = "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "Connection: keep-alive\r\n"
-    "Transfer-Encoding: chunked\r\n"
-    "\r\n";
-
-  size_t buffer_size = snprintf(buffer, HTTP_BUFFER_CAP, "%s", headers);
+  size_t buffer_size = snprintf(buffer, HTTP_BUFFER_CAP, "%s%s%s\r\n", "HTTP/1.1 200 OK\r\nContent-Type: ",
+				content_type,
+				"\r\nConnection: keep-alive\r\n"
+				"Transfer-Encoding: chunked\r\n");
+  
   if(buffer_size >= HTTP_BUFFER_CAP) {
     panic("The Content-Type is too big, to fit into the HTTP_BUFFER_CAP.");
     return false;
@@ -767,6 +780,7 @@ bool http_send_file(FILE **f, Http *http) {
     buffer[buffer_off + 5] = '\n';
     buffer[buffer_off + 6 + nbytes] = '\r';
     buffer[buffer_off + 6 + nbytes + 1] = '\n';
+   
     if(nbytes > 0) {
       //4 := 0x2000 = HTTP_BUFFER_CAP
       //If HTTP_BUFFER_CAP exceeds 4 digits in hexadecimal, adjust 4 to 5, ...
@@ -775,7 +789,7 @@ bool http_send_file(FILE **f, Http *http) {
       int i = 0;
       while(n > 0) {
 	size_t m = n % 16;
-	buffer[buffer_off + 4 - i++ - 1] = m  + '0';
+	buffer[buffer_off + 4 - i++ - 1] = m<10 ? m + '0' : m + 'W';
 	n /= 16;
       }
       while(i < 4) buffer[buffer_off + 4 - i++ - 1] = '0';
@@ -784,8 +798,10 @@ bool http_send_file(FILE **f, Http *http) {
 	memcpy(buffer + buffer_off + 6 + nbytes + 2, end_carriage, end_carriage_len);
 	nbytes += end_carriage_len;
       }
-      if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {
-
+#ifdef HTTP_DEBUG
+      fwrite(buffer, buffer_off + 6 + nbytes + 2, 1, stdout);
+#endif //HTTP_DEBUG
+      if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {	
 	return false;
       }
     }
@@ -811,76 +827,12 @@ void http_close_file(FILE **f) {
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
 
-  if(!string_eq(request->method, STRING("GET"))) {
-    http_send_http_response(client, NULL, NULL, 0);
+  if(string_eq(request->method, STRING("GET"))) {
+    http_send_files(client, ".", "/index.html", request->route);
     return;
   }
-  
-  //GET FILE_PATH
-  char file_path[256] = "./index.html";
-  string path = request->route;
-  assert(path.len < 256 - 1);
-  
-  if(!string_eq(request->route, STRING("/"))) {
-    memcpy(file_path + 1, path.data, path.len);
-    file_path[path.len + 1] = 0;
-  }
 
-  //SLURP_FILE
-  size_t size;
-  char *content = slurp_file(file_path, &size);
-  if(!content) {
-    http_send_http_response(client, NULL, NULL, 0);
-    return;
-  }
-  
-  HttpResponse response = {0};
-  response.code = 200;
-  response.message = STRING("OK");
-    
-  response.body = string_from(content, size);
-  response.content_type = http_server_content_type_from_name(string_from_cstr(file_path));
-
-  http_send_http_response(client, &response, NULL, 0);
-  free(content);
-}
-
-bool http_format_http_response(const HttpResponse *response, char *buffer, size_t buffer_len, size_t *response_len) {
-  if(response == NULL) {
-    return false;
-  }
-
-  size_t len;
-
-  if(response->content_type.len > 0 && response->body.len >0 ) {
-    len = snprintf(buffer, buffer_len,
-			  "HTTP/1.1 %d %.*s\r\n"
-			  "Connection: keep-alive\r\n"
-			  "Content-Type: %.*s\r\n"
-			  "Content-Length: %d\r\n"
-			  "\r\n"
-			  "%.*s\n",
-			  response->code,
-			  String_Arg(response->message),
-			  String_Arg(response->content_type),
-			  (int) response->body.len,
-			  String_Arg(response->body));
-  }
-  else {
-    len = snprintf(buffer, buffer_len,
-			  "HTTP/1.1 %d %.*s\r\n"
-			  "Connection: keep-alive\r\n"
-			  "\r\n",
-			  response->code,
-			  String_Arg(response->message));   
-  }
-
-  if(len >= buffer_len || len==0) {
-    return false;
-  }
-
-  if(response_len) *response_len = len;
-  return true;
+  http_send_not_found(client);
 }
 //----------END HTTP_SERVER----------
 
@@ -1069,6 +1021,49 @@ bool http_connect(int socket, bool ssl, const char *hostname) {
   
   return true; 
 }
+
+bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes) {
+  if(!http_valid(http->socket)) {
+    return false;
+  }
+
+  if(!content_type) {
+    return false;
+  }
+
+  if(!body) {
+    return false;
+  }
+
+  const char *prefix = NULL;
+  
+  static_assert(COUNT_HTTP_STATUS == 2, "The amount of HttpStatus has changed.");
+  switch(status) {
+  case HTTP_STATUS_OK:
+    prefix = "HTTP/1.1 200 OK";
+    break;
+  case HTTP_STATUS_INTERNAL_ERROR:
+    prefix = "HTTP/1.1 500 Internal Server Error";
+    break;
+  default:
+    panic("unreachable");
+  }
+
+  char buffer[HTTP_BUFFER_CAP];
+  return sendf(http_send_len2, http, buffer, HTTP_BUFFER_CAP,
+	       "%s\r\n"
+	       "Connection: keep-alive\r\n"
+	       "Content-Type %s\r\n"
+	       "Content-Length: %d\r\n"
+	       "\r\n"
+	       "%.*s",
+	       prefix, content_type, body_size_bytes, body_size_bytes, body);
+}
+
+#define http_sendf(http, fmt, ...) do{					\
+    char buffer[HTTP_BUFFER_CAP];					\
+    sendf(http_send_len2, http, buffer, HTTP_BUFFER_CAP, fmt, __VA_ARGS__); \
+  }while(0)
 
 bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   if(!http_valid(http->socket)) {

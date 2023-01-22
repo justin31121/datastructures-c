@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #define HTTP_IMPLEMENTATION
-#define HTTP_DEBUG
 #include "../libs/http.h"
 
 #define JSON_IMPLEMENTATION
@@ -18,8 +17,6 @@ int main() {
   if(sb.len == 0) {
     panic("No bytes in the string buffer");
   }
-
-  write_file_len("youtube.html", sb.data, sb.len);
 
   //PARSE JSON
   string response = string_from(sb.data, sb.len);
@@ -42,8 +39,6 @@ int main() {
 
   Json json;
   if(!json_parse_len(jsonString.data, jsonString.len, &json)) {
-    write_file_len("youtube.json", jsonString.data, jsonString.len);
-    printf("Written youtube.json\n");
     panic("Can not parse json");
   }
 

@@ -1,5 +1,4 @@
 #define HTTP_IMPLEMENTATION
-//#define HTTP_NO_SSL
 #include "../libs/http.h"
 
 #define THREADS_CAP 128
@@ -9,95 +8,32 @@ typedef struct{
   String_Buffer res;
 }Context;
 
-void file_handle(const HttpRequest *request, Http *client, void *arg) {
-  Context *context = (Context *) arg;
-  String_Buffer *sb = &(context->sb);
-  sb->len = 0;
-  String_Buffer *res = &(context->res);
-  res->len = 0;
-
-  string file_path = STRING("./rsc/index.html");
-  if(!string_eq(request->route, STRING("/"))) {
-    string_buffer_append(sb, "./rsc", 5);
-    string_buffer_append(sb, request->route.data, request->route.len);
-    string_buffer_append(sb, "\0", 1);
-    file_path = string_from(sb->data, sb->len - 1);
-  }
-
-  printf("file_path: %s\n", file_path.data);
-
-  size_t size;
-  char *content = slurp_file(file_path.data, &size);
-  if(content == NULL) {
-    http_send_http_response(client, NULL, NULL, 0);
-    return;
-  }
-
-  string_buffer_reserve(res, 2 * size);
-  
-  HttpResponse response = {0};
-  response.code = 200;
-  response.message = STRING("OK");
-  response.body = string_from(content, size);
-  response.content_type = http_server_content_type_from_name(file_path);
-
-  http_send_http_response(client, &response, res->data, res->cap);
-  
-  free(content);
-}
-
 void handle(const HttpRequest *request, Http *client, void *arg) {
-  
   if(string_eq(request->method, STRING("GET"))) {
-    file_handle(request, client, arg);
+    http_send_files(client, "rsc", "/index.html", request->route);
     return;
-  } if(!string_eq(request->method, STRING("POST")) || !string_eq(request->route, STRING("/post"))) {
-    http_send_http_response(client, NULL, NULL, 0);
-    return;
-  }
-
-  Context *context = (Context *) arg;
-  String_Buffer *sb = &(context->sb);
-  sb->len = 0;
+  } else if(string_eq(request->method, STRING("POST"))) {
+    Context *context = (Context *) arg;
+    String_Buffer *sb = &(context->sb);
+    sb->len = 0;
+    String_Buffer *res = &(context->res);
+    res->len = 0;
   
-  String_Buffer *res = &(context->res);
-  res->len = 0;
-  
-  string_buffer_append(res, request->body.data, request->body.len);
-  string_buffer_append(res, "\0", 1);
+    string_buffer_append(res, request->body.data, request->body.len);
+    string_buffer_append(res, "\0", 1);
 
-  bool proxy_req = http_get(res->data, string_buffer_callback, sb);
-  if(!proxy_req || sb->len == 0) {
-    HttpResponse response = {0};
-    response.code = 500;
-    response.message = STRING("Internal Server Error");
-    response.body = STRING("Can not reach hostname");
-    response.content_type = STRING("text/plain");
-    http_send_http_response(client, &response, NULL, 0);
+    bool proxy_req = http_get(res->data, string_buffer_callback, sb);
+    if(!proxy_req || sb->len == 0) {
+      const char *message = "Can not reach hostname";
+      http_respond(client, HTTP_STATUS_INTERNAL_ERROR, "text/plain", message, strlen(message));
+      return;
+    }    
+    
+    http_respond(client, HTTP_STATUS_OK, "application/json", sb->data, sb->len);
     return;
   }
-  
-  string_buffer_reserve(res, 2*sb->cap);
 
-  HttpResponse response = {0};
-  response.code = 200;
-  response.message = STRING("OK");
-  response.body = string_from(sb->data, sb->len);
-  response.content_type = STRING("text/plain");
-  http_send_http_response(client, &response, res->data, res->cap);
-}
-
-void handle2(const HttpRequest *request, Http *client, void *arg) {
-  (void) arg;
-  (void) request;
-  
-  FILE *f;
-  if(!http_open_file(&f, "./rsc/index.html")) {
-    http_send_not_found(client);
-    return;
-  }
-  http_send_file(&f, client);
-  http_close_file(&f);
+  http_send_not_found(client);
 }
 
 Context sbs[THREADS_CAP] = {0};
@@ -105,11 +41,10 @@ Context sbs[THREADS_CAP] = {0};
 int main() {  
   HttpServer server;  
   if(!http_server_init(&server, HTTPS_PORT, "./rsc/cert.pem", "./rsc/key.pem")) {
-    //if(!http_server_init(&server, HTTP_PORT, NULL, NULL)) {
     panic("http_server_init");
   }
   
-  if(!http_server_listen_and_serve(&server, handle2, THREADS_CAP, sbs, sizeof(sbs[0]))) {
+  if(!http_server_listen_and_serve(&server, handle, THREADS_CAP, sbs, sizeof(sbs[0]))) {
     panic("http_server_listen_and_serve");
   }
   

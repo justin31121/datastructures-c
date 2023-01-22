@@ -2,7 +2,6 @@
 #include <time.h>
 
 #define HTTP_IMPLEMENTATION
-#define HTTP_NO_SSL
 #include "../libs/http.h"
 
 int main(int argc, char **argv) {
