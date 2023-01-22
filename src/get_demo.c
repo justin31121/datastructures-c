@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #define HTTP_IMPLEMENTATION
+#define HTTP_DEBUG
 #include "../libs/http.h"
 
 #define JSON_IMPLEMENTATION

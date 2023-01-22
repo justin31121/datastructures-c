@@ -10,9 +10,11 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#ifndef HTTP_NO_SSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/conf.h> //link with -lssl -lcrypto
+#endif //HTTP_NO_SSL
 
 #ifdef HTTP_IMPLEMENTATION
 
@@ -57,7 +59,9 @@ typedef struct{
 #ifdef linux  
   int socket;
 #endif //linux
+#ifndef HTTP_NO_SSL
   SSL* conn;
+#endif //HTTP_NO_SSL
   const char *host;
 }Http;
 
@@ -135,8 +139,17 @@ void *http_server_serve_function(void *arg);
 
 // -- UTIL
 bool http_server_fill_http_request(string request_string, HttpRequest *request);
+
+bool http_send_not_found(Http *http);
+
+
 bool http_send_http_response(Http *http, const HttpResponse *response, char* buffer, size_t buffer_len);
 string http_server_content_type_from_name(string file_name);
+
+bool http_open_file(FILE **f, const char* file_path);
+bool http_send_file(FILE **f, Http *client);
+void http_close_file(FILE **f);
+
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg);
 bool http_format_http_response(const HttpResponse *response, char *buffer, size_t buffer_len, size_t *response_len);
 //----------END HTTP_SERVER----------
@@ -154,9 +167,9 @@ void http_make_nonblocking(int socket);
 HttpAccept http_accept(int server, int *client);
 HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
 bool http_connect(int socket, bool ssl, const char *hostname);
-bool http_send_len(int socket, SSL *conn, const char *buffer, size_t buffer_len);
-bool http_send_len_wrapper(const char *buffer, size_t buffer_len, void *http);
-bool http_read(int socket, SSL *conn, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
+bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
+bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
+bool http_read(Http *http, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
 
 void http_init_external_libs(const char *cert_file, const char *key_file);
@@ -166,9 +179,10 @@ size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata);
 
 #ifdef HTTP_IMPLEMENTATION
 
-
+#ifndef HTTP_NO_SSL
 static SSL_CTX *http_global_ssl_client_ctx = NULL;
 static SSL_CTX *http_global_ssl_server_ctx = NULL;
+#endif //HTTP_NO_SSL
 static bool http_global_wsa_startup = false;
 
 //----------BEGIN HTTP----------
@@ -188,6 +202,7 @@ bool http_init(Http *http, const char *hostname, bool ssl) {
     return false;
   }
 
+#ifndef HTTP_NO_SSL
   if(ssl) {
     http->conn = SSL_new(http_global_ssl_client_ctx);
     if(!http->conn) {
@@ -197,15 +212,18 @@ bool http_init(Http *http, const char *hostname, bool ssl) {
   } else {
     http->conn = NULL;
   }
+#endif //HTTP_NO_SSL
 
   if(!http_connect(http->socket, ssl, hostname)) {
     warn("connect failed");
     return false;
   }
 
+#ifndef HTTP_NO_SSL
   if(ssl && SSL_connect(http->conn)!=1) {
     return false;
   }
+#endif //HTTP_NO_SSL
 
   http->host = hostname;
 
@@ -260,7 +278,6 @@ bool http_request(Http *http, const char *route, const char *method,
 		  size_t (*write_callback)(const void*, size_t, size_t, void *),
 		  void *userdata)
 {
-
   not_null(http);
 
   bool hasBody = body != NULL && content_type != NULL;
@@ -268,7 +285,7 @@ bool http_request(Http *http, const char *route, const char *method,
   //SEND
   char request_buffer[HTTP_BUFFER_CAP];
   if(!hasBody) {
-    if(!sendf(http_send_len_wrapper, http, request_buffer, HTTP_BUFFER_CAP,
+    if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 	      "%s %s HTTP/1.1\r\n"
 	      "Host: %s\r\n"
 	      "\r\n", method, route, http->host)) {
@@ -276,7 +293,7 @@ bool http_request(Http *http, const char *route, const char *method,
       return false;
     }
   } else {
-    if(!sendf(http_send_len_wrapper, http, request_buffer, HTTP_BUFFER_CAP,
+    if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 	      "%s %s HTTP/1.1\r\n"
 	      "Host: %s\r\n"
 	      "Content-Type: %s\r\n"
@@ -295,88 +312,6 @@ bool http_request(Http *http, const char *route, const char *method,
   }
   
   return true;
-  /*
-
-  Http fallbackHttp = {0};
-  bool httpWasNull = http == NULL;
-  
-  //IF NULL INIT 
-  if(http == NULL) {
->>>>>>> 195058e10f00874fed5a5b47804cea26b73a56ad
-    if(!http_init(&fallbackHttp)) {
-      return false;
-    }
-    http = &fallbackHttp;
-  }
-
-  if(http->connected) warn("client is already connected");
-
-  //GET HOSTNAME
-  size_t hostname_len;
-  size_t url_len = strlen(url);
-  bool ssl;
-  int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
-
-  if(hostname < 0) {
-    return false;
-  }
-  int directory_len = url_len - hostname - hostname_len;
-
-  if(!http->connected) {
-    //CONNECT
-    if(!http_connect(http->socket, ssl, url + hostname, hostname_len)) {
-      warn("connect failed");
-      return false;
-    }
-    http->connected = true;
-
-    //SSL CONNECT
-    if(ssl && SSL_connect(http->conn)!=1) {
-      return false;
-    }
-  }
-
-  bool hasBody = body != NULL && content_type != NULL;
-
-  const char *route = "/";
-  if(directory_len>0) {
-    route = url + hostname + hostname_len;
-  }
-  
-  //SEND
-  char request_buffer[HTTP_BUFFER_CAP];
-  if(!hasBody) {
-    if(!sendf(http_send_len_wrapper, http, request_buffer, HTTP_BUFFER_CAP,
-	      "%s %s HTTP/1.1\r\n"
-	      "Host: %.*s\r\n"
-	      "\r\n", method, route, hostname_len, url + hostname)) {
-      warn("send failed");
-      return false;
-    }
-  } else {
-    if(!sendf(http_send_len_wrapper, http, request_buffer, HTTP_BUFFER_CAP,
-	      "%s %s HTTP/1.1\r\n"
-	      "Host: %.*s\r\n"
-	      "Content-Type: %s\r\n"
-	      "Content-Length: %d\r\n"
-	      "\r\n"
-	      "%s", method, route, hostname_len, url + hostname, content_type, strlen(body), body)) {
-      return false;
-    }    
-  }
-  
-  //READ
-  if(!http_read_body(http->socket, http->conn, write_callback, userdata)) {
-    warn("read failed");
-    return false;
-  }
-
-  if(httpWasNull) {
-    http_free(&fallbackHttp);    
-  }
-  
-  return true;
-  */
 }
 
 bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,size_t, void *), void *userdata) {
@@ -420,10 +355,12 @@ void http_free(Http *http) {
   if(http_valid(http->socket)) {
     http_close(http->socket);
   }
-  
+
+#ifndef HTTP_NO_SSL
   if(http->conn) {
     SSL_free(http->conn);
   }
+#endif //HTTP_NO_SSL
 }
 
 //----------END HTTP----------
@@ -564,6 +501,7 @@ void *http_server_listen_function(void *arg) {
     } else {
       Http http = {0};
       http.socket = client;
+#ifndef HTTP_NO_SSL
       if(server->ssl) {
 	http.conn = SSL_new(http_global_ssl_server_ctx);
 	if(!http.conn) {
@@ -586,6 +524,7 @@ void *http_server_listen_function(void *arg) {
 	  continue;
 	}
       }
+#endif //HTTP_NO_SSL
       if(!http_server_create_serve_thread(server, http)) {
 	fprintf(stderr, "WARNING: No server thread is avaible\n");
 	//TODO: Maybe serve client once on listen thread
@@ -637,7 +576,7 @@ void *http_server_serve_function(void *_arg) {
       break;
     }
 
-    if(!http_read(client.socket, client.conn, string_buffer_callback, buffer)) {
+    if(!http_read(&client, string_buffer_callback, buffer)) {
       break;
     }
 
@@ -699,6 +638,20 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
   return true;
 }
 
+bool http_send_not_found(Http *http) {
+  if(!http_valid(http->socket)) {
+    return false;
+  }
+
+  static const char *not_found_string =
+    "HTTP/1.1 404 Not Found\r\n"
+    "Content-Type: text/plain\r\n"
+    "Content-Length: 15\r\n"
+    "\r\n"
+    "404 - Not Found";
+  return http_send_len(not_found_string, strlen(not_found_string), http); 
+}
+
 bool http_send_http_response(Http *http, const HttpResponse *response, char* buffer, size_t buffer_len) {
   if(!http) {
     return false;
@@ -711,21 +664,23 @@ bool http_send_http_response(Http *http, const HttpResponse *response, char* buf
       "Content-Length: 15\r\n"
       "\r\n"
       "404 - Not Found";
-    return http_send_len(http->socket, http->conn, not_found_string, strlen(not_found_string));
+    return http_send_len(not_found_string, strlen(not_found_string), http);
   }
+
+  char **buffer_ptr = &buffer;
 
   if(buffer == NULL) {
     char stack_buffer[HTTP_BUFFER_CAP];
-    buffer = stack_buffer;
+    buffer_ptr = (char **) (void *) &stack_buffer;
     buffer_len = HTTP_BUFFER_CAP;
-  }
+  }  
 
   size_t response_len;
-  if(!http_format_http_response(response, buffer, buffer_len, &response_len)) {
+  if(!http_format_http_response(response, *buffer_ptr, buffer_len, &response_len)) {
     return false;
   }
   
-  return http_send_len(http->socket, http->conn, buffer, response_len);
+  return http_send_len(buffer, response_len, http);
 }
 
 string http_server_content_type_from_name(string file_name) {
@@ -752,7 +707,107 @@ string http_server_content_type_from_name(string file_name) {
   return content_type;
 }
 
-//TODO: either make it variable by a buffer or remove it, since it needs to allocate memroy for the response
+bool http_open_file(FILE **f, const char *file_path) {
+  FILE *file = fopen(file_path, "rb");
+  if(!file) {
+    fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
+    return false;
+  }
+  clearerr(file);
+
+  if(f) *f = file;
+  
+  return true;
+}
+
+bool http_send_file(FILE **f, Http *http) {
+  if(!http_valid(http->socket)) {
+    return false;
+  }
+  if(!f) {
+    return false;
+  }
+
+  char buffer[HTTP_BUFFER_CAP];
+  size_t buffer_off = 0;
+  size_t buffer_cap = HTTP_BUFFER_CAP;
+
+  //TODO: make Content-Type a parameter
+  static const char *headers = "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/html\r\n"
+    "Connection: keep-alive\r\n"
+    "Transfer-Encoding: chunked\r\n"
+    "\r\n";
+
+  size_t buffer_size = snprintf(buffer, HTTP_BUFFER_CAP, "%s", headers);
+  if(buffer_size >= HTTP_BUFFER_CAP) {
+    panic("The Content-Type is too big, to fit into the HTTP_BUFFER_CAP.");
+    return false;
+  }
+
+  buffer_off = buffer_size;
+  buffer_cap = HTTP_BUFFER_CAP - buffer_off;
+
+  static const char *end_carriage = "0\r\n\r\n";
+  static const size_t end_carriage_len = 5;
+  
+  while(true) {
+    bool bbreak = false;//0129\r\n ... body ... \r\n
+    size_t nbytes = fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, *f);
+    if(nbytes != buffer_cap - 2 - 6) {
+      if(ferror(*f)) {
+	fprintf(stderr, "[WARNING]: Can not read file because: %s\n", strerror(errno));
+	return false;
+      }
+      if(feof(*f)) {
+	bbreak = true;
+      }
+    }
+    buffer[buffer_off + 4] = '\r';
+    buffer[buffer_off + 5] = '\n';
+    buffer[buffer_off + 6 + nbytes] = '\r';
+    buffer[buffer_off + 6 + nbytes + 1] = '\n';
+    if(nbytes > 0) {
+      //4 := 0x2000 = HTTP_BUFFER_CAP
+      //If HTTP_BUFFER_CAP exceeds 4 digits in hexadecimal, adjust 4 to 5, ...
+      //CONVERTING nbytes to hex in buffer[0] - buffer[3]
+      size_t n = nbytes;
+      int i = 0;
+      while(n > 0) {
+	size_t m = n % 16;
+	buffer[buffer_off + 4 - i++ - 1] = m  + '0';
+	n /= 16;
+      }
+      while(i < 4) buffer[buffer_off + 4 - i++ - 1] = '0';
+
+      if(bbreak && (6 + nbytes + 2 + end_carriage_len < buffer_cap)) {
+	memcpy(buffer + buffer_off + 6 + nbytes + 2, end_carriage, end_carriage_len);
+	nbytes += end_carriage_len;
+      }
+      if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {
+
+	return false;
+      }
+    }
+    if(bbreak) {
+      if(6 + nbytes + 2 + 5 >= buffer_cap) {
+	if(!http_send_len(end_carriage, end_carriage_len, http)) {	  
+	  return false;
+	}
+      }
+      break;
+    }
+    buffer_cap = HTTP_BUFFER_CAP;
+    buffer_off = 0;
+  }
+
+  return true;
+}
+
+void http_close_file(FILE **f) {
+  if(f) fclose(*f);
+}
+
 void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
 
@@ -1015,8 +1070,8 @@ bool http_connect(int socket, bool ssl, const char *hostname) {
   return true; 
 }
 
-bool http_send_len(int socket, SSL *conn, const char *buffer, size_t _buffer_size) {
-  if(!http_valid(socket)) {
+bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
+  if(!http_valid(http->socket)) {
     return false;
   }
   
@@ -1029,11 +1084,16 @@ bool http_send_len(int socket, SSL *conn, const char *buffer, size_t _buffer_siz
   ssize_t nbytes_last;
   ssize_t nbytes_total = 0;
   while(nbytes_total < buffer_size) {
-    if(conn != NULL) {
-      nbytes_last = SSL_write(conn, buffer + nbytes_total, buffer_size - nbytes_total);
+#ifndef HTTP_NO_SSL
+    if(http->conn != NULL) {
+      nbytes_last = SSL_write(http->conn, buffer + nbytes_total, buffer_size - nbytes_total);
     } else {
-      nbytes_last = send(socket, buffer + nbytes_total, buffer_size - nbytes_total, 0);
+      nbytes_last = send(http->socket, buffer + nbytes_total, buffer_size - nbytes_total, 0);
     }
+#else
+    nbytes_last = send(http->socket, buffer + nbytes_total, buffer_size - nbytes_total, 0);
+#endif //HTTP_NO_SSL
+    
     if(nbytes_last == -1) {
       return false;
     }
@@ -1043,13 +1103,12 @@ bool http_send_len(int socket, SSL *conn, const char *buffer, size_t _buffer_siz
   return true;
 }
 
-bool http_send_len_wrapper(const char *buffer, size_t buffer_len, void *_http) {
-  Http *http = (Http *) _http;
-  return http_send_len(http->socket, http->conn, buffer, buffer_len);
+bool http_send_len2(const char *buffer, size_t buffer_len, void *http) {
+  return http_send_len(buffer, buffer_len, (Http *) http);
 }
 
-bool http_read(int socket, SSL *conn, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
-  if(!http_valid(socket)) {
+bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
+  if(!http_valid(http->socket)) {
     return false;
   }
   
@@ -1058,12 +1117,16 @@ bool http_read(int socket, SSL *conn, size_t (*write_callback)(const void *data,
   ssize_t nbytes_total = 0;
   ssize_t nbytes_last;
   do {
-    if(conn != NULL) {
-      nbytes_last = SSL_read(conn, buffer, HTTP_BUFFER_CAP);
+#ifndef HTTP_NO_SSL
+    if(http->conn != NULL) {
+      nbytes_last = SSL_read(http->conn, buffer, HTTP_BUFFER_CAP);
     }
     else {
-      nbytes_last = recv(socket, buffer, HTTP_BUFFER_CAP, 0);
+      nbytes_last = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
     }
+#else
+    nbytes_last = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
+#endif //HTTP_NO_SSL
 
 #ifdef linux
     if(nbytes_last < 0) {
@@ -1110,12 +1173,16 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 
   ssize_t nbytes_total;
   do{
+#ifndef HTTP_NO_SSL
     if(http->conn != NULL) {
       nbytes_total = SSL_read(http->conn, buffer, HTTP_BUFFER_CAP);
     }
     else {
       nbytes_total = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
-    }
+    }    
+#else
+    nbytes_total = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
+#endif //HTTP_NO_SSL
 
     if(nbytes_total == -1) {
       return false;
@@ -1150,8 +1217,6 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
     }
 
     if(body && write_callback!=NULL) {
-      
-      
       if(content_length > 0) { //CONTENT_LENGTH: 69
 	uint64_t len = (uint64_t) (nbytes_total - (ssize_t) offset);
 	if(content_length != -1 && read + len > (uint64_t) content_length) {
@@ -1205,7 +1270,8 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
   return true;
 }
 
-void http_init_external_libs(const char *cert_file, const char *key_file) {  
+void http_init_external_libs(const char *cert_file, const char *key_file) {
+#ifndef HTTP_NO_SSL
   if(!http_global_ssl_client_ctx) {
     SSL_library_init();
     OpenSSL_add_all_algorithms();
@@ -1237,6 +1303,10 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
   if (cert_file != NULL && key_file != NULL && !SSL_CTX_check_private_key(http_global_ssl_server_ctx)) {
     panic("Private key does not match the public certificate\n");
   }
+#else
+  (void) cert_file;
+  (void) key_file;
+#endif //HTTP_NO_SSL
   
 #ifdef _WIN32
   if(!http_global_wsa_startup) {
