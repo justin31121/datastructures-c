@@ -17,7 +17,7 @@ int main() {
   if(sb.len == 0) {
     panic("No bytes in the string buffer");
   }
-
+  
   //PARSE JSON
   string response = string_from(sb.data, sb.len);
   int pos = string_index_of(response, "ytInitialData = ");
@@ -39,6 +39,7 @@ int main() {
 
   Json json;
   if(!json_parse_len(jsonString.data, jsonString.len, &json)) {
+    write_file_len("initialData.json", jsonString.data, jsonString.len);
     panic("Can not parse json");
   }
 

@@ -55,7 +55,7 @@ typedef struct{
 #ifdef _WIN32
   SOCKET socket;
 #endif //_WIN32
-  
+
 #ifdef linux  
   int socket;
 #endif //linux
@@ -238,12 +238,12 @@ bool http_init(Http *http, const char *hostname, bool ssl) {
 }
 
 int http_find_hostname(const char *url, size_t url_len,
-		  size_t *hostname_len, bool *ssl) {
+		       size_t *hostname_len, bool *ssl) {
   char *http = "http://";
   size_t http_len = 7;
   char* https = "https://";
   size_t https_len = 8;
-    
+
   int start = cstr_index_of(url, url_len, http, http_len);
   if(start<0) {
     start = cstr_index_of(url, url_len, https, https_len);
@@ -288,7 +288,7 @@ bool http_request(Http *http, const char *route, const char *method,
   not_null(http);
 
   bool hasBody = body != NULL && content_type != NULL;
-  
+
   //SEND
   char request_buffer[HTTP_BUFFER_CAP];
   if(!hasBody) {
@@ -311,13 +311,13 @@ bool http_request(Http *http, const char *route, const char *method,
       return false;
     }    
   }
-  
+
   //READ
   if(!http_read_body(http, write_callback, userdata)) {
     warn("read failed");
     return false;
   }
-  
+
   return true;
 }
 
@@ -325,13 +325,13 @@ bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,siz
   size_t url_len = strlen(url);
   bool ssl;
   size_t hostname_len;
-  
+
   int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
   if(hostname < 0) {
     warn("can not find hostname");
     return false;
   }
-  
+
   int directory_len = url_len - hostname - hostname_len;
   const char *route = "/";
   if(directory_len>0) {
@@ -354,7 +354,7 @@ bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,siz
   }
 
   http_free(&http);
-  
+
   return true;
 }
 
@@ -394,9 +394,9 @@ bool http_server_init(HttpServer *server, size_t port, const char *cert_file, co
   if(!http_bind(server->socket, port)) {
     return false;
   }
-  
+
   http_make_nonblocking(server->socket);
-  
+
   return true;
 }
 
@@ -515,13 +515,13 @@ void *http_server_listen_function(void *arg) {
 	  fprintf(stderr, "WARNING: Https failed to generate SSL_connection\n");
 	  continue;
 	}
-	
+
 	//WTF
 #ifdef _WIN32	
 	unsigned long mode = 0;
 	ioctlsocket(client, FIONBIO, &mode);
 #endif //_WIN32
- 
+
 	SSL_set_fd(http.conn, client);
 	int accept_res = SSL_accept(http.conn);
 	if(accept_res <= 0) {
@@ -553,7 +553,7 @@ bool http_server_create_serve_thread(HttpServer *server, Http client) {
     thread->used = true;
     return true;
   }
-  
+
   return false;
 }
 
@@ -571,7 +571,7 @@ void *http_server_serve_function(void *_arg) {
 
   fd_set read_fds = {0};
   FD_SET(client.socket, &read_fds);
-  
+
   struct timeval timeout;
   timeout.tv_sec = 2;
   timeout.tv_usec = 0;
@@ -607,7 +607,7 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
   }
 
   string request_string_origin = request_string;
-  
+
   size_t headersStart = 0;
   size_t bodyStart = 0;
 
@@ -637,7 +637,7 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
     }
     break;
   }
-  
+
   request->body = string_from(request_string_origin.data + bodyStart,
 			      request_string_origin.len - bodyStart);
   request->headers = string_trim(string_from(request_string_origin.data + headersStart,
@@ -668,7 +668,7 @@ const char* http_server_content_type_from_name(string file_name) {
 
   int i = (int) file_name.len - 1;
   while(i>0 && file_name.data[i] != '.') i--;
-  
+
   string ext = string_from(file_name.data + i, file_name.len - i);
   if(string_eq(ext, STRING(".html"))) {
     content_type = HTTP_CONTENT_TYPE_HTML;
@@ -679,7 +679,7 @@ const char* http_server_content_type_from_name(string file_name) {
   } else {
     fprintf(stderr, "[WARNING] Unknown extension: "String_Fmt"\n", String_Arg(ext));
   }
-  
+
   return content_type;
 }
 
@@ -687,7 +687,7 @@ void http_send_files(Http *client, const char *dir, const char *home, string fil
   if(string_eq(file_path, STRING("/"))) {
     file_path = string_from_cstr(home);
   }
-  
+
   FILE *f;
   if(!http_open_file3(&f, dir, file_path)) {
     http_send_not_found(client);
@@ -706,7 +706,7 @@ bool http_open_file(FILE **f, const char *file_path) {
   clearerr(file);
 
   if(f) *f = file;
-  
+
   return true;
 }
 
@@ -723,13 +723,13 @@ bool http_open_file3(FILE **f, const char *dir, string file_path) {
   if(dir_len == 0) {
     return false;
   }
-  
+
   char buffer[MAX_PATH+1];
   assert(file_path.len + dir_len < MAX_PATH);
   memcpy(buffer, dir, dir_len);
   memcpy(buffer + dir_len, file_path.data, file_path.len);
   buffer[dir_len + file_path.len] = 0;
-  
+
   return http_open_file(f, buffer);
 }
 
@@ -752,7 +752,7 @@ bool http_send_file(FILE **f, Http *http, const char *content_type) {
 				content_type,
 				"\r\nConnection: keep-alive\r\n"
 				"Transfer-Encoding: chunked\r\n");
-  
+
   if(buffer_size >= HTTP_BUFFER_CAP) {
     panic("The Content-Type is too big, to fit into the HTTP_BUFFER_CAP.");
     return false;
@@ -763,7 +763,7 @@ bool http_send_file(FILE **f, Http *http, const char *content_type) {
 
   static const char *end_carriage = "0\r\n\r\n";
   static const size_t end_carriage_len = 5;
-  
+
   while(true) {
     bool bbreak = false;//0129\r\n ... body ... \r\n
     size_t nbytes = fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, *f);
@@ -780,7 +780,7 @@ bool http_send_file(FILE **f, Http *http, const char *content_type) {
     buffer[buffer_off + 5] = '\n';
     buffer[buffer_off + 6 + nbytes] = '\r';
     buffer[buffer_off + 6 + nbytes + 1] = '\n';
-   
+
     if(nbytes > 0) {
       //4 := 0x2000 = HTTP_BUFFER_CAP
       //If HTTP_BUFFER_CAP exceeds 4 digits in hexadecimal, adjust 4 to 5, ...
@@ -847,7 +847,7 @@ int http_open() {
   if(!protoent) {
     return -1;
   }
-  
+
   return socket(AF_INET, SOCK_STREAM, /*protoent->p_proto*/ 0);
 #endif //linux
 }
@@ -867,7 +867,7 @@ bool http_bind(int socket, int port) {
     closesocket(socket);
     return false;
   }
-  
+
 #endif //_WIN32
 
 #ifdef linux
@@ -953,7 +953,7 @@ HttpAccept http_accept(int socket, int *out_client) {
 }
 
 HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
-  #ifdef _WIN32
+#ifdef _WIN32
   int ret = select(0, read_fds, NULL, NULL, timeout);
   if(ret == SOCKET_ERROR) {
     return HTTP_ACCEPT_ERROR;
@@ -970,11 +970,11 @@ HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
     return HTTP_ACCEPT_AGAIN;
   }
 #endif //linux
-  
+
   if(!FD_ISSET(client, read_fds)) {
     return HTTP_ACCEPT_AGAIN;
   }
-  
+
   return HTTP_ACCEPT_OK;
 }
 
@@ -1000,7 +1000,7 @@ bool http_connect(int socket, bool ssl, const char *hostname) {
     warn("hostent is null");
     return false;
   }
-  
+
 #ifdef _WIN32
   addr.sin_addr.s_addr = *((unsigned long*) hostent->h_addr);
 #endif //WIN32
@@ -1011,14 +1011,14 @@ bool http_connect(int socket, bool ssl, const char *hostname) {
   }
   addr.sin_addr.s_addr = in_addr;
 #endif //linux
-  
+
   addr.sin_family = AF_INET;
   addr.sin_port = htons(ssl ? HTTPS_PORT : HTTP_PORT);
   if(connect(socket, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
     warn("socket connect failed");
     return false;
   }
-  
+
   return true; 
 }
 
@@ -1036,7 +1036,7 @@ bool http_respond(Http *http, HttpStatus status, const char *content_type, const
   }
 
   const char *prefix = NULL;
-  
+
   static_assert(COUNT_HTTP_STATUS == 2, "The amount of HttpStatus has changed.");
   switch(status) {
   case HTTP_STATUS_OK:
@@ -1069,13 +1069,13 @@ bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   if(!http_valid(http->socket)) {
     return false;
   }
-  
+
   if(buffer == NULL) {
     return false;
   }
 
   ssize_t buffer_size = (ssize_t) _buffer_size;
-  
+
   ssize_t nbytes_last;
   ssize_t nbytes_total = 0;
   while(nbytes_total < buffer_size) {
@@ -1088,13 +1088,13 @@ bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
 #else
     nbytes_last = send(http->socket, buffer + nbytes_total, buffer_size - nbytes_total, 0);
 #endif //HTTP_NO_SSL
-    
+
     if(nbytes_last == -1) {
       return false;
     }
     nbytes_total += nbytes_last;
   }
-  
+
   return true;
 }
 
@@ -1106,9 +1106,9 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
   if(!http_valid(http->socket)) {
     return false;
   }
-  
+
   char buffer[HTTP_BUFFER_CAP];
-  
+
   ssize_t nbytes_total = 0;
   ssize_t nbytes_last;
   do {
@@ -1141,11 +1141,11 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
 #endif //_WIN32
 
     nbytes_total += nbytes_last;
-    
+
     if(nbytes_last>0 && write_callback != NULL && write_callback) {
       (*write_callback)(buffer, nbytes_last, 1, userdata);	
     }
-    
+
   }while(true);
 
   return false;
@@ -1153,7 +1153,7 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
 
 bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
   not_null(http);
-  
+
   if(!http_valid(http->socket)) {
     return false;
   }
@@ -1161,8 +1161,9 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
   char buffer[HTTP_BUFFER_CAP];
   int64_t content_length = -1;
   int64_t need = -1;
-  
   uint64_t read = 0;
+
+  
 
   bool body = false;
 
@@ -1185,12 +1186,12 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 
     size_t offset = 0;
     if(!body) {
-      string s = string_from(buffer, nbytes_total);
+      string s = string_from(buffer, (size_t) nbytes_total);
       while(s.len) {
 	string line = string_chop_by_delim(&s, '\n');
 	if(line.len && line.data[0]=='\r') {
 	  body = true;
-	  offset = line.data+2 - buffer;
+	  offset = (size_t) (line.data+2 - buffer);
 	  break;
 	}
 	string key = string_trim(string_chop_by_delim(&line, ':'));
@@ -1213,21 +1214,65 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 
     if(body && write_callback!=NULL) {
       if(content_length > 0) { //CONTENT_LENGTH: 69
-	uint64_t len = (uint64_t) (nbytes_total - (ssize_t) offset);
-	if(content_length != -1 && read + len > (uint64_t) content_length) {
+      	uint64_t len = (uint64_t) (nbytes_total - (ssize_t) offset);
+      	if(content_length != -1 && read + len > (uint64_t) content_length) {
 	  len = content_length - read;
-	}
-	if(len > 0) {
+      	}
+      	if(len > 0) {
 	  write_callback(buffer + offset, len, 1, userdata);	  
-	}
-	read += len;
+      	}
+      	read += len;
 
-	if(read >= (uint64_t) content_length) {
+      	if(read >= (uint64_t) content_length) {
+	  break;
+      	}
+      } else if(content_length == -2) { //TRANSFER_ENCODING: chunked
+	/*
+	size_t diff = (size_t) nbytes_total - offset ;
+	if(diff == 0) {
+	  continue;
+	}
+	string s = string_from(buffer + offset, diff);
+	size_t i;
+	int found = -1;
+	size_t size = 0;
+	bool bbreak = false;
+	for(i=0;i<s.len-1;i++) {
+	  if(s.data[i]=='\r' && s.data[i+1]=='\n') {
+	    uint64_t n;
+	    found = i + 2;
+	    size_t window_size = i > 4 ? 4 : i;
+	    string temp = string_trim(string_from(s.data + i - window_size, window_size));
+	    if(string_chop_hex(&temp, &n) && !temp.len) {
+	      need = (int64_t) n;
+	      if(need == 0) {
+		bbreak = true;		
+		break;
+	      }
+	      size = i + 2;
+	    } else {
+	      if(need <= 0) continue;
+	      assert((need - (int64_t) (i - size)) >= 0);
+	      need -= (int64_t) (i - size);
+	      write_callback(size != 0 ? s.data + size : s.data, i - size, 1, userdata);
+	      size = i + 2;
+	    }
+	  }
+	}
+	if(bbreak) {
 	  break;
 	}
-      } else if(content_length == -2) { //TRANSFER_ENCODING: chunked
-	string s = string_from(buffer + offset, nbytes_total - offset);
-	while(s.len) {	  
+	size_t len = i + 1;
+	if(found != -1) {
+	  len = len - (size_t) found;
+	}
+	assert((need - (int64_t) (len)) >= 0);
+	need -= (int64_t) (len);
+	write_callback(found != -1 ? s.data + found : s.data, len, 1, userdata);
+	*/
+
+      	string s = string_from(buffer + offset, (size_t) nbytes_total - offset);
+      	while(s.len) {	  
 	  string line = string_chop_by_delim(&s, '\n');
 	  if(!line.len) continue;
 	  if(line.data[line.len-1] == '\r') {
@@ -1239,11 +1284,10 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 	      continue;
 	    }
 	    string_chop_right(&line, 1);
-	  }	  
-	  uint64_t len = line.len;
-	  if(read + len > (uint64_t) need) {
-	    len = (uint64_t) need - read;
 	  }
+	  if(need == -1) continue;
+	  uint64_t len = (uint64_t) line.len;
+	  assert(read + len > (uint64_t) need);
 
 	  if(len > 0) {
 	    write_callback(line.data, len, 1, userdata);
@@ -1251,17 +1295,17 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 	  read += len;
 	}
 
-	if(need == 0) {
+      	if(need == 0) {
 	  break;
-	}
+      	}
       } else {
-	warn("Server does not provide a content-length and does not support Chunked Encoding");
+      	warn("Server does not provide a content-length and does not support Chunked Encoding");
       } 
     }
 
 
   }while(nbytes_total > 0);
-  
+
   return true;
 }
 
@@ -1284,7 +1328,7 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
       panic("Can not initialize libopenssl");
     }    
   }
-  
+
   if (cert_file != NULL && SSL_CTX_use_certificate_file(http_global_ssl_server_ctx, cert_file, SSL_FILETYPE_PEM) <= 0) {
     ERR_print_errors_fp(stderr);
     panic("Can not initialize libopenssl: cert_file");
@@ -1302,7 +1346,7 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
   (void) cert_file;
   (void) key_file;
 #endif //HTTP_NO_SSL
-  
+
 #ifdef _WIN32
   if(!http_global_wsa_startup) {
     WSADATA wsaData;
@@ -1310,8 +1354,8 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
       fprintf(stderr, "ERROR: Can not initialize libws2\n");
       exit(1);
     }
-    
-    
+
+
     http_global_wsa_startup = true;
   }
 #endif //_WIN32
