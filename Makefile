@@ -13,8 +13,8 @@ all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 httpcat: ./src/httpcat.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc -O3 ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat 
 
-get_demo:
-	gcc ./src/get_demo.c $(CFLAGS) -Wconversion -o get_demo $(LDFLAGS)
+get_demo: ./src/get_demo.c ./libs/http.h
+	gcc ./src/get_demo.c $(CFLAGS) -o get_demo $(LDFLAGS)
 
 array_demo:
 	gcc ./src/array_demo.c $(CFLAGS) -o array_demo

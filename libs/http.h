@@ -711,8 +711,14 @@ bool http_open_file(FILE **f, const char *file_path) {
 }
 
 bool http_open_file2(FILE **f, string file_path) {
+#ifdef _WIN32
   char buffer[MAX_PATH+1];
   assert(file_path.len < MAX_PATH);
+#endif //_WIN32
+#ifdef linux
+  char buffer[PATH_MAX+1];
+  assert(file_path.len < PATH_MAX);
+#endif //linux  
   memcpy(buffer, file_path.data, file_path.len);
   buffer[file_path.len] = 0;
   return http_open_file(f, buffer);
@@ -724,8 +730,15 @@ bool http_open_file3(FILE **f, const char *dir, string file_path) {
     return false;
   }
 
+#ifdef _WIN32
   char buffer[MAX_PATH+1];
   assert(file_path.len + dir_len < MAX_PATH);
+#endif //_WIN32
+#ifdef linux
+  char buffer[PATH_MAX+1];
+  assert(file_path.len + dir_len < PATH_MAX);
+#endif //linux
+
   memcpy(buffer, dir, dir_len);
   memcpy(buffer + dir_len, file_path.data, file_path.len);
   buffer[dir_len + file_path.len] = 0;
@@ -1227,83 +1240,55 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 	  break;
       	}
       } else if(content_length == -2) { //TRANSFER_ENCODING: chunked
-	/*
-	size_t diff = (size_t) nbytes_total - offset ;
-	if(diff == 0) {
+	bool bbreak = false;
+	size_t diff = (size_t) nbytes_total - offset;
+	if(diff==0) {
 	  continue;
 	}
 	string s = string_from(buffer + offset, diff);
-	size_t i;
-	int found = -1;
-	size_t size = 0;
-	bool bbreak = false;
-	for(i=0;i<s.len-1;i++) {
-	  if(s.data[i]=='\r' && s.data[i+1]=='\n') {
-	    uint64_t n;
-	    found = i + 2;
-	    size_t window_size = i > 4 ? 4 : i;
-	    string temp = string_trim(string_from(s.data + i - window_size, window_size));
-	    if(string_chop_hex(&temp, &n) && !temp.len) {
-	      need = (int64_t) n;
-	      if(need == 0) {
-		bbreak = true;		
-		break;
+	size_t off = 0;
+	size_t i=0;
+	for(;i<diff-1;i++) {
+	  if(need == -1 || need == 0) {
+	    if(s.data[i]=='\r' && s.data[i+1] == '\n') {
+	      size_t size = i - off;
+	      size = size > 4 ? 4 : size;
+	      string word = string_from(s.data + i - size, size);
+	      uint64_t n;
+	      if(string_chop_hex(&word, &n) && !word.len) {
+		need = (int64_t) n;
+		if(need == 0) {
+		  bbreak = true;
+		  break;
+		}
+		off = i + 2;
+	      } else {
+		panic("expected hex, but got string");
 	      }
-	      size = i + 2;
-	    } else {
-	      if(need <= 0) continue;
-	      assert((need - (int64_t) (i - size)) >= 0);
-	      need -= (int64_t) (i - size);
-	      write_callback(size != 0 ? s.data + size : s.data, i - size, 1, userdata);
-	      size = i + 2;
+	    }
+	  } else {
+	    if(s.data[i]=='\r' && s.data[i+1] == '\n') {
+	      if(need - (int64_t) (i - off) == 0) {
+		write_callback(s.data + off, i - off, 1, userdata);
+		need -= (int64_t) (i - off);
+		off = i + 2;
+	      }
 	    }
 	  }
 	}
+	if(need != -1 && need != 0) {
+	  assert(need - (int64_t) (i + 1 - off) >= 0);
+	  write_callback(s.data + off, i + 1 - off, 1, userdata);
+	  need -= (int64_t) (i + 1 - off);
+	}
+
 	if(bbreak) {
 	  break;
 	}
-	size_t len = i + 1;
-	if(found != -1) {
-	  len = len - (size_t) found;
-	}
-	assert((need - (int64_t) (len)) >= 0);
-	need -= (int64_t) (len);
-	write_callback(found != -1 ? s.data + found : s.data, len, 1, userdata);
-	*/
-
-      	string s = string_from(buffer + offset, (size_t) nbytes_total - offset);
-      	while(s.len) {	  
-	  string line = string_chop_by_delim(&s, '\n');
-	  if(!line.len) continue;
-	  if(line.data[line.len-1] == '\r') {
-	    if(line.data[0] == '\r') break;
-	    uint64_t n;
-	    if(string_chop_hex(&line, &n) && line.len>0 && line.data[0] == '\r') {
-	      need = (int64_t) n;
-	      read = 0;
-	      continue;
-	    }
-	    string_chop_right(&line, 1);
-	  }
-	  if(need == -1) continue;
-	  uint64_t len = (uint64_t) line.len;
-	  assert(read + len > (uint64_t) need);
-
-	  if(len > 0) {
-	    write_callback(line.data, len, 1, userdata);
-	  }
-	  read += len;
-	}
-
-      	if(need == 0) {
-	  break;
-      	}
       } else {
       	warn("Server does not provide a content-length and does not support Chunked Encoding");
       } 
     }
-
-
   }while(nbytes_total > 0);
 
   return true;

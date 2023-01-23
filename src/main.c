@@ -39,8 +39,9 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
 Context sbs[THREADS_CAP] = {0};
 
 int main() {  
-  HttpServer server;  
-  if(!http_server_init(&server, HTTPS_PORT, "./rsc/cert.pem", "./rsc/key.pem")) {
+  HttpServer server;
+  if(!http_server_init(&server, HTTP_PORT, NULL, NULL)) {
+  //if(!http_server_init(&server, 6969, "./rsc/cert.pem", "./rsc/key.pem")) {
     panic("http_server_init");
   }
   
