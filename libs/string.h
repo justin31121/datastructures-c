@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdlib.h>
 
 typedef struct {

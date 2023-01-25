@@ -122,11 +122,6 @@ void http_free(Http *http);
 
 
 //----------BEGIN HTTP_SERVER----------
-static const char* HTTP_CONTENT_TYPE_PLAIN = "text/plain";
-static const char* HTTP_CONTENT_TYPE_HTML = "text/html";
-static const char* HTTP_CONTENT_TYPE_JS = "application/javascript";
-static const char* HTTP_CONTENT_TYPE_JSON = "application/json";
-
 bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
 bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
 void http_server_stop(HttpServer *server);
@@ -485,8 +480,8 @@ void http_server_free(HttpServer *server) {
   if(!http_valid(server->socket)) {
     return;
   }
-
-  if(server->threads[0].used == true) {
+  
+  if(server->threads!=NULL && server->threads[0].used == true) {
     http_server_stop(server);
   }
 
@@ -659,8 +654,13 @@ bool http_send_not_found(Http *http) {
   return http_send_len(not_found_string, strlen(not_found_string), http); 
 }
 
+static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain";
+static const char* HTTP_CONTENT_TYPE_HTML = "text/html";
+static const char* HTTP_CONTENT_TYPE_JS = "application/javascript";
+static const char* HTTP_CONTENT_TYPE_JSON = "application/json";
+
 const char* http_server_content_type_from_name(string file_name) {
-  const char *content_type = HTTP_CONTENT_TYPE_PLAIN;
+  const char *content_type = HTTP_CONTENT_TYPE_TEXT_PLAIN;
 
   if(file_name.len <= 2) {
     return content_type;

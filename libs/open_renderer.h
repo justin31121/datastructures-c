@@ -30,6 +30,11 @@ typedef struct{
   Vec2f uv;
 }Open_Vertex;
 
+typedef struct{
+  int width, height;
+  char *data;
+}Open_Texture;
+
 typedef enum {
 	      OPEN_VERTEX_ATTR_POSITION = 0,
 	      OPEN_VERTEX_ATTR_COLOR,
@@ -57,12 +62,16 @@ typedef struct{
   GLuint vao;
   GLuint vbo;
   GLuint programs[COUNT_SHADERS];
+  GLuint textures;
 
   Open_Vertex verticies[OPEN_RENDERER_VERTICIES_CAP];
   size_t verticies_count;
+  
+  size_t images_count;
 
   Vec2i resolution;
   float time;
+  size_t image;
 }Open_Renderer;
 
 bool open_renderer_init(Open_Renderer *or);
@@ -72,7 +81,9 @@ void open_renderer_triangle(Open_Renderer *or, Vec2f p1, Vec2f p2, Vec2f p3, Vec
 void open_renderer_quad(Open_Renderer *or, Vec2f p1, Vec2f p2, Vec2f p3, Vec2f p4, Vec4f c1, Vec4f c2, Vec4f c3, Vec4f c4, Vec2f uv1, Vec2f uv2, Vec2f uv3, Vec2f uv4);
 void open_renderer_solid_rect(Open_Renderer *or, Vec2f pos, Vec2f size, Vec4f color);
 void open_renderer_image_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs);
-void open_renderer_ripple_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs);
+
+size_t open_renderer_push_texture(Open_Renderer *or, Open_Texture image);
+void open_renderer_flush_textures(Open_Renderer *or);
 
 #ifdef OPEN_RENDERER_IMPLEMENTATION
 
@@ -142,6 +153,18 @@ bool open_renderer_init(Open_Renderer *or) {
   return true;
 }
 
+static GLenum open_renderer_index_to_texture(size_t index) {
+  switch(index) {
+  case 0:
+    return GL_TEXTURE0;
+  case 1:
+    return GL_TEXTURE1;
+  default:
+    panic("You uplaoded too many textures, or provided a bad value to open_renderer.image");    
+  }
+  panic("unreachable");
+}
+
 void open_renderer_set_shader(Open_Renderer *or, Open_Shader shader) {
   not_null(or);
 
@@ -150,6 +173,7 @@ void open_renderer_set_shader(Open_Renderer *or, Open_Shader shader) {
 
   glUniform2f(glGetUniformLocation(or->programs[shader], "resolution"), (float) or->resolution.x, (float) or->resolution.y);
   glUniform1f(glGetUniformLocation(or->programs[shader], "time"), or->time);
+  glUniform1i(glGetUniformLocation(or->programs[shader], "image"), (int) or->image);
   
   /*
     get_uniform_location(programs[SHADER_FOR_COLOR], uniforms);
@@ -304,6 +328,39 @@ static bool link_program(GLuint program, const char *file_path, size_t line)
     }
 
     return linked;
+}
+
+size_t open_renderer_push_image(Open_Renderer *or, Open_Texture image) {
+  not_null(or);
+
+  glActiveTexture(open_renderer_index_to_texture(or->images_count));
+  glGenTextures(1, &or->textures);
+  glBindTexture(GL_TEXTURE_2D, or->textures);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+  glTexImage2D(GL_TEXTURE_2D,
+	       0,
+	       GL_RGBA,
+	       image.width,
+	       image.height,
+	       0,
+	       GL_RGBA,
+	       GL_UNSIGNED_INT_8_8_8_8_REV,
+	       image.data);
+
+  return or->images_count++;
+}
+
+void open_renderer_flush_images(Open_Renderer *or) {
+  not_null(or);
+  glDeleteTextures(or->images_count, &or->textures);
+  or->images_count = 0;
 }
 
 #endif //OPEN_RENDERER_IMPLEMENTATION
