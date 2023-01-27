@@ -156,6 +156,7 @@ void http_shutdown(int socket);
 void http_close(int socket);
 
 bool http_valid(int socket);
+void http_make_blocking(int socket);
 void http_make_nonblocking(int socket);
 
 HttpAccept http_accept(int server, int *client);
@@ -355,6 +356,7 @@ bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,siz
 
 void http_free(Http *http) {
   if(http_valid(http->socket)) {
+    http_shutdown(http->socket);
     http_close(http->socket);
   }
 
@@ -386,11 +388,24 @@ bool http_server_init(HttpServer *server, size_t port, const char *cert_file, co
     return false;
   }
 
+  //Potential Fix for TIME_WAIT
+#ifdef linux
+  const int enable = 1;
+  if(setsockopt(server->socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))<0) {
+    return false;
+  }
+
+  if(setsockopt(server->socket, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int))<0) {
+    return false;
+  }
+#endif //linux
+
   if(!http_bind(server->socket, port)) {
     return false;
   }
 
   http_make_nonblocking(server->socket);
+
 
   return true;
 }
@@ -485,8 +500,9 @@ void http_server_free(HttpServer *server) {
     http_server_stop(server);
   }
 
-  http_close(server->socket);
   http_shutdown(server->socket);
+  http_make_blocking(server->socket);
+  http_close(server->socket);
 }
 
 void *http_server_listen_function(void *arg) {
@@ -571,6 +587,9 @@ void *http_server_serve_function(void *_arg) {
   timeout.tv_sec = 2;
   timeout.tv_usec = 0;
 
+  char xormask[4];
+  unsigned long payload_len = 0;
+
   while(true) {
     buffer->len = 0;
     HttpAccept select = http_select(client.socket, &read_fds, &timeout); 
@@ -582,11 +601,92 @@ void *http_server_serve_function(void *_arg) {
       break;
     }
 
-    if(handle_request != NULL) {
-      if(!http_server_fill_http_request(string_from(buffer->data, buffer->len), request)) {
-	//WARN
-      }      
-      handle_request(request, &client, arg);
+    if(handle_request != NULL) {      
+      if(http_server_fill_http_request(string_from(buffer->data, buffer->len), request)) {
+	//PROPER HTTP REQUEST
+	handle_request(request, &client, arg);
+      } else {
+	//TODOOOO: Handle WebSocket write and create proper interface
+
+	//DECODING FRAME
+	// -- https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
+	if(buffer->len == 0) {
+	  continue;
+	} 
+
+	if(payload_len != 0 && payload_len <= buffer->len) {
+	  size_t mask_off = (payload_len % 4);
+	  char message[HTTP_BUFFER_CAP];
+	  size_t message_size = 0;
+	  for(unsigned long i=0;i<buffer->len;i++) {
+	    message[message_size++] = buffer->data[i] ^ (xormask[(mask_off + i)%4]);
+	    if(message_size == HTTP_BUFFER_CAP) {
+	      fwrite(message, HTTP_BUFFER_CAP, 1, stdout);
+	      message_size = 0;
+	    }
+	  }
+	  if(message_size != 0) {
+	    fwrite(message, message_size, 1, stdout);
+	  }
+	  fflush(stdout);
+	  
+	  payload_len -= buffer->len;
+	  continue;
+	}
+
+	assert(buffer->len > 0);
+	unsigned int opcode = buffer->data[0] & 15;	
+
+	if(opcode == 0x08) {
+	  break;
+	}
+
+	//H := 48 := 0000 1100
+	size_t off = 0;
+	assert(buffer->len >= 2);
+	payload_len = buffer->data[1] & 127;
+
+	if(payload_len==126 || payload_len==127) {
+	  off = payload_len == 126 ? 2 : 8;
+
+	  unsigned long _m = 1;
+	  payload_len = 0;
+	  assert(buffer->len >= off + 2);
+	  for(int n=off-1;n>=0;n--) {	    
+	    for(int i=0;i<8;i++) {
+	      if((buffer->data[2+n] & (1 << i))) payload_len += _m;
+	      _m = _m << 1;
+	    }
+	  }	  
+	}
+	off += 2;
+       
+	assert(buffer->len >= off + 4);	
+	for(int i=0;i<4;i++) {
+	  xormask[i] = buffer->data[off+i];
+	}
+	off += 4;
+
+	unsigned long diff = (unsigned long) buffer->len - (unsigned long) off;
+	
+	if(diff > 0) {
+	  char message[HTTP_BUFFER_CAP];
+	  size_t message_size = 0;
+	  for(unsigned long i=0;i<buffer->len-off;i++) {
+	    message[message_size++] = buffer->data[off+i] ^ (xormask[i%4]);
+	    if(message_size == HTTP_BUFFER_CAP) {
+	      fwrite(message, HTTP_BUFFER_CAP, 1, stdout);
+	      message_size = 0;
+	    }	   
+	  }
+	  if(message_size != 0) {
+	    fwrite(message, message_size, 1, stdout);
+	  }
+	  fflush(stdout);
+
+	  payload_len -= diff;
+	}
+      }     
     }
   }
 
@@ -596,6 +696,7 @@ void *http_server_serve_function(void *_arg) {
   return NULL;
 }
 
+//TODO: Validate HttpRequest properly, to distinguish between Websocket and httpRequest
 bool http_server_fill_http_request(string request_string, HttpRequest *request) {
   if(request == NULL) {
     return false;
@@ -610,6 +711,9 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
   bool headerFound = 0;  
   while(request_string.len) {
     string line = string_trim(string_chop_by_delim(&request_string, '\n'));
+    if(line.len == request_string_origin.len) {
+      return false;
+    }
 
     if(!methodFound) {
       request->method = string_trim(string_chop_by_delim(&line, ' '));
@@ -633,10 +737,16 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
     break;
   }
 
-  request->body = string_from(request_string_origin.data + bodyStart,
-			      request_string_origin.len - bodyStart);
-  request->headers = string_trim(string_from(request_string_origin.data + headersStart,
-					     request_string_origin.len - headersStart - request->body.len));  
+  if(bodyStart != 0) {
+    request->body = string_from(request_string_origin.data + bodyStart,
+				request_string_origin.len - bodyStart);
+    request->headers = string_trim(string_from(request_string_origin.data + headersStart,
+					       bodyStart - headersStart));      
+  } else {    
+    request->headers = string_trim(string_from(request_string_origin.data + headersStart,
+					        request_string_origin.len));      
+  }
+
   return true;
 }
 
@@ -654,10 +764,10 @@ bool http_send_not_found(Http *http) {
   return http_send_len(not_found_string, strlen(not_found_string), http); 
 }
 
-static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain";
-static const char* HTTP_CONTENT_TYPE_HTML = "text/html";
-static const char* HTTP_CONTENT_TYPE_JS = "application/javascript";
-static const char* HTTP_CONTENT_TYPE_JSON = "application/json";
+static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain; charset=utf-8";
+static const char* HTTP_CONTENT_TYPE_HTML = "text/html; charset=utf-8";
+static const char* HTTP_CONTENT_TYPE_JS = "application/javascript; charset=utf-8";
+static const char* HTTP_CONTENT_TYPE_JSON = "application/json; charset=utf-8";
 
 const char* http_server_content_type_from_name(string file_name) {
   const char *content_type = HTTP_CONTENT_TYPE_TEXT_PLAIN;
@@ -926,6 +1036,18 @@ bool http_valid(int socket) {
 #endif //linux
 }
 
+void http_make_blocking(int socket) {
+#ifdef _WIN32
+  UNIMPLEMENTED();
+  unsigned long mode = 1;
+  ioctlsocket(socket, FIONBIO, &mode);
+#endif //_WIN32
+#ifdef linux
+  int flags = fcntl(socket, F_GETFL, 0);
+  fcntl(socket, F_SETFL, flags & ~O_NONBLOCK);
+#endif //linux
+}
+
 void http_make_nonblocking(int socket) {
 #ifdef _WIN32
   unsigned long mode = 1;
@@ -1074,8 +1196,8 @@ bool http_respond(Http *http, HttpStatus status, const char *content_type, const
 }
 
 #define http_sendf(http, fmt, ...) do{					\
-    char buffer[HTTP_BUFFER_CAP];					\
-    sendf(http_send_len2, http, buffer, HTTP_BUFFER_CAP, fmt, __VA_ARGS__); \
+    char http_sendf_buffer[HTTP_BUFFER_CAP];					\
+    sendf(http_send_len2, http, http_sendf_buffer, HTTP_BUFFER_CAP, fmt, __VA_ARGS__); \
   }while(0)
 
 bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
@@ -1118,12 +1240,13 @@ bool http_send_len2(const char *buffer, size_t buffer_len, void *http) {
 bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
   if(!http_valid(http->socket)) {
     return false;
-  }
+  }  
 
   char buffer[HTTP_BUFFER_CAP];
 
   ssize_t nbytes_total = 0;
   ssize_t nbytes_last;
+  
   do {
 #ifndef HTTP_NO_SSL
     if(http->conn != NULL) {
@@ -1137,6 +1260,7 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
 #endif //HTTP_NO_SSL
 
 #ifdef linux
+    //TODO: check if it should <= 0 OR < 0
     if(nbytes_last < 0) {
       if(errno != EAGAIN && errno !=EWOULDBLOCK) {
 	return false;
@@ -1156,7 +1280,7 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
     nbytes_total += nbytes_last;
 
     if(nbytes_last>0 && write_callback != NULL && write_callback) {
-      (*write_callback)(buffer, nbytes_last, 1, userdata);	
+      (*write_callback)(buffer, nbytes_last, 1, userdata);
     }
 
   }while(true);
@@ -1175,8 +1299,6 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
   int64_t content_length = -1;
   int64_t need = -1;
   uint64_t read = 0;
-
-  
 
   bool body = false;
 
