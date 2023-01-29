@@ -78,17 +78,19 @@ typedef enum{
   COUNT_HTTP_STATUS
 }HttpStatus;
 
+typedef struct HttpServer HttpServer;
+
 typedef struct{
   Http client;
   bool used;
   String_Buffer buffer;
-  pthread_t id;
-  void (*handle_request)(const HttpRequest *request, Http *client, void *arg);
+  const HttpServer *server;
+  pthread_t id;  
   void *arg;
   HttpRequest request;
 }HttpServerThread;
 
-typedef struct{
+struct HttpServer {
 #ifdef _WIN32
   SOCKET socket;
 #endif //_WIN32  
@@ -96,15 +98,25 @@ typedef struct{
   int socket;
 #endif //linux  
   HttpServerThread *threads;
+  void (*handle_request)(const HttpRequest *request, Http *client, void *arg);
+  void (*handle_websocket)(const char *message, size_t message_size, Http *client, void *arg);
   size_t threads_count;
   bool ssl;
-}HttpServer;
+};
 
 typedef enum {
   HTTP_ACCEPT_OK = 0,
   HTTP_ACCEPT_AGAIN,
   HTTP_ACCEPT_ERROR
 }HttpAccept;
+
+typedef struct {
+  char xormask[4];
+  unsigned long payload_len;
+  void (*handle_websocket)(const char *, size_t , Http *, void *);
+  Http *http;
+  void *arg;
+}HttpWebSocketContext;
 
 //----------BEGIN HTTP----------
 bool http_init(Http *http, const char *hostname, bool ssl);
@@ -168,9 +180,14 @@ bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
 bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
 bool http_read(Http *http, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
-
 void http_init_external_libs(const char *cert_file, const char *key_file);
 //----------END SOCKET----------
+
+//----------BEGIN WEBSOCKET----------
+bool http_websocket_send(const char *buffer, Http *client);
+bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client);
+bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer);
+//----------END WEBSOCKET----------
 
 size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata);
 
@@ -380,6 +397,7 @@ bool http_server_init(HttpServer *server, size_t port, const char *cert_file, co
   server->threads = NULL;
   server->threads_count = 0;
   server->ssl = cert_file != NULL && key_file != NULL;
+  server->handle_websocket = NULL;
 
   http_init_external_libs(cert_file, key_file);
 
@@ -419,6 +437,10 @@ bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(con
     return false;
   }
 
+  if(handle_request == NULL) {
+    return false;
+  }
+
   char *args = (char *) _args;
 
   bool args_used = args != NULL;
@@ -432,13 +454,14 @@ bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(con
   if(!server->threads) {
     return false;
   }
+  server->handle_request = handle_request;
 
   //INITIALIZE THREADS
   for(size_t i=0;i<number_of_threads;i++) {
     HttpServerThread *thread = &server->threads[i];
     thread->used = false;
     thread->buffer = (String_Buffer) {0};
-    thread->handle_request = handle_request;
+    thread->server = server;
     thread->arg = args_used ? (args + arg_size_bytes*i) : NULL;
   }
 
@@ -573,7 +596,8 @@ void *http_server_serve_function(void *_arg) {
   Http client = thread->client;
   bool *used = &(thread->used);
   String_Buffer *buffer = &(thread->buffer);
-  void (*handle_request)(const HttpRequest *, Http *, void *) = thread->handle_request;
+  void (*handle_request)(const HttpRequest *, Http *, void *) = thread->server->handle_request;
+  void (*handle_websocket)(const char *, size_t size, Http *, void *) = thread->server->handle_websocket;
   HttpRequest *request = &(thread->request);
   *request = (HttpRequest) {0};
   void* arg = thread->arg;
@@ -587,8 +611,11 @@ void *http_server_serve_function(void *_arg) {
   timeout.tv_sec = 2;
   timeout.tv_usec = 0;
 
-  char xormask[4];
-  unsigned long payload_len = 0;
+  HttpWebSocketContext context = {0};
+  context.payload_len = 0;
+  context.handle_websocket = handle_websocket;
+  context.http = &client;
+  context.arg = arg;
 
   while(true) {
     buffer->len = 0;
@@ -601,93 +628,13 @@ void *http_server_serve_function(void *_arg) {
       break;
     }
 
-    if(handle_request != NULL) {      
-      if(http_server_fill_http_request(string_from(buffer->data, buffer->len), request)) {
-	//PROPER HTTP REQUEST
-	handle_request(request, &client, arg);
-      } else {
-	//TODOOOO: Handle WebSocket write and create proper interface
-
-	//DECODING FRAME
-	// -- https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
-	if(buffer->len == 0) {
-	  continue;
-	} 
-
-	if(payload_len != 0 && payload_len <= buffer->len) {
-	  size_t mask_off = (payload_len % 4);
-	  char message[HTTP_BUFFER_CAP];
-	  size_t message_size = 0;
-	  for(unsigned long i=0;i<buffer->len;i++) {
-	    message[message_size++] = buffer->data[i] ^ (xormask[(mask_off + i)%4]);
-	    if(message_size == HTTP_BUFFER_CAP) {
-	      fwrite(message, HTTP_BUFFER_CAP, 1, stdout);
-	      message_size = 0;
-	    }
-	  }
-	  if(message_size != 0) {
-	    fwrite(message, message_size, 1, stdout);
-	  }
-	  fflush(stdout);
-	  
-	  payload_len -= buffer->len;
-	  continue;
-	}
-
-	assert(buffer->len > 0);
-	unsigned int opcode = buffer->data[0] & 15;	
-
-	if(opcode == 0x08) {
-	  break;
-	}
-
-	//H := 48 := 0000 1100
-	size_t off = 0;
-	assert(buffer->len >= 2);
-	payload_len = buffer->data[1] & 127;
-
-	if(payload_len==126 || payload_len==127) {
-	  off = payload_len == 126 ? 2 : 8;
-
-	  unsigned long _m = 1;
-	  payload_len = 0;
-	  assert(buffer->len >= off + 2);
-	  for(int n=off-1;n>=0;n--) {	    
-	    for(int i=0;i<8;i++) {
-	      if((buffer->data[2+n] & (1 << i))) payload_len += _m;
-	      _m = _m << 1;
-	    }
-	  }	  
-	}
-	off += 2;
-       
-	assert(buffer->len >= off + 4);	
-	for(int i=0;i<4;i++) {
-	  xormask[i] = buffer->data[off+i];
-	}
-	off += 4;
-
-	unsigned long diff = (unsigned long) buffer->len - (unsigned long) off;
-	
-	if(diff > 0) {
-	  char message[HTTP_BUFFER_CAP];
-	  size_t message_size = 0;
-	  for(unsigned long i=0;i<buffer->len-off;i++) {
-	    message[message_size++] = buffer->data[off+i] ^ (xormask[i%4]);
-	    if(message_size == HTTP_BUFFER_CAP) {
-	      fwrite(message, HTTP_BUFFER_CAP, 1, stdout);
-	      message_size = 0;
-	    }	   
-	  }
-	  if(message_size != 0) {
-	    fwrite(message, message_size, 1, stdout);
-	  }
-	  fflush(stdout);
-
-	  payload_len -= diff;
-	}
-      }     
+    //PROPER HTTP REQUEST
+    if(http_server_fill_http_request(string_from(buffer->data, buffer->len), request)) {
+      handle_request(request, &client, arg);
+    } else if(handle_websocket != NULL && !http_websocket_read(&context, buffer)) {
+      break;
     }
+    
   }
 
   http_free(&client);
@@ -921,9 +868,6 @@ bool http_send_file(FILE **f, Http *http, const char *content_type) {
 	memcpy(buffer + buffer_off + 6 + nbytes + 2, end_carriage, end_carriage_len);
 	nbytes += end_carriage_len;
       }
-#ifdef HTTP_DEBUG
-      fwrite(buffer, buffer_off + 6 + nbytes + 2, 1, stdout);
-#endif //HTTP_DEBUG
       if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {	
 	return false;
       }
@@ -1075,13 +1019,28 @@ HttpAccept http_accept(int socket, int *out_client) {
 #ifdef linux
   socklen_t addr_len = sizeof(addr);
   int client = accept(socket, (struct sockaddr *) &addr, &addr_len);
+
   if(client == -1) {
     if(errno == EAGAIN || errno == EWOULDBLOCK) {
       return HTTP_ACCEPT_AGAIN;
     }
     return HTTP_ACCEPT_ERROR;
   }
-#endif //linux  
+#endif //linux
+
+#ifdef HTTP_DEBUG
+  //LOG: ip address
+  struct sockaddr_in* pV4Addr = (struct sockaddr_in*)&addr;
+  struct in_addr ipAddr = pV4Addr->sin_addr;
+  struct sockaddr_in6* pV6Addr = (struct sockaddr_in6*)&addr;
+  struct in6_addr ipAddr6       = pV6Addr->sin6_addr;
+
+  char str_ipv4[INET_ADDRSTRLEN];
+  inet_ntop( AF_INET, &ipAddr, str_ipv4, INET_ADDRSTRLEN );
+  char str_ipv6[INET6_ADDRSTRLEN];
+  inet_ntop( AF_INET6, &ipAddr6, str_ipv6, INET6_ADDRSTRLEN );
+  printf("IPv4: %s, IPv6: %s\n", str_ipv4, str_ipv6);
+#endif //HTTP_DEBUG
 
   if(out_client) *out_client = client;
   return HTTP_ACCEPT_OK;
@@ -1475,6 +1434,113 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
 size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata) {
   return fwrite(data, size, memb, (FILE *) userdata);
 }
+
+//----------BEGIN WEBSOCKET----------
+bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer) {
+  // -- https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
+  if(buffer->len == 0) {
+    return true;
+  }
+
+  if(!context) {
+    return false;
+  }
+
+  if(context->payload_len != 0 && context->payload_len <= buffer->len) {
+    size_t mask_off = (context->payload_len % 4);
+    for(unsigned long i=0;i<buffer->len;i++) {
+      buffer->data[i] = buffer->data[i] ^ (context->xormask[(mask_off + i)%4]);
+    }
+    context->handle_websocket(buffer->data, buffer->len, context->http, context->arg);	  
+    context->payload_len -= buffer->len;
+    return true;
+  }
+
+  assert(buffer->len > 0);
+  unsigned int opcode = buffer->data[0] & 15;	
+
+  if(opcode == 0x08) {
+    return false;
+  }
+
+  //H := 48 := 0000 1100
+  size_t off = 0;
+  assert(buffer->len >= 2);
+  context->payload_len = buffer->data[1] & 127;
+
+  if(context->payload_len==126 || context->payload_len==127) {
+    off = context->payload_len == 126 ? 2 : 8;
+
+    unsigned long _m = 1;
+    context->payload_len = 0;
+    assert(buffer->len >= off + 2);
+    for(int n=off-1;n>=0;n--) {
+      for(int i=0;i<8;i++) {
+	if((buffer->data[2+n] & (1 << i))) context->payload_len += _m;
+	_m = _m << 1;
+      }
+    }	  
+  }
+  off += 2;
+       
+  assert(buffer->len >= off + 4);	
+  for(int i=0;i<4;i++) {
+    context->xormask[i] = buffer->data[off+i];
+  }
+  off += 4;
+
+  unsigned long diff = (unsigned long) buffer->len - (unsigned long) off;
+	
+  if(diff > 0) {
+    for(unsigned long i=0;i<diff;i++) {
+      buffer->data[off + i] = buffer->data[off+i] ^ (context->xormask[i%4]);
+    }
+    context->handle_websocket(buffer->data + off, diff, context->http, context->arg);
+    context->payload_len -= diff;
+  }
+
+  return true;
+}
+
+bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client) {
+  if(!buffer) {
+    return false;
+  }
+
+  if(!http_valid(client->socket)) {
+    return false;
+  }
+
+  char header = -127;
+  char xormask[4];
+  char res_buffer[HTTP_BUFFER_CAP];
+  if(buffer_len < 126) {    
+    char size = buffer_len | 0x80;
+    return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%_ws",
+		 header, size, 4, xormask, buffer_len, buffer, xormask);
+  } else if(buffer_len <= UINT16_MAX) {    
+    char indication = (char) (int) ((int) 0xff & (int) ~0x1);
+    char size[] = {(char) ((buffer_len & 0xff00) >> 8), (char) (buffer_len & 0x00ff)};    
+    return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
+		 header, indication, 2, size, 4, xormask, buffer_len, buffer, xormask);
+  } else {
+    char indication = -1;
+    char size[8];
+    for(int i=0;i<8;i++) {
+      size[8 - 1 - i] = (buffer_len & (0xff << i*8)) >> i*8;
+    }
+    return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
+		 header, indication, 8, size, 4, xormask, buffer_len, buffer, xormask);
+  }
+}
+
+bool http_websocket_send(const char *buffer, Http *client) {
+  if(!buffer) {
+    return false;
+  }
+  return http_websocket_send_len(buffer, strlen(buffer), client);
+}
+//----------END WEBSOCKET----------
 
 #endif //HTTP_IMPLEMENTATION
 

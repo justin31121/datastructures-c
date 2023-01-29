@@ -162,7 +162,15 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
       if(!sendf_bar(&context, &buffer_size, format + format_last, i - format_last)) {
 	return false;
       }
-      if(format[i+1]=='s') {
+      if (format[i+1] == 'c') { // %c
+        char c = (char) va_arg(va, int);
+	if(!sendf_bar(&context, &buffer_size, &c, 1)) {
+	  return false;
+	}
+
+	format_last = i+2;
+	i++;
+      } else if(format[i+1]=='s') { // %s
 	const char *argument_cstr = va_arg(va, char *);
 	if(!sendf_bar(&context, &buffer_size, argument_cstr, strlen(argument_cstr))) {
 	  return false;
@@ -170,7 +178,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 
 	format_last = i+2;
 	i++;
-      } else if(format[i+1]=='d') {
+      } else if(format[i+1]=='d') { // %d
 	int n = va_arg(va, int);
 	size_t digit_buffer_cap = 32;
 	char digit_buffer[digit_buffer_cap];
@@ -198,7 +206,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	format_last = i+2;
 	i++;
       } else if(format[i+1] == '.' && i+3 < format_len &&
-		format[i+2] == '*' && format[i+3] == 's'){
+		format[i+2] == '*' && format[i+3] == 's') { //%.*s
 	size_t argument_cstr_len = va_arg(va, size_t);
 	const char *argument_cstr = va_arg(va, char *);
 
@@ -208,7 +216,33 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 
 	format_last = i+4;
 	i+=3;
-      }else {
+      } else if(format[i+1] == '_' && i+3 < format_len &&
+		format[i+2] == 'w' && format[i+3] == 's') { //%_ws
+	size_t argument_cstr_len = va_arg(va, size_t);
+	const char *argument_cstr = va_arg(va, char *);
+	const char *argument_xormask = va_arg(va, char *); // len 4
+
+	size_t window_cap = 256;
+	char window[window_cap];
+	size_t window_size = 0;
+
+	for(size_t j=0;j<argument_cstr_len;j++) {
+	  window[window_size++] = argument_cstr[j] ^ argument_xormask[j % 4];
+	  if(window_size >= window_cap) {
+	    if(!sendf_bar(&context, &buffer_size, window, window_size)) {
+	      return false;
+	    }
+	    window_size = 0;
+	  }
+	}
+
+	if(window_size > 0 && !sendf_bar(&context, &buffer_size, window, window_size)) {
+	  return false;
+	}
+
+	format_last = i+4;
+	i+=3;
+      } else {
 	panic("Unexpected format argument");
       }
     }
