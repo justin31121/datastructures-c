@@ -42,7 +42,6 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
     }
   }
 
-
   if(upgradeWebsocket && ws_key.len) {
     unsigned char result[21];
     
@@ -67,7 +66,7 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
   }
   
   if(string_eq(request->method, STRING("GET"))) {
-    http_send_files(client, cwd, "/index.html", request->route);
+    http_send_files(client, "./rsc/", "/index.html", request->route);
     return;
   }
 
@@ -77,7 +76,7 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
 void handle_websocket(const char *message, size_t message_size, Http *client, void *arg) {
   (void) client;
   (void) arg;
-  printf("Received: '%.*s' (%ld)\n", (int) message_size, message, message_size);
+  printf("Received: '%.*s' (%lld)\n", (int) message_size, message, message_size);
 
   char buf[65600];
   memset(buf, 'f', 65600);
@@ -86,7 +85,7 @@ void handle_websocket(const char *message, size_t message_size, Http *client, vo
 }
 
 int main(int argc, char **argv) {
-  int port = 6969;
+  int port = 6060;
 
   if(argc > 1) {
     string arg = string_from_cstr(argv[1]);
@@ -101,10 +100,18 @@ int main(int argc, char **argv) {
   if(!http_server_init(&server, port, NULL, NULL)) {
     panic("http_server_init");
   }
-
+  
+#ifdef _WIN32
+#include <direct.h>
+  if(!_getcwd(cwd, sizeof(cwd))) {
+    panic("getcwd");
+  }
+#endif //_WIN32
+#ifdef linux
   if(!getcwd(cwd, sizeof(cwd))) {
     panic("getcwd");
   }
+#endif //linux
 
   server.handle_websocket = handle_websocket;
   if(!http_server_listen_and_serve(&server, handle, 24, NULL, 0)) {

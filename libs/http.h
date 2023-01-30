@@ -524,7 +524,7 @@ void http_server_free(HttpServer *server) {
   }
 
   http_shutdown(server->socket);
-  http_make_blocking(server->socket);
+  //http_make_blocking(server->socket);
   http_close(server->socket);
 }
 
@@ -982,9 +982,7 @@ bool http_valid(int socket) {
 
 void http_make_blocking(int socket) {
 #ifdef _WIN32
-  UNIMPLEMENTED();
-  unsigned long mode = 1;
-  ioctlsocket(socket, FIONBIO, &mode);
+  (void) socket;
 #endif //_WIN32
 #ifdef linux
   int flags = fcntl(socket, F_GETFL, 0);
