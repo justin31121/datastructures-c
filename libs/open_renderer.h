@@ -159,6 +159,8 @@ static GLenum open_renderer_index_to_texture(size_t index) {
     return GL_TEXTURE0;
   case 1:
     return GL_TEXTURE1;
+  case 2:
+    return GL_TEXTURE2;
   default:
     panic("You uplaoded too many textures, or provided a bad value to open_renderer.image");    
   }
