@@ -6,11 +6,14 @@ function foo(data) {
 const socket = new WebSocket('ws://localhost:6060');
 
 socket.onopen = function(e) {
-    socket.send('foo');
+    socket.send('ping');
 }
 
 socket.onmessage = function(e) {
-    console.log(e.data, e.data.length);
+    if(e.data === 'reload') {
+	socket.close();
+	location.reload();
+    }
 }
 
 /*

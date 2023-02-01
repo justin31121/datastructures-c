@@ -1,5 +1,5 @@
 #define WATCHER_IMPLEMENTATION
-#include "./watcher.h"
+#include "../libs/watcher.h"
 
 #include <stdio.h>
 #include <stdlib.h>

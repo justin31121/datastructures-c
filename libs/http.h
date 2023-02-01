@@ -35,6 +35,17 @@
 #endif //HTTP_IMPLEMENTATION
 #include "./string.h"
 
+#ifdef HTTP_IMPLEMENTATION
+
+#ifndef BASE64_IMPLEMENTATION
+#define BASE64_IMPLEMENTATION
+#endif //BASE64_IMPLEMENTATION
+
+#endif //HTTP_IMPLEMENTATION
+#include "./base64.h"
+
+#include "../src/sha1.h"
+
 #define HTTP_PORT 80
 #define HTTPS_PORT 443
 #define HTTP_BUFFER_CAP 8192
@@ -56,7 +67,7 @@ typedef struct{
   SOCKET socket;
 #endif //_WIN32
 
-#ifdef linux  
+#ifdef linux
   int socket;
 #endif //linux
 #ifndef HTTP_NO_SSL
@@ -96,10 +107,11 @@ struct HttpServer {
 #endif //_WIN32  
 #ifdef linux  
   int socket;
-#endif //linux  
+#endif //linux
+  bool running;
   HttpServerThread *threads;
   void (*handle_request)(const HttpRequest *request, Http *client, void *arg);
-  void (*handle_websocket)(const char *message, size_t message_size, Http *client, void *arg);
+  void (*handle_websocket)(const char *message, size_t message_len, Http *client, void *arg);
   size_t threads_count;
   bool ssl;
 };
@@ -112,8 +124,8 @@ typedef enum {
 
 typedef struct {
   char xormask[4];
+  void (*handle_websocket)(const char *message, size_t message_len, Http *client, void *arg);
   unsigned long payload_len;
-  void (*handle_websocket)(const char *, size_t , Http *, void *);
   Http *http;
   void *arg;
 }HttpWebSocketContext;
@@ -143,10 +155,11 @@ void *http_server_listen_function(void *arg);
 bool http_server_create_serve_thread(HttpServer *server, Http client);
 void *http_server_serve_function(void *arg);
 
-bool http_server_fill_http_request(string request_string, HttpRequest *request);
+bool http_server_fill_http_request(string request_string, HttpRequest *request, string *websocket_key);
 
 // -- UTIL
 bool http_send_not_found(Http *http);
+bool http_send_websocket_accept(Http *http, string websocket_key);
 
 const char* http_server_content_type_from_name(string file_name);
 void http_send_files(Http *client, const char *dir, const char *home, string file_path);
@@ -175,10 +188,9 @@ HttpAccept http_accept(int server, int *client);
 HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
 bool http_connect(int socket, bool ssl, const char *hostname);
 bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
-bool http_sendf(Http *http, const char *fmt, ...);
 bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
 bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
-bool http_read(Http *http, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
+bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
 void http_init_external_libs(const char *cert_file, const char *key_file);
 //----------END SOCKET----------
@@ -398,6 +410,7 @@ bool http_server_init(HttpServer *server, size_t port, const char *cert_file, co
   server->threads_count = 0;
   server->ssl = cert_file != NULL && key_file != NULL;
   server->handle_websocket = NULL;
+  server->running = false;
 
   http_init_external_libs(cert_file, key_file);
 
@@ -444,9 +457,7 @@ bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(con
   char *args = (char *) _args;
 
   bool args_used = args != NULL;
-  if(args_used && arg_size_bytes == 0) {
-    return false;
-  }
+  bool arg_singleton = args_used && arg_size_bytes == 0;
 
   //ALLOCATE THREADS
   server->threads_count = number_of_threads;
@@ -462,7 +473,13 @@ bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(con
     thread->used = false;
     thread->buffer = (String_Buffer) {0};
     thread->server = server;
-    thread->arg = args_used ? (args + arg_size_bytes*i) : NULL;
+    if(!args_used) {
+      thread->arg = NULL;
+    } else if(arg_singleton) {
+      thread->arg = args;
+    } else {
+      thread->arg = args + arg_size_bytes*i;
+    }
   }
 
   //START LISTEN THREAD
@@ -477,6 +494,8 @@ bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(con
     return false;
   }
 
+  server->running = true;
+
   return true;
 }
 
@@ -484,6 +503,8 @@ void http_server_stop(HttpServer *server) {
   if(server == NULL) {
     return;
   }
+
+  server->running = false;
 
   //JOIN ACCEPT THREAD
   for(size_t i=1;i<server->threads_count;i++) {
@@ -597,7 +618,7 @@ void *http_server_serve_function(void *_arg) {
   bool *used = &(thread->used);
   String_Buffer *buffer = &(thread->buffer);
   void (*handle_request)(const HttpRequest *, Http *, void *) = thread->server->handle_request;
-  void (*handle_websocket)(const char *, size_t size, Http *, void *) = thread->server->handle_websocket;
+  void (*handle_websocket)(const char *, size_t, Http *, void *) = thread->server->handle_websocket;
   HttpRequest *request = &(thread->request);
   *request = (HttpRequest) {0};
   void* arg = thread->arg;
@@ -611,11 +632,11 @@ void *http_server_serve_function(void *_arg) {
   timeout.tv_sec = 2;
   timeout.tv_usec = 0;
 
-  HttpWebSocketContext context = {0};
-  context.payload_len = 0;
-  context.handle_websocket = handle_websocket;
-  context.http = &client;
-  context.arg = arg;
+  HttpWebSocketContext websocket = {0};
+  websocket.payload_len = 0;
+  websocket.handle_websocket = handle_websocket;
+  websocket.http = &client;
+  websocket.arg = arg;
 
   while(true) {
     buffer->len = 0;
@@ -629,13 +650,19 @@ void *http_server_serve_function(void *_arg) {
     }
 
     //PROPER HTTP REQUEST
-    if(http_server_fill_http_request(string_from(buffer->data, buffer->len), request)) {
-      handle_request(request, &client, arg);
-    } else if(handle_websocket != NULL && !http_websocket_read(&context, buffer)) {
-      break;
-    }
-    
-  }
+    string websocket_key;
+    if(http_server_fill_http_request(string_from(buffer->data, buffer->len), request, &websocket_key)) {
+      if(websocket_key.len > 0 && handle_websocket != NULL) {
+	http_send_websocket_accept(&client, websocket_key);
+      } else {
+	handle_request(request, &client, arg);
+      }
+    } else if(handle_websocket != NULL) {
+      if(!http_websocket_read(&websocket, buffer)) {
+	break;
+      }
+    }    
+  } 
 
   http_free(&client);
   *used = false;
@@ -644,7 +671,7 @@ void *http_server_serve_function(void *_arg) {
 }
 
 //TODO: Validate HttpRequest properly, to distinguish between Websocket and httpRequest
-bool http_server_fill_http_request(string request_string, HttpRequest *request) {
+bool http_server_fill_http_request(string request_string, HttpRequest *request, string *websocket_key) {
   if(request == NULL) {
     return false;
   }
@@ -691,7 +718,37 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request) 
 					       bodyStart - headersStart));      
   } else {    
     request->headers = string_trim(string_from(request_string_origin.data + headersStart,
-					        request_string_origin.len));      
+					        request_string_origin.len));
+  }
+
+  if(websocket_key) {
+    *websocket_key = (string) {0};
+    int udgrade_key = string_index_of(request->headers, "Upgrade:");
+    if(udgrade_key == -1) {
+      return true;
+    }
+
+    int upgrade_value = string_index_of_offset(request->headers, ": websocket", udgrade_key);
+    if(upgrade_value == -1) {
+      return true;
+    }
+
+    if(upgrade_value - udgrade_key != 7) {
+      return true;
+    }
+
+    int sec_key = string_index_of(request->headers, "Sec-WebSocket-Key: ");
+    if(sec_key == -1) {
+      return true;
+    }
+
+    size_t i = sec_key + 21;
+    if(i >= request->headers.len) {
+      return true;
+    }
+
+    while(i<request->headers.len && request->headers.data[i]!='\r') i++;
+    *websocket_key = string_from(request->headers.data + sec_key + 19, i - sec_key - 19);
   }
 
   return true;
@@ -709,6 +766,31 @@ bool http_send_not_found(Http *http) {
     "\r\n"
     "404 - Not Found";
   return http_send_len(not_found_string, strlen(not_found_string), http); 
+}
+
+bool http_send_websocket_accept(Http *http, string ws_key) {
+  const char *guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+  unsigned char result[20];
+    
+  _SHA1_CTX ctx;
+  _SHA1Init(&ctx);
+  _SHA1Update(&ctx, (unsigned char *) ws_key.data, ws_key.len);
+  _SHA1Update(&ctx, (unsigned char *) guid, strlen(guid));
+  _SHA1Final((unsigned char *) result, &ctx);
+
+  size_t size;
+  char buffer[128];
+  if(!base64_encode((const char *) result, 20, buffer, 80, &size)) {
+    panic("base64_encode");
+  }
+
+  char request_buffer[HTTP_BUFFER_CAP];
+  return sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
+	       "HTTP/1.1 101 Switching Protocols\r\n"
+	       "Upgrade: websocket\r\n"
+	       "Connection: Upgrade\r\n"
+	       "Sec-WebSocket-Accept: %.*s\r\n"
+	       "\r\n", size, buffer);
 }
 
 static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain; charset=utf-8";
@@ -1152,11 +1234,6 @@ bool http_respond(Http *http, HttpStatus status, const char *content_type, const
 	       prefix, content_type, body_size_bytes, body_size_bytes, body);
 }
 
-#define http_sendf(http, fmt, ...) do{					\
-    char http_sendf_buffer[HTTP_BUFFER_CAP];					\
-    sendf(http_send_len2, http, http_sendf_buffer, HTTP_BUFFER_CAP, fmt, __VA_ARGS__); \
-  }while(0)
-
 bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   if(!http_valid(http->socket)) {
     return false;
@@ -1449,7 +1526,7 @@ bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer) {
     for(unsigned long i=0;i<buffer->len;i++) {
       buffer->data[i] = buffer->data[i] ^ (context->xormask[(mask_off + i)%4]);
     }
-    context->handle_websocket(buffer->data, buffer->len, context->http, context->arg);	  
+    context->handle_websocket(buffer->data, buffer->len, context->http, context->arg);
     context->payload_len -= buffer->len;
     return true;
   }

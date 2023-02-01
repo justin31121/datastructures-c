@@ -1,5 +1,5 @@
-#ifndef SHA1_H
-#define SHA1_H
+#ifndef _SHA1_H
+#define _SHA1_H
 
 /*
   https://github.com/clibs/sha1
@@ -20,29 +20,29 @@ typedef struct
     uint32_t state[5];
     uint32_t count[2];
     unsigned char buffer[64];
-} SHA1_CTX;
+} _SHA1_CTX;
 
-void SHA1Transform(
+void _SHA1Transform(
     uint32_t state[5],
     const unsigned char buffer[64]
     );
 
-void SHA1Init(
-    SHA1_CTX * context
+void _SHA1Init(
+    _SHA1_CTX * context
     );
 
-void SHA1Update(
-    SHA1_CTX * context,
+void _SHA1Update(
+    _SHA1_CTX * context,
     const unsigned char *data,
     uint32_t len
     );
 
-void SHA1Final(
+void _SHA1Final(
     unsigned char digest[20],
-    SHA1_CTX * context
+    _SHA1_CTX * context
     );
 
-void SHA1(
+void _SHA1(
     char *hash_out,
     const char *str,
     uint32_t len);
@@ -51,4 +51,4 @@ void SHA1(
 }
 #endif
 
-#endif /* SHA1_H */
+#endif /* _SHA1_H */

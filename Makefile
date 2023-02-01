@@ -8,13 +8,19 @@ else
 endif
 
 all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
-	gcc ./src/main.c ./src/sha1.c $(CFLAGS) -ggdb -o main $(LDFLAGS)
+	gcc ./src/main.c $(CFLAGS) -ggdb -o main $(LDFLAGS)
+
+httpliveserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
+	gcc -O3 ./src/sha1.c ./src/httpliveserver.c $(CFLAGS) -ggdb -pthread -o httpliveserver
 
 httpserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc -O3 ./src/httpserver.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpserver
 
 httpcat: ./src/httpcat.c ./libs/http.h ./libs/util.h ./libs/string.h
-	gcc -O3 ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat 
+	gcc -O3 ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat
+
+watcher_demo:
+	gcc ./src/watcher_demo.c $(CFLAGS) -o watcher_demo $(LDFLAGS)
 
 get_demo: ./src/get_demo.c ./libs/http.h
 	gcc ./src/get_demo.c $(CFLAGS) -o get_demo $(LDFLAGS)

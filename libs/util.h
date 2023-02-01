@@ -18,6 +18,7 @@ void util_unused(int n, ...) { (void) n; }
 #define warn(cstr) fprintf(stderr, "%s:%d: warning: %s: %s\n", __FILE__, __LINE__, __func__, cstr);
 
 
+void print_bytes(void *_ptr, size_t number_of_bytes);
 char *slurp_file(const char* file_path, size_t *size);
 void write_file(const char *file_path, const char *data);
 void write_file_len(const char *file_path, const char *data, size_t size);
@@ -26,6 +27,19 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 
 
 #ifdef UTIL_IMPLEMENTATION
+
+void print_bytes(void *_ptr, size_t number_of_bytes) {
+  long ptr = * (long *) _ptr;
+  printf("\t");
+  for(size_t i=0;i<number_of_bytes;i++) {
+    for(int j=0;j<8;j++) {
+      printf("%d ", (ptr & (1 << (i*8+j))) > 0);
+    }
+    if(i!=number_of_bytes-1) printf("| ");
+  }
+  printf("\n");
+}
+
 
 void write_file(const char *file_path, const char *data) {
   write_file_len(file_path, data, strlen(data));
