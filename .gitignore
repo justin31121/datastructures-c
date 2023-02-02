@@ -53,6 +53,7 @@ dkms.conf
 
 main
 httpserver
+httpliveserver
 httpcat
 watcher_demo
 get_demo

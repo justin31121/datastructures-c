@@ -44,7 +44,14 @@
 #endif //HTTP_IMPLEMENTATION
 #include "./base64.h"
 
-#include "../src/sha1.h"
+#ifdef HTTP_IMPLEMENTATION
+
+#ifndef SHA1_IMPLEMENTATION
+#define SHA1_IMPLEMENTATION
+#endif //SHA1_IMPLEMENTATION
+
+#endif //HTTP_IMPLEMENTATION
+#include "./sha1.h"
 
 #define HTTP_PORT 80
 #define HTTPS_PORT 443
@@ -1592,12 +1599,12 @@ bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client
   if(buffer_len < 126) {    
     char size = buffer_len | 0x80;
     return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%_ws",
-		 header, size, 4, xormask, buffer_len, buffer, xormask);
+		 header, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
   } else if(buffer_len <= UINT16_MAX) {    
     char indication = (char) (int) ((int) 0xff & (int) ~0x1);
     char size[] = {(char) ((buffer_len & 0xff00) >> 8), (char) (buffer_len & 0x00ff)};    
     return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
-		 header, indication, 2, size, 4, xormask, buffer_len, buffer, xormask);
+		 header, indication, (size_t) 2, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
   } else {
     char indication = -1;
     char size[8];
@@ -1605,7 +1612,7 @@ bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client
       size[8 - 1 - i] = (buffer_len & (0xff << i*8)) >> i*8;
     }
     return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
-		 header, indication, 8, size, 4, xormask, buffer_len, buffer, xormask);
+		 header, indication, (size_t) 8, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
   }
 }
 

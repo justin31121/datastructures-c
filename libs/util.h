@@ -176,7 +176,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
       if(!sendf_bar(&context, &buffer_size, format + format_last, i - format_last)) {
 	return false;
       }
-      if (format[i+1] == 'c') { // %c
+      if (format[i+1] == 'c') { // %c	
         char c = (char) va_arg(va, int);
 	if(!sendf_bar(&context, &buffer_size, &c, 1)) {
 	  return false;
@@ -184,7 +184,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 
 	format_last = i+2;
 	i++;
-      } else if(format[i+1]=='s') { // %s
+      } else if(format[i+1]=='s') { // %	
 	const char *argument_cstr = va_arg(va, char *);
 	if(!sendf_bar(&context, &buffer_size, argument_cstr, strlen(argument_cstr))) {
 	  return false;
@@ -221,6 +221,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	i++;
       } else if(format[i+1] == '.' && i+3 < format_len &&
 		format[i+2] == '*' && format[i+3] == 's') { //%.*s
+	
 	size_t argument_cstr_len = va_arg(va, size_t);
 	const char *argument_cstr = va_arg(va, char *);
 
@@ -232,6 +233,7 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	i+=3;
       } else if(format[i+1] == '_' && i+3 < format_len &&
 		format[i+2] == 'w' && format[i+3] == 's') { //%_ws
+	
 	size_t argument_cstr_len = va_arg(va, size_t);
 	const char *argument_cstr = va_arg(va, char *);
 	const char *argument_xormask = va_arg(va, char *); // len 4
