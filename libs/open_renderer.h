@@ -33,6 +33,7 @@ typedef struct{
 typedef struct{
   int width, height;
   char *data;
+  bool grey;
 }Open_Texture;
 
 typedef enum {
@@ -46,16 +47,18 @@ typedef enum{
 	     SHADER_FOR_COLOR = 0,
 	     SHADER_FOR_IMAGE,
 	     SHADER_FOR_RIPPLE,
+	     SHADER_FOR_TEXT,
 	     COUNT_SHADERS
 }Open_Shader;
 
-static_assert(COUNT_SHADERS == 3, "The amount of Shaders has changed.");
+static_assert(COUNT_SHADERS == 4, "The amount of Shaders has changed.");
 static const char *open_renderer_vert_shader_file_path = "./simple.vert";
 static const char *open_renderer_frag_shader_file_paths[] =
   {
    [SHADER_FOR_COLOR] = "./simple_color.frag",
    [SHADER_FOR_IMAGE] = "./simple_image.frag",
    [SHADER_FOR_RIPPLE] = "./simple_ripple.frag",
+   [SHADER_FOR_TEXT] = "./simple_text.frag",
   };
 
 typedef struct{
@@ -81,8 +84,9 @@ void open_renderer_triangle(Open_Renderer *or, Vec2f p1, Vec2f p2, Vec2f p3, Vec
 void open_renderer_quad(Open_Renderer *or, Vec2f p1, Vec2f p2, Vec2f p3, Vec2f p4, Vec4f c1, Vec4f c2, Vec4f c3, Vec4f c4, Vec2f uv1, Vec2f uv2, Vec2f uv3, Vec2f uv4);
 void open_renderer_solid_rect(Open_Renderer *or, Vec2f pos, Vec2f size, Vec4f color);
 void open_renderer_image_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs);
+void open_renderer_text_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, Vec4f c);
 
-size_t open_renderer_push_texture(Open_Renderer *or, Open_Texture image);
+size_t open_renderer_push_texture(Open_Renderer *or, Open_Texture texture);
 void open_renderer_flush_textures(Open_Renderer *or);
 
 #ifdef OPEN_RENDERER_IMPLEMENTATION
@@ -247,6 +251,14 @@ void open_renderer_image_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Ve
         uvp, vec2f_add(uvp, vec2f(uvs.x, 0)), vec2f_add(uvp, vec2f(0, uvs.y)), vec2f_add(uvp, uvs));
 }
 
+void open_renderer_text_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, Vec4f c) {
+  open_renderer_quad(
+        or,
+        p, vec2f_add(p, vec2f(s.x, 0)), vec2f_add(p, vec2f(0, s.y)), vec2f_add(p, s),
+        c, c, c, c,
+        uvp, vec2f_add(uvp, vec2f(uvs.x, 0)), vec2f_add(uvp, vec2f(0, uvs.y)), vec2f_add(uvp, uvs));  
+}
+
 void open_renderer_ripple_rect(Open_Renderer *or, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs)
 {
   Vec4f c = vec4f(uvp.x, uvp.y, uvs.x, uvs.y);
@@ -332,7 +344,7 @@ static bool link_program(GLuint program, const char *file_path, size_t line)
     return linked;
 }
 
-size_t open_renderer_push_image(Open_Renderer *or, Open_Texture image) {
+size_t open_renderer_push_texture(Open_Renderer *or, Open_Texture texture) {
   not_null(or);
 
   glActiveTexture(open_renderer_index_to_texture(or->images_count));
@@ -346,20 +358,33 @@ size_t open_renderer_push_image(Open_Renderer *or, Open_Texture image) {
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-  glTexImage2D(GL_TEXTURE_2D,
-	       0,
-	       GL_RGBA,
-	       image.width,
-	       image.height,
-	       0,
-	       GL_RGBA,
-	       GL_UNSIGNED_INT_8_8_8_8_REV,
-	       image.data);
+  if(texture.grey) {
+    glTexImage2D(GL_TEXTURE_2D,
+		 0,
+		 GL_RED,
+		 texture.width,
+		 texture.height,
+		 0,
+		 GL_RED,
+		 GL_UNSIGNED_BYTE,
+		 texture.data);    
+  } else {
+    glTexImage2D(GL_TEXTURE_2D,
+		 0,
+		 GL_RGBA,
+		 texture.width,
+		 texture.height,
+		 0,
+		 GL_RGBA,
+		 GL_UNSIGNED_INT_8_8_8_8_REV,
+		 texture.data);
+  }
+
 
   return or->images_count++;
 }
 
-void open_renderer_flush_images(Open_Renderer *or) {
+void open_renderer_flush_textures(Open_Renderer *or) {
   not_null(or);
   glDeleteTextures(or->images_count, &or->textures);
   or->images_count = 0;
