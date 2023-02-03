@@ -109,6 +109,7 @@ bool parseJson(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJsonNull(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJsonBool(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m);
+bool parseJsonFloat(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t *m);
 
 bool parsePair(const char *buffer, size_t buffer_size, char **key, Json *value, size_t *m);
@@ -765,6 +766,27 @@ bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m)
   return true;
 }
 
+bool isDigitOrDot(char c) {
+  return c == '.' | isDigit(c);
+}
+
+bool parseJsonFloat(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
+  size_t neg = parseChar('-', buffer, buffer_size);
+  size_t off = skipCharIf(isSpace, buffer+neg, buffer_size-neg);
+  if((*m = parseStringIf(isDigitOrDot, buffer+neg+off, buffer_size-neg-off)) == 0) {
+    return false;
+  }
+  char *endptr;
+  float f = strtof(buffer+neg+off, &endptr);
+  if(f == 0.0f && *endptr != *(buffer+neg+off+(*m))) {
+    return false;
+  }
+  json->type = JSON_FLOAT;
+  json->floatVal = f;
+  if(neg) (*m)+=off+1;
+  return true;
+}
+
 bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
   size_t i = 0;
   if((parseChar('\"', buffer, buffer_size) == 0) && (parseChar('\'', buffer, buffer_size) == 0)) {
@@ -970,6 +992,9 @@ bool parseJson(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
     return true;
   }
   else if(parseJsonBool(buffer, buffer_size, json, m)) {
+    return true;
+  }
+  else if(parseJsonFloat(buffer, buffer_size, json, m)) {
     return true;
   }
   else if(parseJsonInt(buffer, buffer_size, json, m)) {
