@@ -767,7 +767,7 @@ bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m)
 }
 
 bool isDigitOrDot(char c) {
-  return c == '.' | isDigit(c);
+  return (c == '.') | isDigit(c);
 }
 
 bool parseJsonFloat(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
