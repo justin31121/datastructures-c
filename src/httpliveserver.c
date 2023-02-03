@@ -1,11 +1,11 @@
 #include <stdio.h>
 
-#define WATCHER_IMPLEMENTATION
-#include "../libs/watcher.h"
-
 #define HTTP_IMPLEMENTATION
 #define HTTP_NO_SSL
 #include "../libs/http.h"
+
+#define WATCHER_IMPLEMENTATION
+#include "../libs/watcher.h"
 
 static char cwd[PATH_MAX];
 
@@ -50,6 +50,7 @@ void handle_websocket(const char *message, size_t message_len, Http *client, voi
   }
 }
 
+/*
 void handle_watcher_event(Watcher_Event event, const char *name) {
   (void) event;
   (void) name;
@@ -58,6 +59,7 @@ void handle_watcher_event(Watcher_Event event, const char *name) {
   queuedChange = true;
   pthread_mutex_unlock(&lock);
 }
+*/
 
 int main(int argc, char **argv) {
   int port = 6060;
@@ -81,7 +83,7 @@ int main(int argc, char **argv) {
   }
   
 #ifdef _WIN32
-#include <direct.h>
+  //#include <direct.h>
   if(!_getcwd(cwd, sizeof(cwd))) {
     panic("getcwd");
   }
@@ -99,6 +101,7 @@ int main(int argc, char **argv) {
 
   printf("[HTTP-SERVER] Now serving at port %d\n", port);
 
+  /*
   Watcher watcher;
   if(!watcher_init(&watcher, "./rsc/", handle_watcher_event)) {
     panic("watcher_init");
@@ -107,6 +110,7 @@ int main(int argc, char **argv) {
   if(!watcher_start(&watcher)) {
     panic("watcher_start");
   }
+  */
 
   char in[64];
   while(true) {
@@ -116,7 +120,7 @@ int main(int argc, char **argv) {
     if(strcmp("q", in) == 0) break;
   }
 
-  watcher_free(&watcher);
+  //watcher_free(&watcher);
   http_server_free(&server);
   pthread_mutex_destroy(&lock);
   return 0;

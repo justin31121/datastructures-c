@@ -36,9 +36,16 @@ int main(int argc, char **argv) {
     panic("http_server_init");
   }
 
+#ifdef _WIN32
+  if(!_getcwd(cwd, sizeof(cwd))) {
+    panic("getcwd");
+  }
+#endif //_WIN32
+#ifdef linux
   if(!getcwd(cwd, sizeof(cwd))) {
     panic("getcwd");
   }
+#endif //linux
 
   if(!http_server_listen_and_serve(&server, http_server_simple_file_handler, 24, NULL, 0)) {
     panic("http_server_listen_and_serve");
