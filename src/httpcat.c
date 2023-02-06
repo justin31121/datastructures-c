@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <time.h>
 
 #define HTTP_IMPLEMENTATION
 #include "../libs/http.h"

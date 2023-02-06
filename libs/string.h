@@ -201,11 +201,11 @@ string string_trim(string s) {
   return string_trim_right(string_trim_left(s));
 }
 
-int string_index_of_cstr(string s, const char *cstr) {
+int string_index_of(string s, const char *cstr) {
   return cstr_index_of(s.data, s.len, cstr, strlen(cstr));
 }
 
-int string_index_of_cstr_offset(string s, const char *cstr, size_t offset) {
+int string_index_of_offset(string s, const char *cstr, size_t offset) {
   return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + offset;
 }
 

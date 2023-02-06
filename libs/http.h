@@ -1412,22 +1412,25 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 	size_t off = 0;
 	size_t i=0;
 	for(;i<diff-1;i++) {
-	  if(need == -1 || need == 0) {
-	    if(s.data[i]=='\r' && s.data[i+1] == '\n') {
-	      size_t size = i - off;
-	      size = size > 4 ? 4 : size;
-	      string word = string_from(s.data + i - size, size);
-	      uint64_t n;
-	      if(string_chop_hex(&word, &n) && !word.len) {
-		need = (int64_t) n;
-		if(need == 0) {
-		  bbreak = true;
-		  break;
-		}
-		off = i + 2;
-	      } else {
-		panic("expected hex, but got string");
-	      }
+	    if(need == -1 || need == 0) {
+		if(s.data[i]=='\r' && s.data[i+1] == '\n') {
+		    size_t size = i - off;
+		    size = size > 4 ? 4 : size;
+		    string word = string_from(s.data + i - size, size);
+		    uint64_t n;
+		    if(size > 0) {
+			if(string_chop_hex(&word, &n) && !word.len) {
+			    need = (int64_t) n;
+			    if(need == 0) {
+				bbreak = true;
+				break;
+			    }
+			    off = i + 2;
+			} else {
+			    printf("'%.*s'\n", (int) size, s.data + i - size);
+			    panic("expected hex, but got string");
+			}
+		    }
 	    }
 	  } else {
 	    if(s.data[i]=='\r' && s.data[i+1] == '\n') {
