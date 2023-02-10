@@ -9,15 +9,8 @@
 
 String_Buffer sb = {0};
 
-int main1() {
-  if(!http_get("http://127.0.0.1/index.html", _fwrite, stdout)) {
-    panic("request failed");
-  }  
-  return 0;
-}
-
 int main() { 
-  if(!http_get("https://www.youtube.com", string_buffer_callback, &sb)) {
+  if(!http_get("https://www.youtube.com", string_buffer_callback, &sb, NULL, NULL)) {
     panic("request failed");
   }
 
@@ -88,7 +81,7 @@ int main() {
       written = true;
 
       sb.len = 0;
-      if(!http_get(pic_url, string_buffer_callback, &sb)) {
+      if(!http_get(pic_url, string_buffer_callback, &sb, NULL, NULL)) {
 	panic("failed to download pic");
       }
 

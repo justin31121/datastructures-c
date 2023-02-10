@@ -194,28 +194,36 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	i++;
       } else if(format[i+1]=='d') { // %d
 	int n = va_arg(va, int);
-	size_t digit_buffer_cap = 32;
-	char digit_buffer[digit_buffer_cap];
-	size_t digit_buffer_count = 0;
-	bool was_negative = false;
-	if(n < 0) {
-	  was_negative = true;
-	  n *= -1;
-	}
-	while(n > 0) {
-	  int m = n % 10;
-	  assert(digit_buffer_count < digit_buffer_cap);
-	  digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = m + '0';
-	  n = n / 10;
-	}
-	if(was_negative) {
-	  assert(digit_buffer_count < digit_buffer_cap);
-	  digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = '-';
-	}
-	if(!sendf_bar(&context, &buffer_size,
-		      digit_buffer + (digit_buffer_cap - digit_buffer_count), digit_buffer_count)) {
-	  return false;
-	}
+
+	if(n == 0) {
+	  const char *zero = "0";
+	  if(!sendf_bar(&context, &buffer_size, zero, strlen(zero))) {
+	    return false;
+	  }	  
+	} else {
+	  size_t digit_buffer_cap = 32;
+	  char digit_buffer[digit_buffer_cap];
+	  size_t digit_buffer_count = 0;
+	  bool was_negative = false;
+	  if(n < 0) {
+	    was_negative = true;
+	    n *= -1;
+	  }
+	  while(n > 0) {
+	    int m = n % 10;
+	    assert(digit_buffer_count < digit_buffer_cap);
+	    digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = m + '0';
+	    n = n / 10;
+	  }
+	  if(was_negative) {
+	    assert(digit_buffer_count < digit_buffer_cap);
+	    digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = '-';
+	  }
+	  if(!sendf_bar(&context, &buffer_size,
+			digit_buffer + (digit_buffer_cap - digit_buffer_count), digit_buffer_count)) {
+	    return false;
+	  }
+	}	
 
 	format_last = i+2;
 	i++;
