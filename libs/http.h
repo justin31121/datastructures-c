@@ -1321,10 +1321,12 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
     nbytes_total += nbytes_last;
 
     if(nbytes_last>0 && write_callback != NULL && write_callback) {
-      (*write_callback)(buffer, nbytes_last, 1, userdata);
+      (*write_callback)(buffer, nbytes_last, 1, userdata);1
     }
 
   }while(true);
+
+
 
   return false;
 }
