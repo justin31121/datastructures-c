@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #define HTTP_IMPLEMENTATION
-#define HTTP_NO_SSL
 #include "../libs/http.h"
 
 static char cwd[PATH_MAX];
@@ -10,7 +9,7 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
 
   if(string_eq(request->method, STRING("GET"))) {
-    http_send_files(client, cwd, "/index.html", request->route);
+    http_send_files(client, cwd, "./index.html", request->route);
     return;
   }
 
@@ -32,7 +31,7 @@ int main(int argc, char **argv) {
   }
   
   HttpServer server;
-  if(!http_server_init(&server, port, NULL, NULL)) {
+  if(!http_server_init(&server, port, "./cert.pem", "./key.pem")) {
     panic("http_server_init");
   }
 

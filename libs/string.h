@@ -37,6 +37,10 @@ bool string_chop_int64_t(string *s, int64_t *n);
 
 int string_index_of(string s, const char *cstr);
 int string_index_of_offset(string s, const char *cstr, size_t offset);
+
+int string_index_of2(string s, string t);
+int string_index_of_offset2(string s, string t, size_t offset);
+
 string string_substring(string s, size_t start, size_t end);
 bool string_eq(string s, string t);
 
@@ -207,6 +211,14 @@ int string_index_of(string s, const char *cstr) {
 
 int string_index_of_offset(string s, const char *cstr, size_t offset) {
   return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + offset;
+}
+
+int string_index_of2(string s, string t) {
+  return cstr_index_of(s.data, s.len, t.data, t.len);
+}
+
+int string_index_of_offset2(string s, string t, size_t offset) {
+  return cstr_index_of(s.data + offset, s.len - offset, t.data, t.len) + offset;
 }
 
 string string_substring(string s, size_t start, size_t end) {
