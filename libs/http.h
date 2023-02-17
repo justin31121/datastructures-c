@@ -152,11 +152,12 @@ int http_find_hostname(const char *url, size_t url_len, size_t *hostname_len, bo
 const char *http_get_route(const char *url);
 bool http_sleep_ms(int ms);
 
-bool http_read_body(Http *http, size_t (*Http_Write_Callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
+bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
 
 // -- HTTP1 API
 bool http_request(Http *http, const char *route, const char *method, const char* body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
 bool http_get(const char *url, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
+bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
 bool http_head(const char *url, HttpHeader *header, const char *headers_extra);
 void http_free(Http *http);
 
@@ -441,6 +442,38 @@ bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,siz
   return true;
 }
 
+bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra) {
+  size_t url_len = strlen(url);
+  bool ssl;
+  size_t hostname_len;
+
+  int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
+  if(hostname < 0) {
+    return false;
+  }
+
+  int directory_len = url_len - hostname - hostname_len;
+  const char *route = "/";
+  if(directory_len>0) {
+    route = url + hostname + hostname_len;
+  }
+
+  Http http;
+  if(!http_init2(&http, url + hostname, hostname_len, ssl)) {
+    return false;
+  }
+
+  ///////////////////////////
+
+  if(!http_request(&http, route, "POST", body, content_type, write_callback, userdata, header, headers_extra)) {
+    return false;
+  }
+
+  http_free(&http);
+
+  return true;
+}
+
 bool http_header_has(const HttpHeader *_header, string key, string *value) {
   if(!_header) {
     return false;
@@ -467,7 +500,6 @@ bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
 
   int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
   if(hostname < 0) {
-    warn("can not find hostname");
     return false;
   }
 
@@ -479,7 +511,6 @@ bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
 
   Http http;
   if(!http_init2(&http, url + hostname, hostname_len, ssl)) {
-    warn("http_init failed");
     return false;
   }
 
@@ -1279,12 +1310,10 @@ HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
 
 bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len) {
   if(!http_valid(socket)) {
-    warn("invalid socket");
     return false;
   }
 
   if(hostname == NULL) {
-    warn("hostname is null");
     return false;
   }
 
@@ -1301,7 +1330,6 @@ bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_le
   
   struct hostent *hostent = gethostbyname(name);
   if(!hostent) {
-    warn("hostent is null");
     return false;
   }
 

@@ -29,12 +29,17 @@ typedef struct {
   size_t count;
 }Ht;
 
-Ht* ht_init();
+Ht *ht_init();
 void ht_insert(Ht *ht, const char *key, const void *value, size_t value_size);
+void *ht_get(const Ht *ht, const char* key);
+bool ht_has(const Ht *ht, const char *key);
+bool ht_remove(Ht *ht, const char* key);
 bool ht_next(const Ht *ht, int *last, Ht_Entry **entry);
 void ht_free(Ht *ht);
 
 #ifdef HASHTABLE_IMPLEMENTATION
+
+#ifdef HT_NOTNULL
 
 #define CUSTOM_CHECK_NOTNULL(obj, name) do{ \
   if(obj==NULL) {\
@@ -44,10 +49,16 @@ void ht_free(Ht *ht);
 }while(0)
 
 #define HT_ENTRY_CHECK_NOTNULL(obj) CUSTOM_CHECK_NOTNULL(obj, "Ht_Entry *")
-
 #define HT_ITEM_CHECK_NOTNULL(obj) CUSTOM_CHECK_NOTNULL(obj, "Ht_Item *")
-
 #define HT_CHECK_NOTNULL(obj) CUSTOM_CHECK_NOTNULL(obj, "Ht *")
+
+#else
+
+#define HT_ENTRY_CHECK_NOTNULL(obj)
+#define HT_ITEM_CHECK_NOTNULL(obj)
+#define HT_CHECK_NOTNULL(obj)
+
+#endif
 
 //const ht->size || !const ht_item->size
 //!const ht->count
@@ -139,7 +150,7 @@ unsigned long hash_function(const char* str, int *size) {
     f++;
   }
 
-  if(size) *size = f;
+  if(size) *size = f - 1;
 
   return hash % HT_CAP;
 }
@@ -150,11 +161,12 @@ Ht* ht_init() {
     fprintf(stderr, "ERROR: Can not allocate enough memory: ht_init\n");
     exit(1);    
   }
-
+  
   ht->size = HT_CAP;
-  ht->count = 0;
+  ht->count = 0;  
   ht->items = (Ht_Item *) malloc(ht->size * sizeof(Ht_Item));
   if(!ht->items) {
+    free(ht);
     fprintf(stderr, "ERROR: Can not allocate enough memory: ht_init\n");
     exit(1);    
   }
@@ -163,7 +175,7 @@ Ht* ht_init() {
     ht->items[i] = (Ht_Item) {0};
   }
 
-  return ht;  
+  return ht;
 }
 
 void ht_insert(Ht *ht,
