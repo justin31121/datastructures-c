@@ -19,30 +19,38 @@ void arr_free(Arr *arr);
 
 #ifdef ARRAY_IMPLEMENTATION
 
+#ifdef ARRAY_NOTNULL
+
 #define ARRAY_CHECK_NOTNULL(arr) do{ \
   if(arr==NULL) {\
   fprintf(stderr, "ERROR: Tried to perform operation on NULL. Expected Arr *.\n");\
   exit(1);\
   }\
 }while(0)
+#else
+
+#define ARRAY_CHECK_NOTNULL(arr)
+
+#endif 
 
 Arr *arr_init(size_t msize) {
   Arr *arr = (Arr *) malloc(sizeof(Arr));
   if(!arr) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: arr_init\n");
-    exit(1);
+    exit(1);    
   }
-
+  
   arr->msize = msize;
   arr->size = 8;
   arr->count = 0;
 
   arr->data = malloc(arr->msize * arr->size);
   if(!arr->data) {
+    free(arr);
     fprintf(stderr, "ERROR: Can not allocate enough memory: arr_init\n");
     exit(1);
   }
-  
+
   return arr;
 }
 
@@ -96,6 +104,7 @@ void *arr_pop(Arr *arr) {
 void arr_free(Arr *arr) {
   ARRAY_CHECK_NOTNULL(arr);
   if(arr->data) free(arr->data);
+  free(arr);
 }
 
 #endif

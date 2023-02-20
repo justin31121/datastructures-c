@@ -367,7 +367,7 @@ size_t open_renderer_push_texture(Open_Renderer *or, Open_Texture texture) {
 		 0,
 		 GL_RED,
 		 GL_UNSIGNED_BYTE,
-		 texture.data);    
+		 texture.data);
   } else {
     glTexImage2D(GL_TEXTURE_2D,
 		 0,
