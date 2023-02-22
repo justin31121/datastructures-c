@@ -151,6 +151,12 @@ bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl)
 int http_find_hostname(const char *url, size_t url_len, size_t *hostname_len, bool *ssl);
 const char *http_get_route(const char *url);
 bool http_sleep_ms(int ms);
+bool http_encodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size);
+bool http_decodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size);
 
 bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
 
@@ -363,6 +369,73 @@ bool http_sleep_ms(int ms) {
   if(nanosleep(&sleep_time, NULL) == -1) {
     return false;
   }
+  return true;
+}
+
+bool http_encodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size) {
+
+  if(!input || !output || !output_size) {
+    return false;
+  }
+
+  if(input_size >= output_cap) {
+    return false;
+  }
+
+  const char *hex = "0123456789abcdef";    
+  size_t pos = 0;
+  for (size_t i = 0; i < input_size; i++) {
+    if (('a' <= input[i] && input[i] <= 'z')
+	|| ('A' <= input[i] && input[i] <= 'Z')
+	|| ('0' <= input[i] && input[i] <= '9')) {
+      output[pos++] = input[i];
+    } else if(pos + 3 > output_cap) {
+      return false;
+    } else {
+      output[pos++] = '%';
+      output[pos++] = hex[(input[i] & 0xf0) >> 4];
+      output[pos++] = hex[input[i] & 0xf];
+    }
+  }
+
+  *output_size = pos;
+  
+  return true;  
+}
+
+bool http_decodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size) {
+  if(!input || !output || !output_size) {
+    return false;
+  }
+
+  size_t pos = 0;
+  for(size_t i=0;i<input_size;i++) {
+    if(pos >= output_cap) {
+      return false;
+    }
+    
+    char c = input[i];
+    if(c == '%') {
+      if(i + 2 >= input_size) {
+	return false;
+      }
+      char hi = input[i+1];
+      if(hi > 57) hi -= 39;
+      char lo = input[i+2];
+      if(lo > 57) lo -= 39;
+      output[pos++] = (hi << 4) | (lo & 0xf);
+      i+=2;
+    } else {
+      output[pos++] = c;
+    }
+  }
+
+  *output_size = pos;
+  
   return true;
 }
 

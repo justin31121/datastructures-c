@@ -38,6 +38,7 @@ typedef enum {
 }JsonType;
 
 bool json_type_to_cstr(char *buffer, size_t buffer_size, int type);
+const char* json_type_name(int type);
 
 typedef struct{
   JsonType type;
@@ -275,6 +276,29 @@ bool json_type_to_cstr(char *buffer, size_t buffer_size, int type) {
   if(len+1>=buffer_size) return false;
   memcpy(buffer, source, len+1);
   return true;
+}
+
+const char* json_type_name(int type) {
+  switch(type) {
+  case JSON_NULL:
+    return "JSON_NULL";
+  case JSON_BOOL:
+    return "JSON_BOOL";
+  case JSON_INT:
+    return "JSON_INT";
+  case JSON_FLOAT:
+    return "JSON_FLOAT";
+  case JSON_DOUBLE:
+    return "JSON_DOUBLE";
+  case JSON_STRING:
+    return "JSON_STRING";
+  case JSON_OBJECT:
+    return "JSON_OBJECT";
+  case JSON_ARRAY:
+    return "JSON_ARRAY";
+  default:
+    return NULL;
+  }  
 }
 
 static inline void json_put_null(Json obj, const char *key) {

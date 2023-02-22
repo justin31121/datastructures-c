@@ -346,10 +346,6 @@ bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size)
     return true;
   }
 
-  if(!data) {
-    return false;
-  }
-
   size_t new_cap = sb->cap == 0 ? 64 : sb->cap;
   while(sb->len + data_size >= new_cap) new_cap *=2;
   if(new_cap != sb->cap) {

@@ -159,15 +159,15 @@ void line(uint32_t *src, uint32_t width, uint32_t height, int x1, int y1, int x2
   }
 }
 
-void rect(uint32_t* src, uint32_t height, uint32_t width,
+void rect(uint32_t* src, uint32_t width, uint32_t height,
 	  int x0, int y0, int w, int h, int color) {
-  for(int dx = 0; dx < w; ++dx) {
-    for(int dy = 0; dy < h; ++dy) {
+  for(int dy = 0; dy < h; ++dy) {
+    for(int dx = 0; dx < w; ++dx) {
       int x = x0 + dx;
       int y = y0 + dy;
-      if(x<0 || x>=(int) width || y<0 || y>=(int) height) {
+      if(x<0 || x>=((int) width) || y<0 || y>=((int) height)) {
 	continue;
-      }      
+      }
       src[y*width+x] = rgba_mix(color, src[y*width+x]);
     }
   } 
