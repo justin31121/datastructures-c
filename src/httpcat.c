@@ -15,13 +15,13 @@ int main(int argc, char **argv) {
   sb.cap = 0;
 
   clock_t t = clock();
-  if(!http_get(argv[1], string_buffer_callback, &sb)) {
+  if(!http_get(argv[1], string_buffer_callback, &sb, NULL, NULL)) {
     panic("http_get");
   }
   t = clock() - t;
 
   if(sb.len > 0 && sb.len < 16000) printf("%s\n\n", sb.data);
-  printf("%lld bytes\n\n", sb.len);
+  printf("%ld bytes\n\n", sb.len);
   double time_taken = ((double)t)/CLOCKS_PER_SEC;
   printf("Took %d ms\n", (int) (time_taken * 1000));
   

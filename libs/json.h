@@ -9,6 +9,13 @@
 
 #endif
 
+#ifdef JSON_NOTNULL
+
+#define HT_NOTNULL
+#define ARRAY_NOTNULL
+
+#endif
+
 #include "hashtable.h"
 #include "array.h"
 #include "parse.h"
@@ -31,6 +38,7 @@ typedef enum {
 }JsonType;
 
 bool json_type_to_cstr(char *buffer, size_t buffer_size, int type);
+const char* json_type_name(int type);
 
 typedef struct{
   JsonType type;
@@ -49,49 +57,49 @@ Json json_init_object();
 Json json_init_array();
 
 //BEGIN JSON_OBJECT
-void json_put_null(Json obj, const char *key);
-void json_put_bool(Json obj, const char *key, bool value);
-void json_put_int(Json obj, const char *key, int value);
-void json_put_float(Json obj, const char *key, float value);
-void json_put_double(Json obj, const char *key, double value);
-void json_put_string(Json obj, const char *key, const char* value);
-void json_put_object(Json obj, const char *key, Json *value);
-void json_put_array(Json obj, const char *key, Json *value);
+static inline void json_put_null(Json obj, const char *key);
+static inline void json_put_bool(Json obj, const char *key, bool value);
+static inline void json_put_int(Json obj, const char *key, int value);
+static inline void json_put_float(Json obj, const char *key, float value);
+static inline void json_put_double(Json obj, const char *key, double value);
+static inline void json_put_string(Json obj, const char *key, const char* value);
+static inline void json_put_object(Json obj, const char *key, Json *value);
+static inline void json_put_array(Json obj, const char *key, Json *value);
 
-void json_remove(Json obj, const char *key);
+static inline void json_remove(Json obj, const char *key);
 
-Json json_get(Json obj, const char* key);
-bool json_has(Json obj, const char* key);
+static inline Json json_get(Json obj, const char* key);
+static inline bool json_has(Json obj, const char* key);
 
-bool json_get_bool(Json obj, const char *key);
-int json_get_int(Json obj, const char *key);
-float json_get_float(Json obj, const char *key);
-double json_get_double(Json obj, const char *key);
-char* json_get_string(Json obj, const char *key);
-Json json_get_object(Json obj, const char *key);
-Json json_get_array(Json obj, const char *key);
+static inline bool json_get_bool(Json obj, const char *key);
+static inline int json_get_int(Json obj, const char *key);
+static inline float json_get_float(Json obj, const char *key);
+static inline double json_get_double(Json obj, const char *key);
+static inline char* json_get_string(Json obj, const char *key);
+static inline Json json_get_object(Json obj, const char *key);
+static inline Json json_get_array(Json obj, const char *key);
 //END JSON_OBJECT
 
 //BEGIN JSON_ARRAY
-void json_push_null(Json arr);
-void json_push_bool(Json arr, bool value);
-void json_push_int(Json arr, int value);
-void json_push_float(Json arr, float value);
-void json_push_double(Json arr, double value);
-void json_push_string(Json arr, const char* value);
-void json_push_object(Json arr, Json *value);
-void json_push_array(Json arr, Json *value);
+static inline void json_push_null(Json arr);
+static inline void json_push_bool(Json arr, bool value);
+static inline void json_push_int(Json arr, int value);
+static inline void json_push_float(Json arr, float value);
+static inline void json_push_double(Json arr, double value);
+static inline void json_push_string(Json arr, const char* value);
+static inline void json_push_object(Json arr, Json *value);
+static inline void json_push_array(Json arr, Json *value);
 
-void json_pop(Json arr);
+static inline void json_pop(Json arr);
 
-Json json_opt(Json arr, int i);
-bool json_opt_bool(Json obj, int p);
-int json_opt_int(Json obj, int p);
-float json_opt_float(Json obj, int p);
-double json_opt_double(Json obj, int p);
-char *json_opt_string(Json obj, int p);
-Json json_opt_object(Json obj, int p);
-Json json_opt_array(Json obj, int p);
+static inline Json json_opt(Json arr, int i);
+static inline bool json_opt_bool(Json obj, int p);
+static inline int json_opt_int(Json obj, int p);
+static inline float json_opt_float(Json obj, int p);
+static inline double json_opt_double(Json obj, int p);
+static inline char *json_opt_string(Json obj, int p);
+static inline Json json_opt_object(Json obj, int p);
+static inline Json json_opt_array(Json obj, int p);
 //END JSON_ARRAY
 
 void json_fprint(FILE *f, Json json);
@@ -135,6 +143,8 @@ bool xml_parse_len(const char *source, size_t source_len, Json *json);
 
 #ifdef JSON_IMPLEMENTATION
 
+#ifdef JSON_ASSERT
+
 #define ASSERT_TYPE(type, goal) do{					\
   if(type!=goal) {							\
       char buffer1[16];							\
@@ -145,6 +155,12 @@ bool xml_parse_len(const char *source, size_t source_len, Json *json);
       exit(1);								\
     }									\
   }while(0)
+
+#else
+
+#define ASSERT_TYPE(type, goal)
+
+#endif
 
 char *json_create_cstr_from_parts(const char* cstr, size_t size) {
   char *json_cstr = (char *) malloc(size + 1);
@@ -262,14 +278,37 @@ bool json_type_to_cstr(char *buffer, size_t buffer_size, int type) {
   return true;
 }
 
-void json_put_null(Json obj, const char *key) {
+const char* json_type_name(int type) {
+  switch(type) {
+  case JSON_NULL:
+    return "JSON_NULL";
+  case JSON_BOOL:
+    return "JSON_BOOL";
+  case JSON_INT:
+    return "JSON_INT";
+  case JSON_FLOAT:
+    return "JSON_FLOAT";
+  case JSON_DOUBLE:
+    return "JSON_DOUBLE";
+  case JSON_STRING:
+    return "JSON_STRING";
+  case JSON_OBJECT:
+    return "JSON_OBJECT";
+  case JSON_ARRAY:
+    return "JSON_ARRAY";
+  default:
+    return NULL;
+  }  
+}
+
+static inline void json_put_null(Json obj, const char *key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_NULL;
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_put_bool(Json obj, const char *key, bool value) {
+static inline void json_put_bool(Json obj, const char *key, bool value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_BOOL;
@@ -277,7 +316,7 @@ void json_put_bool(Json obj, const char *key, bool value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_put_int(Json obj, const char *key, int value) {
+static inline void json_put_int(Json obj, const char *key, int value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_INT;
@@ -285,7 +324,7 @@ void json_put_int(Json obj, const char *key, int value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_put_float(Json obj, const char *key, float value) {
+static inline void json_put_float(Json obj, const char *key, float value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_FLOAT;
@@ -293,7 +332,7 @@ void json_put_float(Json obj, const char *key, float value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));  
 }
 
-void json_put_double(Json obj, const char *key, double value) {
+static inline void json_put_double(Json obj, const char *key, double value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_DOUBLE;
@@ -301,7 +340,7 @@ void json_put_double(Json obj, const char *key, double value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_put_string(Json obj, const char *key, const char* value) {
+static inline void json_put_string(Json obj, const char *key, const char* value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_STRING;
@@ -309,7 +348,7 @@ void json_put_string(Json obj, const char *key, const char* value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_put_object(Json obj, const char *key, Json *value) {
+static inline void json_put_object(Json obj, const char *key, Json *value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   ASSERT_TYPE(value->type, JSON_OBJECT);
   Json json;
@@ -318,7 +357,7 @@ void json_put_object(Json obj, const char *key, Json *value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_put_array(Json obj, const char *key, Json *value) {
+static inline void json_put_array(Json obj, const char *key, Json *value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   ASSERT_TYPE(value->type, JSON_ARRAY);
   Json json;
@@ -327,12 +366,12 @@ void json_put_array(Json obj, const char *key, Json *value) {
   ht_insert(obj.objVal, key, &json, sizeof(Json));
 }
 
-void json_remove(Json obj, const char *key) {
+static inline void json_remove(Json obj, const char *key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   ht_remove(obj.objVal, key);
 }
 
-Json json_get(Json obj, const char* key) {
+static inline Json json_get(Json obj, const char* key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   void *ptr = ht_get(obj.objVal, key);
   
@@ -345,48 +384,48 @@ Json json_get(Json obj, const char* key) {
   return *(Json *) ptr;
 }
 
-bool json_has(Json obj, const char* key) {
+static inline bool json_has(Json obj, const char* key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   return ht_has(obj.objVal, key);
 }
 
-bool json_get_bool(Json obj, const char *key) {
+static inline bool json_get_bool(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_BOOL);
   return json.boolVal;
 }
 
-int json_get_int(Json obj, const char *key) {
+static inline int json_get_int(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_INT);
   return json.intVal;
 }
 
-float json_get_float(Json obj, const char *key) {
+static inline float json_get_float(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_FLOAT);
   return json.floatVal;  
 }
 
-double json_get_double(Json obj, const char *key) {
+static inline double json_get_double(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_DOUBLE);
   return json.doubleVal;    
 }
 
-char *json_get_string(Json obj, const char *key) {
+static inline char *json_get_string(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_STRING);
   return json.stringVal;
 }
 
-Json json_get_object(Json obj, const char *key) {
+static inline Json json_get_object(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_OBJECT);
   return json;
 }
 
-Json json_get_array(Json obj, const char *key) {
+static inline Json json_get_array(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_ARRAY);
   return json;
@@ -396,14 +435,14 @@ Json json_get_array(Json obj, const char *key) {
 
 //BEGIN JSON_ARRAY
 
-void json_push_null(Json arr) {
+static inline void json_push_null(Json arr) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_NULL;
   arr_push(arr.arrVal, &json);
 }
 
-void json_push_bool(Json arr, bool value) {
+static inline void json_push_bool(Json arr, bool value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_BOOL;
@@ -411,7 +450,7 @@ void json_push_bool(Json arr, bool value) {
   arr_push(arr.arrVal, &json);
 }
 
-void json_push_int(Json arr, int value) {
+static inline void json_push_int(Json arr, int value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_INT;
@@ -419,7 +458,7 @@ void json_push_int(Json arr, int value) {
   arr_push(arr.arrVal, &json);
 }
 
-void json_push_float(Json arr, float value) {
+static inline void json_push_float(Json arr, float value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_FLOAT;
@@ -427,7 +466,7 @@ void json_push_float(Json arr, float value) {
   arr_push(arr.arrVal, &json);
 }
 
-void json_push_double(Json arr, double value) {
+static inline void json_push_double(Json arr, double value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_DOUBLE;
@@ -435,7 +474,7 @@ void json_push_double(Json arr, double value) {
   arr_push(arr.arrVal, &json);  
 }
 
-void json_push_string(Json arr, const char* value) {
+static inline void json_push_string(Json arr, const char* value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_STRING;
@@ -443,7 +482,7 @@ void json_push_string(Json arr, const char* value) {
   arr_push(arr.arrVal, &json);
 }
 
-void json_push_object(Json arr, Json *value) {
+static inline void json_push_object(Json arr, Json *value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   ASSERT_TYPE(value->type, JSON_OBJECT);
   Json json;
@@ -452,7 +491,7 @@ void json_push_object(Json arr, Json *value) {
   arr_push(arr.arrVal, &json);
 }
 
-void json_push_array(Json arr, Json *value) {
+static inline void json_push_array(Json arr, Json *value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   ASSERT_TYPE(value->type, JSON_ARRAY);
   Json json;
@@ -461,58 +500,57 @@ void json_push_array(Json arr, Json *value) {
   arr_push(arr.arrVal, &json);
 }
 
-void json_pop(Json arr) {
+static inline void json_pop(Json arr) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   arr_pop(arr.arrVal);
 }
 
-Json json_opt(Json arr, int i) {
+static inline Json json_opt(Json arr, int i) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   return *(Json *) arr_get(arr.arrVal, (size_t) i);
 }
 
-bool json_opt_bool(Json obj, int p) {
+static inline bool json_opt_bool(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_BOOL);
   return json.boolVal;
 }
 
-int json_opt_int(Json obj, int p) {
+static inline int json_opt_int(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_INT);
   return json.intVal;
 }
 
-float json_opt_float(Json obj, int p) {
+static inline float json_opt_float(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_FLOAT);
   return json.floatVal;  
 }
 
-double json_opt_double(Json obj, int p) {
+static inline double json_opt_double(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_DOUBLE);
   return json.doubleVal;
 }
 
-char *json_opt_string(Json obj, int p) {
+static inline char *json_opt_string(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_STRING);
   return json.stringVal;
 }
 
-Json json_opt_object(Json obj, int p) {
+static inline Json json_opt_object(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_OBJECT);
   return json;
 }
 
-Json json_opt_array(Json obj, int p) {
+static inline Json json_opt_array(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_ARRAY);
   return json;
 }
-
 
 //END JSON_ARRAY
 
@@ -525,7 +563,7 @@ void json_fprint(FILE *f, Json json) {
     while(ht_next(json.objVal, &last, &entry)) {
       fprintf(f, "\"%s\":", entry->key);
       json_fprint(f, *(Json *) entry->value);
-      if(last != (int) (json.objVal)->count - 1) fprintf(f, ", ");
+      if(last != (int) json.objVal->count - 1) fprintf(f, ", ");
     }
     fputc('}', f);
     break;
@@ -584,7 +622,7 @@ size_t json_write(Json json, size_t (*write_callback)(void *,size_t,void *), voi
       WRITE_CB(chars + 6, 1);// :
 
       if(!json_write(*(Json *) entry->value, write_callback, userdata)) return acc;
-      if(last != (int) (json.objVal)->count - 1) {
+      if(last != (int) json.objVal->count - 1) {
 	WRITE_CB(chars + 4, 1);
       }
     }
@@ -664,9 +702,8 @@ Json json_init_object() {
 
 Json json_init_array() {
   Json value;
-  value.type = JSON_ARRAY;
-  Arr *array = arr_init(sizeof(Json));
-  value.arrVal = array;
+  value.type = JSON_ARRAY;  
+  value.arrVal = arr_init(sizeof(Json));
   return value;
 }
 
@@ -684,10 +721,12 @@ int json_size(Json json) {
 
 void json_free(Json json) {  
   if(json.type==JSON_OBJECT) {
-    if(json.objVal) ht_free(json.objVal);    
+    if(!json.objVal) return;
+    ht_free(json.objVal);    
   }
   else if(json.type==JSON_ARRAY) {
-    if(json.arrVal) arr_free(json.arrVal);
+    if(!json.arrVal) return;
+    arr_free(json.arrVal);
   }
   else if(json.type==JSON_STRING) {
     if(json.stringVal) free(json.stringVal);
@@ -699,7 +738,6 @@ void json_free(Json json) {
 
 void json_free_all(Json json) {  
   if(json.type==JSON_OBJECT) {
-    if(!json.objVal) return;
     Ht_Entry *entry;
     int last = -1;
 
@@ -710,7 +748,6 @@ void json_free_all(Json json) {
     ht_free(json.objVal);
   }
   else if(json.type==JSON_ARRAY) {
-    if(!json.arrVal) return;
     for(size_t i=0;i<json.arrVal->count;i++) {
       json_free_all(*(Json *) arr_get(json.arrVal, i));
     }
@@ -878,20 +915,20 @@ bool parsePair(const char *buffer, size_t buffer_size, char **key, Json *value, 
   *key = json.stringVal;
 
   size_t i = n;
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   if(parseChar(':', buffer + i, buffer_size - i) == 0) {
     return false;
   }
   i++;
 
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   if(!parseJson(buffer + i, buffer_size - i, &json, &n)) {
     return false;
   }
 
-  memcpy(value, &json, sizeof(Json));
+  *value = json;
 
   *m = i + n;
   
@@ -906,7 +943,7 @@ bool parseJsonArray(const char *buffer, size_t buffer_size,
   }
   i++;
 
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   //PARSE ELEMENTS
   Json arr = json_init_array();
@@ -917,15 +954,15 @@ bool parseJsonArray(const char *buffer, size_t buffer_size,
     i += n;
 
     //sepBy
-    i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+    i += skipCharIf(isSpace, buffer+i, buffer_size-i);
     if(parseChar(',', buffer + i, buffer_size - i) == 0) {
       break;
     }
     i++;
-    i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+    i += skipCharIf(isSpace, buffer+i, buffer_size-i);
     
   }
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   if(parseChar(']', buffer + i, buffer_size - i) == 0) {
     json_free_all(arr);
@@ -936,7 +973,7 @@ bool parseJsonArray(const char *buffer, size_t buffer_size,
   json->type = JSON_ARRAY;
   json->arrVal = arr.arrVal;
 
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   *m = i;
   return true;
@@ -949,7 +986,7 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
   }
   i++;
 
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   //SEP_BY
   Json obj = json_init_object();
@@ -965,7 +1002,7 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
     free(key);
     
     //WHITESPACE
-    i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+    i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
     if(parseChar(',', buffer + i, buffer_size - i) == 0) {
       break;
@@ -973,10 +1010,10 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
     i++;
 
     //WHITESPACE
-    i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+    i += skipCharIf(isSpace, buffer+i, buffer_size-i);
   }
 
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
   
   if(parseChar('}', buffer + i, buffer_size - i) == 0) {
     json_free_all(obj);
@@ -987,7 +1024,7 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
   json->type = JSON_OBJECT;
   json->objVal = obj.objVal;
 
-  i += skipCharIf(isSpace, buffer+i, buffer_size-1);
+  i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
   *m = i;
   return true;

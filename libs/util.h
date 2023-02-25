@@ -14,17 +14,24 @@
 void util_unused(int n, ...) { (void) n; }
 
 #define not_null(ptr) do{ if(ptr==NULL) {fprintf(stderr, "%s:%d: error: %s: Expected a non NULL pointer\n", __FILE__, __LINE__, __func__); exit(1); }}while(0)
-#define panic(cstr) do{ fprintf(stderr, "%s:%d: error: %s: %s", __FILE__, __LINE__, __func__, cstr); if(errno != 0) { fprintf(stderr, ": %s", strerror(errno));} fprintf(stderr, "\n"); exit(1);}while(0)
-#define warn(cstr) fprintf(stderr, "%s:%d: warning: %s: %s\n", __FILE__, __LINE__, __func__, cstr);
+#define panic(...) do{ fprintf(stderr, "%s:%d: error: %s: ", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); if(errno != 0) { fprintf(stderr, ": %s", strerror(errno));} fprintf(stderr, "\n"); exit(1);}while(0)
+#define warn(...) do{ fprintf(stderr, "%s:%d: warning: %s:", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); }while(0)
 
 
 void print_bytes(void *_ptr, size_t number_of_bytes);
 char *slurp_file(const char* file_path, size_t *size);
+bool slurp_file2(const char* file_path, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 void write_file(const char *file_path, const char *data);
 void write_file_len(const char *file_path, const char *data, size_t size);
 bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	   char *buffer, size_t buffer_cap, const char *format, ...);
 
+typedef unsigned char u8;
+typedef char s8;
+typedef unsigned int u32;
+typedef int s32;
+typedef unsigned long u64;
+typedef long s64;
 
 #ifdef UTIL_IMPLEMENTATION
 
@@ -111,6 +118,39 @@ char *slurp_file(const char* file_path, size_t *size) {
   return res;
 }
 
+bool slurp_file2(const char* file_path, size_t (*write_callback)(const void *, size_t, size_t, void *), void *userdata) {
+  FILE *f = fopen(file_path, "rb");
+  if(!f) {
+    fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
+    return false;
+  }
+
+  while(true) {
+    bool bbreak = false;
+    char buffer[8192];
+    size_t nbytes = fread(buffer, 1, 8192, f);
+    if(nbytes != 8192) {
+      if(ferror(f)) {
+	fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
+	fclose(f);
+	return false;	
+      }
+      if(feof(f)) {
+	bbreak = true;
+      }
+    }
+    if(nbytes > 0) {
+      write_callback(buffer, nbytes, 1, userdata);
+    }
+    if(bbreak) {
+      break;
+    }
+  }
+
+  fclose(f);  
+  return true;
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 
 typedef struct{
@@ -194,28 +234,36 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	i++;
       } else if(format[i+1]=='d') { // %d
 	int n = va_arg(va, int);
-	size_t digit_buffer_cap = 32;
-	char digit_buffer[digit_buffer_cap];
-	size_t digit_buffer_count = 0;
-	bool was_negative = false;
-	if(n < 0) {
-	  was_negative = true;
-	  n *= -1;
-	}
-	while(n > 0) {
-	  int m = n % 10;
-	  assert(digit_buffer_count < digit_buffer_cap);
-	  digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = m + '0';
-	  n = n / 10;
-	}
-	if(was_negative) {
-	  assert(digit_buffer_count < digit_buffer_cap);
-	  digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = '-';
-	}
-	if(!sendf_bar(&context, &buffer_size,
-		      digit_buffer + (digit_buffer_cap - digit_buffer_count), digit_buffer_count)) {
-	  return false;
-	}
+
+	if(n == 0) {
+	  const char *zero = "0";
+	  if(!sendf_bar(&context, &buffer_size, zero, strlen(zero))) {
+	    return false;
+	  }	  
+	} else {
+	  size_t digit_buffer_cap = 32;
+	  char digit_buffer[digit_buffer_cap];
+	  size_t digit_buffer_count = 0;
+	  bool was_negative = false;
+	  if(n < 0) {
+	    was_negative = true;
+	    n *= -1;
+	  }
+	  while(n > 0) {
+	    int m = n % 10;
+	    assert(digit_buffer_count < digit_buffer_cap);
+	    digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = m + '0';
+	    n = n / 10;
+	  }
+	  if(was_negative) {
+	    assert(digit_buffer_count < digit_buffer_cap);
+	    digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = '-';
+	  }
+	  if(!sendf_bar(&context, &buffer_size,
+			digit_buffer + (digit_buffer_cap - digit_buffer_count), digit_buffer_count)) {
+	    return false;
+	  }
+	}	
 
 	format_last = i+2;
 	i++;
