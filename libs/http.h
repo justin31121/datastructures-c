@@ -168,6 +168,7 @@ bool http_head(const char *url, HttpHeader *header, const char *headers_extra);
 void http_free(Http *http);
 
 bool http_header_has(const HttpHeader *header, string key, string *value);
+int http_header_response_code(const HttpHeader *header);
 //----------END HTTP----------
 
 
@@ -420,7 +421,7 @@ bool http_decodeURI(const char *input, size_t input_size,
     
     char c = input[i];
     if(c == '%') {
-      if(i + 2 >= input_size) {
+      if(i + 2 >= input_size) {	
 	return false;
       }
       char hi = input[i+1];
@@ -564,6 +565,15 @@ bool http_header_has(const HttpHeader *_header, string key, string *value) {
   }
   
   return true;
+}
+
+int http_header_response_code(const HttpHeader *_header) {
+ string header = string_from(_header->data, _header->size);
+ string line = string_trim(string_chop_by_delim(&header, '\n'));
+ string_chop_left(&line, 9);
+ int n;
+ string_chop_int(&line, &n);
+ return n;
 }
 
 bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
