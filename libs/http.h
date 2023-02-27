@@ -151,6 +151,12 @@ bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl)
 int http_find_hostname(const char *url, size_t url_len, size_t *hostname_len, bool *ssl);
 const char *http_get_route(const char *url);
 bool http_sleep_ms(int ms);
+bool http_encodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size);
+bool http_decodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size);
 
 bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
 
@@ -162,6 +168,7 @@ bool http_head(const char *url, HttpHeader *header, const char *headers_extra);
 void http_free(Http *http);
 
 bool http_header_has(const HttpHeader *header, string key, string *value);
+int http_header_response_code(const HttpHeader *header);
 //----------END HTTP----------
 
 
@@ -366,6 +373,73 @@ bool http_sleep_ms(int ms) {
   return true;
 }
 
+bool http_encodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size) {
+
+  if(!input || !output || !output_size) {
+    return false;
+  }
+
+  if(input_size >= output_cap) {
+    return false;
+  }
+
+  const char *hex = "0123456789abcdef";    
+  size_t pos = 0;
+  for (size_t i = 0; i < input_size; i++) {
+    if (('a' <= input[i] && input[i] <= 'z')
+	|| ('A' <= input[i] && input[i] <= 'Z')
+	|| ('0' <= input[i] && input[i] <= '9')) {
+      output[pos++] = input[i];
+    } else if(pos + 3 > output_cap) {
+      return false;
+    } else {
+      output[pos++] = '%';
+      output[pos++] = hex[(input[i] & 0xf0) >> 4];
+      output[pos++] = hex[input[i] & 0xf];
+    }
+  }
+
+  *output_size = pos;
+  
+  return true;  
+}
+
+bool http_decodeURI(const char *input, size_t input_size,
+		    char* output, size_t output_cap,
+		    size_t *output_size) {
+  if(!input || !output || !output_size) {
+    return false;
+  }
+
+  size_t pos = 0;
+  for(size_t i=0;i<input_size;i++) {
+    if(pos >= output_cap) {
+      return false;
+    }
+    
+    char c = input[i];
+    if(c == '%') {
+      if(i + 2 >= input_size) {	
+	return false;
+      }
+      char hi = input[i+1];
+      if(hi > 57) hi -= 39;
+      char lo = input[i+2];
+      if(lo > 57) lo -= 39;
+      output[pos++] = (hi << 4) | (lo & 0xf);
+      i+=2;
+    } else {
+      output[pos++] = c;
+    }
+  }
+
+  *output_size = pos;
+  
+  return true;
+}
+
 bool http_request(Http *http, const char *route, const char *method,
 		  const char* body, const char *content_type,
 		  size_t (*write_callback)(const void*, size_t, size_t, void *),
@@ -491,6 +565,15 @@ bool http_header_has(const HttpHeader *_header, string key, string *value) {
   }
   
   return true;
+}
+
+int http_header_response_code(const HttpHeader *_header) {
+ string header = string_from(_header->data, _header->size);
+ string line = string_trim(string_chop_by_delim(&header, '\n'));
+ string_chop_left(&line, 9);
+ int n;
+ string_chop_int(&line, &n);
+ return n;
 }
 
 bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {

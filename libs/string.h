@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 
@@ -344,10 +345,6 @@ bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size)
 
   if(data_size == 0) {
     return true;
-  }
-
-  if(!data) {
-    return false;
   }
 
   size_t new_cap = sb->cap == 0 ? 64 : sb->cap;
