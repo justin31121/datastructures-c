@@ -19,8 +19,8 @@
 #endif //OPEN_RENDERER_IMPLEMENTATION
 #include "./vec.h"
 
-#define GL_GLEXT_PROTOTYPES
-#include <SDL2/SDL_opengl.h>
+//#define GL_GLEXT_PROTOTYPES
+//#include <SDL2/SDL_opengl.h>
 
 #define OPEN_RENDERER_VERTICIES_CAP 1024
 
@@ -94,7 +94,7 @@ void open_renderer_flush_textures(Open_Renderer *or);
 static bool compile_shader_file(const char *file_path, GLenum shader_type, GLuint *shader);
 static void attach_shaders_to_program(GLuint *shaders, size_t shaders_count, GLuint program);
 static bool link_program(GLuint program, const char *file_path, size_t line);
-static bool compile_shader_source(const GLchar *source, GLenum shader_type, GLuint *shader);
+static bool compile_shader_source(const char *source, GLenum shader_type, GLuint *shader);
 
 bool open_renderer_init(Open_Renderer *or) {
   if(!or) {
@@ -299,7 +299,7 @@ static bool compile_shader_file(const char *file_path, GLenum shader_type, GLuin
     return true;
 }
 
-static bool compile_shader_source(const GLchar *source, GLenum shader_type, GLuint *shader)
+static bool compile_shader_source(const char *source, GLenum shader_type, GLuint *shader)
 {
     *shader = glCreateShader(shader_type);
     glShaderSource(*shader, 1, &source, NULL);

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 #include <stdarg.h>
 #include <assert.h>
 #include <errno.h>
@@ -126,11 +127,13 @@ bool slurp_file2(const char* file_path, size_t (*write_callback)(const void *, s
     return false;
   }
 
+  size_t buffer_size = 8192 << 2;
+
   while(true) {
     bool bbreak = false;
-    char buffer[8192];
-    size_t nbytes = fread(buffer, 1, 8192, f);
-    if(nbytes != 8192) {
+    char buffer[buffer_size];
+    size_t nbytes = fread(buffer, 1, buffer_size, f);
+    if(nbytes != buffer_size) {
       if(ferror(f)) {
 	fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
 	fclose(f);
