@@ -1042,6 +1042,7 @@ static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_HTML = "text/html; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_JS = "application/javascript; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_JSON = "application/json; charset=utf-8";
+static const char* HTTP_CONTENT_TYPE_CSS = "text/css; charset=utf-8";
 
 const char* http_server_content_type_from_name(string file_name) {
   const char *content_type = HTTP_CONTENT_TYPE_TEXT_PLAIN;
@@ -1058,7 +1059,9 @@ const char* http_server_content_type_from_name(string file_name) {
     content_type = HTTP_CONTENT_TYPE_HTML;
   } else if(string_eq(ext, STRING(".js"))) {
     content_type = HTTP_CONTENT_TYPE_JS;
-  }else if(string_eq(ext, STRING(".json"))) {
+  } else if(string_eq(ext, STRING(".css"))) {
+    content_type = HTTP_CONTENT_TYPE_CSS;
+  } else if(string_eq(ext, STRING(".json"))) {
     content_type = HTTP_CONTENT_TYPE_JSON;
   } else {
     fprintf(stderr, "[WARNING] Unknown extension: "String_Fmt"\n", String_Arg(ext));

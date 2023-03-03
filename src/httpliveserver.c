@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   printf("[HTTP-SERVER] Now serving at port %d\n", port);
 
   Watcher watcher;
-  if(!watcher_init(&watcher, "./rsc/", handle_watcher_event)) {
+  if(!watcher_init(&watcher, "./", handle_watcher_event)) {
     panic("watcher_init");
   }
 
