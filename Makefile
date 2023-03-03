@@ -14,7 +14,7 @@ encode: ./src/encode.c ./libs/http.h
 	gcc ./src/encode.c $(CFLAGS) -ggdb -o encode -lpthread
 
 httpliveserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
-	gcc ./src/httpliveserver.c $(CFLAGS) -ggdb -pthread -o httpliveserver
+	gcc ./src/httpliveserver.c $(CFLAGS) -ggdb -pthread -o httpliveserver -lws2_32
 
 httpserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc -O3 ./src/httpserver.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpserver

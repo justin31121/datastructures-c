@@ -1545,8 +1545,6 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
     nbytes_last = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
 #endif //HTTP_NO_SSL
 
-    printf("nbytes_last: %lld\n", nbytes_last);
-
 #ifdef linux
     //TODO: check if it should <= 0 OR < 0
     if(nbytes_last < 0) {
