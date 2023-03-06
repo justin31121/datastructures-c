@@ -13,11 +13,14 @@ all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h ./libs/tokenizer.h ./libs/html_parser.h
 	gcc ./src/google.c $(CFLAGS) -ggdb -o google $(LDFLAGS)
 
+email: ./src/email.c ./libs/http.h
+	gcc ./src/email.c $(CFLAGS) -o email $(LDFLAGS)
+
 encode: ./src/encode.c ./libs/http.h
 	gcc ./src/encode.c $(CFLAGS) -ggdb -o encode -lpthread
 
 httpliveserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
-	gcc ./src/httpliveserver.c $(CFLAGS) -ggdb -pthread -o httpliveserver
+	gcc ./src/httpliveserver.c $(CFLAGS) -ggdb -pthread -o httpliveserver -lws2_32
 
 httpserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc -O3 ./src/httpserver.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpserver

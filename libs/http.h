@@ -147,6 +147,7 @@ typedef struct {
 //----------BEGIN HTTP----------
 bool http_init(Http *http, const char *url);
 bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl);
+bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port);
 
 int http_find_hostname(const char *url, size_t url_len, size_t *hostname_len, bool *ssl);
 const char *http_get_route(const char *url);
@@ -214,6 +215,7 @@ void http_make_nonblocking(int socket);
 HttpAccept http_accept(int server, int *client);
 HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
 bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len);
+bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len);
 bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
 bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
 bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
@@ -263,52 +265,56 @@ bool http_init(Http *http, const char *url) {
 }
 
 bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl) {
-  if(http == NULL) {
-    return false;
-  }
-  if(hostname == NULL) {
-    return false;
-  }
+    return http_init3(http, hostname, hostname_len, ssl, ssl ? HTTPS_PORT : HTTP_PORT);
+}
 
-  http_init_external_libs(NULL, NULL);
-
-  http->socket = http_open();
-  if(!http_valid(http->socket)) {
-    return false;
-  }
-
-#ifndef HTTP_NO_SSL
-  if(ssl) {
-    http->conn = SSL_new(http_global_ssl_client_ctx);
-    if(!http->conn) {
-      return false;
+bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port) {
+    if(http == NULL) {
+	return false;
     }
-    SSL_set_fd(http->conn, http->socket);
-  } else {
-    http->conn = NULL;
-  }
-#else
-  if(ssl) {
-    warn("Compile with openssl and remove HTTP_NO_SSL, to request the url");
-    return false;
-  }
-#endif //HTTP_NO_SSL
+    if(hostname == NULL) {
+	return false;
+    }
 
-  if(!http_connect(http->socket, ssl, hostname, hostname_len)) {
-    warn("connect failed");
-    return false;
-  }
+    http_init_external_libs(NULL, NULL);
+
+    http->socket = http_open();
+    if(!http_valid(http->socket)) {
+	return false;
+    }
 
 #ifndef HTTP_NO_SSL
-  if(ssl && SSL_connect(http->conn)!=1) {
-    return false;
-  }
+    if(ssl) {
+	http->conn = SSL_new(http_global_ssl_client_ctx);
+	if(!http->conn) {
+	    return false;
+	}
+	SSL_set_fd(http->conn, http->socket);
+    } else {
+	http->conn = NULL;
+    }
+#else
+    if(ssl) {
+	warn("Compile with openssl and remove HTTP_NO_SSL, to request the url");
+	return false;
+    }
 #endif //HTTP_NO_SSL
 
-  http->host = hostname;
-  http->host_len = hostname_len;
+    if(!http_connect2(http->socket, port, hostname, hostname_len)) {
+	warn("connect failed");
+	return false;
+    }
 
-  return true;
+#ifndef HTTP_NO_SSL
+    if(ssl && SSL_connect(http->conn)!=1) {
+	return false;
+    }
+#endif //HTTP_NO_SSL
+
+    http->host = hostname;
+    http->host_len = hostname_len;
+
+    return true;    
 }
 
 int http_find_hostname(const char *url, size_t url_len,
@@ -1036,6 +1042,7 @@ static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_HTML = "text/html; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_JS = "application/javascript; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_JSON = "application/json; charset=utf-8";
+static const char* HTTP_CONTENT_TYPE_CSS = "text/css; charset=utf-8";
 
 const char* http_server_content_type_from_name(string file_name) {
   const char *content_type = HTTP_CONTENT_TYPE_TEXT_PLAIN;
@@ -1052,7 +1059,9 @@ const char* http_server_content_type_from_name(string file_name) {
     content_type = HTTP_CONTENT_TYPE_HTML;
   } else if(string_eq(ext, STRING(".js"))) {
     content_type = HTTP_CONTENT_TYPE_JS;
-  }else if(string_eq(ext, STRING(".json"))) {
+  } else if(string_eq(ext, STRING(".css"))) {
+    content_type = HTTP_CONTENT_TYPE_CSS;
+  } else if(string_eq(ext, STRING(".json"))) {
     content_type = HTTP_CONTENT_TYPE_JSON;
   } else {
     fprintf(stderr, "[WARNING] Unknown extension: "String_Fmt"\n", String_Arg(ext));
@@ -1392,6 +1401,11 @@ HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
 }
 
 bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len) {
+    return http_connect2(socket, ssl ? HTTPS_PORT : HTTP_PORT, hostname, hostname_len);
+}
+
+bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len) {
+
   if(!http_valid(socket)) {
     return false;
   }
@@ -1428,7 +1442,7 @@ bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_le
 #endif //linux
 
   addr.sin_family = AF_INET;
-  addr.sin_port = htons(ssl ? HTTPS_PORT : HTTP_PORT);
+  addr.sin_port = htons(port);
   if(connect(socket, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
     warn("socket connect failed");
     return false;
@@ -1558,7 +1572,8 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
       (*write_callback)(buffer, nbytes_last, 1, userdata);
     }
 
-  }while(true);
+    //TODO: test that
+  }while(nbytes_last > 0);
 
   return false;
 }
