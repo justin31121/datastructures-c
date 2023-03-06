@@ -7,9 +7,7 @@
 #include "../../datastructures-c/libs/base64.h"
 
 bool __read(Http *http) {
-
     char buffer[HTTP_BUFFER_CAP];
-
     ssize_t nbytes_last;
     do {
 	if( http->conn != NULL) {
@@ -26,7 +24,6 @@ bool __read(Http *http) {
 	    break;
 	}
     }while(nbytes_last > 0);
-
     return true;
 }
 
@@ -37,32 +34,44 @@ int main() {
     assert(http_init3(&http, hostname, strlen(hostname), true, 465));
     assert(__read(&http));
    
-    const char *buf = "HELO from.bar.net\n";
+    const char *buf = "EHLO localhost\n";
     assert(http_send_len(buf, strlen(buf), &http));
     assert(__read(&http));
 
-    const char *buf11 = "AUTH LOGIN\n";
-    assert(http_send_len(buf11, strlen(buf11), &http));
-    assert(__read(&http));
-    
-    const char *buf12 = "aGFucw==";
-    assert(http_send_len(buf12, strlen(buf12), &http));
-    assert(__read(&http));
+    /* const char *buf11 = "AUTH LOGIN\n"; */
+    /* assert(http_send_len(buf11, strlen(buf11), &http)); */
+    /* assert(__read(&http)); */
 
-    const char *buf13 = "c2Nobml0emVsbWl0a2FydG9mZmVsc2FsYXQ=";
-    assert(http_send_len(buf13, strlen(buf13), &http));
-    assert(__read(&http));
+    /* char buffer[1024]; */
+    /* size_t buffer_size; */
+    
+    /* const char *buf12 = "justin.schartner00@gmail.com"; */
+    /* assert(base64_encode(buf12, strlen(buf12), buffer, 1023, &buffer_size)); */
+    /* buffer[buffer_size] = '\n'; */
+    /* assert(http_send_len(buffer, buffer_size + 1, &http)); */
+    /* assert(__read(&http)); */
+
+    /* const char *buf13 = "P36j89w1s!"; */
+    /* assert(base64_encode(buf13, strlen(buf13), buffer, 1023, &buffer_size)); */
+    /* buffer[buffer_size] = '\n'; */
+    /* assert(http_send_len(buffer, buffer_size + 1, &http)); */
+    /* assert(__read(&http)); */
 	
-    const char *buf2 = "MAIL FROM: from@from-host.org\n";
+    const char *buf2 = "MAIL FROM: justin.schartner00@gmail.com\n";
     assert(http_send_len(buf2, strlen(buf2), &http));
     assert(__read(&http));
 
-    const char *buf3 = "RCPT TO: to@to-host.org\nDATA\n";
+    const char *buf3 = "RCPT TO: justin.zweite@gmail.com\n";
     assert(http_send_len(buf3, strlen(buf3), &http));
     assert(__read(&http));
 
-    const char *buf4 = "From: from@from-host.org\n"
-	"To: to@to-host.org\n"
+    //DATA\n
+    const char *buf6 = "DATA\n";
+    assert(http_send_len(buf6, strlen(buf6), &http));
+    assert(__read(&http));
+    
+    const char *buf4 = "From: justin.schartner00@gmail.com\n"
+	"To: justin.zweite@gmail.com\n"
 	"Subject: test\n"
 	"\n"
 	"body\n"

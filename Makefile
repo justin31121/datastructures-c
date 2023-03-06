@@ -10,6 +10,9 @@ endif
 all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc ./src/main.c $(CFLAGS) -ggdb -o main $(LDFLAGS)
 
+email: ./src/email.c ./libs/http.h
+	gcc ./src/email.c $(CFLAGS) -o email $(LDFLAGS)
+
 encode: ./src/encode.c ./libs/http.h
 	gcc ./src/encode.c $(CFLAGS) -ggdb -o encode -lpthread
 
