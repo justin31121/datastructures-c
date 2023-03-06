@@ -13,7 +13,7 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
   
   if(string_eq(request->method, STRING("GET"))) {
-    http_send_files(client, "./rsc/", "/index.html", request->route);
+    http_send_files(client, "./", "/index.html", request->route);
     return;
   }
 
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
   }
   
 #ifdef _WIN32
-  //#include <direct.h>
+  #include <direct.h>
   if(!_getcwd(cwd, sizeof(cwd))) {
     panic("getcwd");
   }
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   printf("[HTTP-SERVER] Now serving at port %d\n", port);
 
   Watcher watcher;
-  if(!watcher_init(&watcher, "./rsc/", handle_watcher_event)) {
+  if(!watcher_init(&watcher, "./", handle_watcher_event)) {
     panic("watcher_init");
   }
 
