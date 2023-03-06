@@ -1694,7 +1694,10 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 	  }
 	}
 	if(need != -1 && need != 0) {
-	  assert(need - (int64_t) (i + 1 - off) >= 0);
+	  if(!(need - (int64_t) (i + 1 - off) >= 0)) {
+	    printf("need: %ld, i: %ld, off: %lu\n", need, i, off);
+	    panic("assert");
+	  }
 	  write_callback(s.data + off, i + 1 - off, 1, userdata);
 	  need -= (int64_t) (i + 1 - off);
 	}

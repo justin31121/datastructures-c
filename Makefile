@@ -10,6 +10,9 @@ endif
 all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc ./src/main.c $(CFLAGS) -ggdb -o main $(LDFLAGS)
 
+google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h ./libs/tokenizer.h ./libs/html_parser.h
+	gcc ./src/google.c $(CFLAGS) -ggdb -o google $(LDFLAGS)
+
 encode: ./src/encode.c ./libs/http.h
 	gcc ./src/encode.c $(CFLAGS) -ggdb -o encode -lpthread
 
