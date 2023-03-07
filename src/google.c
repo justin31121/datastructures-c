@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define HTML_PARSER_IMPLEMENTATION
-#include "../libs/html_parser.h"
+#include "../libs/html_parser2.h"
 
 #define HTTP_IMPLEMENTATION
 #include "../libs/http.h"
@@ -120,7 +120,7 @@ void node_add(Node *node, string key, string value) {
 
 void google_search(const char *keyword, u32 offset, String_Buffer *sb) {
   char buffer[2][1024];
-  u64 buffer_size;
+  size_t buffer_size;
   if(!http_encodeURI(keyword, strlen(keyword),
 		     buffer[0], 1023,
 		     &buffer_size)) {
@@ -303,7 +303,7 @@ bool div_has_result(Node *node, string *title, string *url, string *desc) {
 
 #define GOOGLE_URL_BUFFER_CAP 1024
     static char buffer[GOOGLE_URL_BUFFER_CAP];
-    u64 buffer_size;
+    size_t buffer_size;
     if(!http_decodeURI(_url.data, _url.len, buffer, GOOGLE_URL_BUFFER_CAP, &buffer_size)) {
       warn("http_decodeURI");
       *url = _url;

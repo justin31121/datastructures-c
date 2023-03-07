@@ -10,7 +10,7 @@ endif
 all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc ./src/main.c $(CFLAGS) -ggdb -o main $(LDFLAGS)
 
-google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h ./libs/tokenizer.h ./libs/html_parser.h
+google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h ./libs/tokenizer.h ./libs/html_parser2.h
 	gcc ./src/google.c $(CFLAGS) -ggdb -o google $(LDFLAGS)
 
 email: ./src/email.c ./libs/http.h

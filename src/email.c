@@ -34,28 +34,27 @@ int main() {
     assert(http_init3(&http, hostname, strlen(hostname), true, 465));
     assert(__read(&http));
    
-    const char *buf = "EHLO localhost\n";
+    const char *buf = "EHLO sender.example.com\n";
     assert(http_send_len(buf, strlen(buf), &http));
     assert(__read(&http));
 
-    /* const char *buf11 = "AUTH LOGIN\n"; */
-    /* assert(http_send_len(buf11, strlen(buf11), &http)); */
-    /* assert(__read(&http)); */
+    const char *buf11 = "AUTH XOAUTH2 ";
+    assert(http_send_len(buf11, strlen(buf11), &http));
 
-    /* char buffer[1024]; */
-    /* size_t buffer_size; */
+    char buffer[10243];
+    size_t buffer_size;
     
-    /* const char *buf12 = "justin.schartner00@gmail.com"; */
-    /* assert(base64_encode(buf12, strlen(buf12), buffer, 1023, &buffer_size)); */
-    /* buffer[buffer_size] = '\n'; */
-    /* assert(http_send_len(buffer, buffer_size + 1, &http)); */
-    /* assert(__read(&http)); */
-
-    /* const char *buf13 = "P36j89w1s!"; */
-    /* assert(base64_encode(buf13, strlen(buf13), buffer, 1023, &buffer_size)); */
-    /* buffer[buffer_size] = '\n'; */
-    /* assert(http_send_len(buffer, buffer_size + 1, &http)); */
-    /* assert(__read(&http)); */
+    char buf12[] = "user=justin.schartn00@gmail.comXauth=Bearer P36j89w1s!XX";
+    size_t buf12_len = ((sizeof(buf12) - 1)/sizeof(buf12[0]));
+    for(size_t i=0;i<buf12_len;i++) {
+	if('X' == buf12[i]) {
+	    buf12[i] = 0x01;
+	}
+    }
+    assert(base64_encode(buf12, strlen(buf12), buffer, 10243, &buffer_size));
+    buffer[buffer_size] = '\n';
+    assert(http_send_len(buffer, buffer_size + 1, &http));
+    assert(__read(&http));
 	
     const char *buf2 = "MAIL FROM: justin.schartner00@gmail.com\n";
     assert(http_send_len(buf2, strlen(buf2), &http));

@@ -46,9 +46,9 @@ typedef enum{
 	     TOKENTYPE_DOCTYPE,
 
 	     TOKENTYPE_WORD,
-}TokenType;
+}Tokentype;
 
-const char *tokentype_name(TokenType t);
+const char *tokentype_name(Tokentype t);
 
 static char symbols[] =
   { '<', '>', '\"', '!', '=', '/', '(', ')', '{', '}', ';', '&', '|', ':', '\'', '[', ']', ',', '.', '_', '-', '+', '?', '^', '\\', '$', '*', '#', '@', '%', '`', '~'};
@@ -56,7 +56,7 @@ static char symbols[] =
 static char *strings[] = { "!doctype" };
 
 typedef struct{
-  TokenType type;
+  Tokentype type;
   string content;
 }Token;
 
@@ -74,12 +74,12 @@ bool tokenizer_init(Tokenizer *t, const char *text);
 bool tokenizer_next(Tokenizer *t, Token *token);
 bool tokenizer_peek(Tokenizer *t, Token *token);
 bool tokenizer_peek_n(Tokenizer *t, Token *token, u32 n);
-void tokenizer_expect(Tokenizer *t, Token *token, TokenType type);
-void tokenizer_expect_content(Tokenizer *t, Token *token, TokenType type, string content);
+void tokenizer_expect(Tokenizer *t, Token *token, Tokentype type);
+void tokenizer_expect_content(Tokenizer *t, Token *token, Tokentype type, string content);
 
 #ifdef TOKENIZER_IMPLEMENTATION
 
-const char *tokentype_name(TokenType t) {
+const char *tokentype_name(Tokentype t) {
   switch(t) {
   case TOKENTYPE_ANGLE_OPEN: return "ANGLE_OPEN";
   case TOKENTYPE_ANGLE_CLOSE: return "ANGLE_CLOSE";
@@ -243,18 +243,18 @@ bool tokenizer_peek(Tokenizer *t, Token *token) {
   return tokenizer_peek_n(t, token, 1);
 }
 
-void tokenizer_expect(Tokenizer *t, Token *_token, TokenType type) {
+void tokenizer_expect(Tokenizer *t, Token *_token, Tokentype type) {
   if(!t) {
     panic("Tokenizer is null");
   }
 
   Token token;
   if(!tokenizer_next(t, &token)) {
-    panic("Expected TokenType: %s. But got eof", tokentype_name(type));
+    panic("Expected Tokentype: %s. But got eof", tokentype_name(type));
   }
 
   if(token.type != type) {
-    panic("Expected TokenType: %s. But got "Token_Fmt" (%.*s ...)",
+    panic("Expected Tokentype: %s. But got "Token_Fmt" (%.*s ...)",
 	  tokentype_name(type),
 	  Token_Arg(token),
 	  (int) 5, token.content.data);
@@ -265,7 +265,7 @@ void tokenizer_expect(Tokenizer *t, Token *_token, TokenType type) {
   }
 }
 
-void tokenizer_expect_content(Tokenizer *t, Token *_token, TokenType type, string content) {
+void tokenizer_expect_content(Tokenizer *t, Token *_token, Tokentype type, string content) {
   Token token;
   tokenizer_expect(t, &token, type);  
   
