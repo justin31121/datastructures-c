@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define JSON_IMPLEMENTATION
-#include "../json.h"
+#include "../libs/json.h"
 
 int main() { 
   Json small = json_init_object();

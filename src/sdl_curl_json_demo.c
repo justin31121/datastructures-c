@@ -7,10 +7,10 @@
 #include "../thirdparty/stb_image.h"
 
 #define JSON_IMPLEMENTATION
-#include "../json.h"
+#include "../libs/json.h"
 
 #define PEN_IMPLEMENTATION
-#include "../pen.h"
+#include "../libs/pen.h"
 
 #define WIDTH 800
 #define HEIGHT 600
