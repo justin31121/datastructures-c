@@ -99,6 +99,7 @@ typedef struct{
 
 typedef enum{
   HTTP_STATUS_OK = 0,
+  HTTP_STATUS_NOT_FOUND,
   HTTP_STATUS_INTERNAL_ERROR,
   COUNT_HTTP_STATUS
 }HttpStatus;
@@ -1466,10 +1467,13 @@ bool http_respond(Http *http, HttpStatus status, const char *content_type, const
 
   const char *prefix = NULL;
 
-  static_assert(COUNT_HTTP_STATUS == 2, "The amount of HttpStatus has changed.");
+  static_assert(COUNT_HTTP_STATUS == 3, "The amount of HttpStatus has changed.");
   switch(status) {
   case HTTP_STATUS_OK:
     prefix = "HTTP/1.1 200 OK";
+    break;
+  case HTTP_STATUS_NOT_FOUND:
+    prefix = "HTTP/1.1 404 Not Found";
     break;
   case HTTP_STATUS_INTERNAL_ERROR:
     prefix = "HTTP/1.1 500 Internal Server Error";
