@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #define GUI_IMPLEMENTATION
 #include "../libs/gui.h"
 

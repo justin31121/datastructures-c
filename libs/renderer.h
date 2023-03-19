@@ -5,6 +5,7 @@
 #define VEC_IMPLEMENTATION
 #endif //RENDERER_IMPLEMENTATION
 
+#include <stdio.h>
 #include <assert.h>
 #include "vec.h"
 

@@ -1,6 +1,10 @@
 #ifndef GUI_H_H
 #define GUI_H_H
 
+#ifdef _WIN32
+#include <windows.h>
+#include <GL/GL.h>
+
 #define GL_TEXTURE0 0x84C0
 #define GL_TEXTURE1 0x84C1
 #define GL_TEXTURE2 0x84C2
@@ -22,10 +26,6 @@
 typedef ptrdiff_t GLsizeiptr;
 typedef ptrdiff_t GLintptr;
 typedef char GLchar;
-
-#ifdef _WIN32
-#include <windows.h>
-#include <GL/GL.h>
 
 PROC _glActiveTexture = NULL;
 void glActiveTexture(GLenum texture) { _glActiveTexture(texture); }
