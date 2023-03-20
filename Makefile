@@ -48,3 +48,6 @@ json_parse_demo:
 
 sdl_curl_json_demo:
 	gcc ./src/sdl_curl_json_demo.c $(CFLAGS) $(SDL_CURL) -o sdl_curl_json_demo
+
+luigi_demo: ./src/luigi_demo.c
+	gcc ./src/luigi_demo.c -Wextra -o luigi_demo -lGdi32

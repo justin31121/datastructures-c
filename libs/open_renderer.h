@@ -177,9 +177,9 @@ void open_renderer_set_shader(Open_Renderer *or, Open_Shader shader) {
   glViewport(0, 0, or->resolution.x, or->resolution.y);
   glUseProgram(or->programs[shader]);
 
-  glUniform2f(glGetUniformLocation(or->programs[shader], "resolution"), (float) or->resolution.x, (float) or->resolution.y);
-  glUniform1f(glGetUniformLocation(or->programs[shader], "time"), or->time);
-  glUniform1i(glGetUniformLocation(or->programs[shader], "image"), (int) or->image);
+  glUniform2f((GLint) glGetUniformLocation(or->programs[shader], "resolution"), (float) or->resolution.x, (float) or->resolution.y);
+  //glUniform1f(glGetUniformLocation(or->programs[shader], "time"), or->time);
+  //glUniform1i(glGetUniformLocation(or->programs[shader], "image"), (int) or->image);
   
   /*
     get_uniform_location(programs[SHADER_FOR_COLOR], uniforms);
