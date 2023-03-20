@@ -3,24 +3,14 @@
 
 #ifdef OPEN_RENDERER_IMPLEMENTATION
 
-#ifndef UTIL_IMPLEMENTATION
 #define UTIL_IMPLEMENTATION
-#endif //UTIL_IMPLEMENTATION
-
-#endif //OPEN_RENDERER_IMPLEMENTATION
-#include "./util.h"
-
-#ifdef OPEN_RENDERER_IMPLEMENTATION
-
-#ifndef VEC_IMPLEMENTATION
 #define VEC_IMPLEMENTATION
-#endif //VEC_IMPLEMENTATION
 
 #endif //OPEN_RENDERER_IMPLEMENTATION
-#include "./vec.h"
 
-//#define GL_GLEXT_PROTOTYPES
-//#include <SDL2/SDL_opengl.h>
+#include "./util.h"
+#include "./vec.h"
+#include <GL/GL.h>
 
 #define OPEN_RENDERER_VERTICIES_CAP 1024
 
@@ -376,7 +366,7 @@ size_t open_renderer_push_texture(Open_Renderer *or, Open_Texture texture) {
 		 texture.height,
 		 0,
 		 GL_RGBA,
-		 GL_UNSIGNED_INT_8_8_8_8_REV,
+		 GL_UNSIGNED_BYTE,//GL_UNSIGNED_INT_8_8_8_8_REV,
 		 texture.data);
   }
 

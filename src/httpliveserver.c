@@ -9,11 +9,13 @@
 
 static char cwd[PATH_MAX];
 
+#define WATCH_PATH "./rsc/"
+
 void handle(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
   
   if(string_eq(request->method, STRING("GET"))) {
-    http_send_files(client, "./", "/index.html", request->route);
+    http_send_files(client, WATCH_PATH, "/index.html", request->route);
     return;
   }
 
@@ -26,6 +28,8 @@ pthread_mutex_t lock;
 void handle_websocket(const char *message, size_t message_len, Http *client, void *arg) {
   (void) message;
   (void) message_len;
+
+  printf("HANDLING websocket: %lld\n", client->socket);
   
   const char *pong = "pong";
   size_t pong_len = strlen(pong);
@@ -37,17 +41,22 @@ void handle_websocket(const char *message, size_t message_len, Http *client, voi
   for(;server->running;) {
     http_sleep_ms(100);
     if(queuedChange) {
+      printf("\tSEND reload: %lld\n", client->socket);
       http_websocket_send_len(reload, reload_len, client);
       
       pthread_mutex_lock(&lock);
       queuedChange = false;
       pthread_mutex_unlock(&lock);
-
-      return;
+      
+      break;
     } else {
-      http_websocket_send_len(pong, pong_len, client);
-    }    
+      if(!http_websocket_send_len(pong, pong_len, client)) {
+	break;
+      }
+    }
   }
+
+  printf("CLOSING websocket: %lld\n", client->socket);
 }
 
 void handle_watcher_event(Watcher_Event event, const char *name) {
@@ -100,7 +109,7 @@ int main(int argc, char **argv) {
   printf("[HTTP-SERVER] Now serving at port %d\n", port);
 
   Watcher watcher;
-  if(!watcher_init(&watcher, "./", handle_watcher_event)) {
+  if(!watcher_init(&watcher, WATCH_PATH, handle_watcher_event)) {
     panic("watcher_init");
   }
 

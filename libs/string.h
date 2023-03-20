@@ -32,6 +32,7 @@ string string_trim(string s);
 string string_chop_by_delim(string *s, char delim);
 string string_chop_left(string *s, size_t n);
 string string_chop_right(string *s, size_t n);
+bool string_chop_string(string *s, string dst);
 bool string_chop_int(string *s, int *n);
 bool string_chop_hex(string *s, uint64_t *n);
 bool string_chop_int64_t(string *s, int64_t *n);
@@ -74,6 +75,9 @@ bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t v
 }
 
 int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
+  if(val_size > cstr_size) {
+    return -1;
+  }
   for(size_t i=0;i<cstr_size - val_size;i++) {
     int found = 1;
     for(size_t j=0;j<val_size;j++) {
@@ -86,7 +90,6 @@ int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t va
       return (int) i;
     }
   }
-  
   return -1;
 }
 
@@ -332,6 +335,15 @@ string string_chop_right(string *s, size_t n) {
   s->len -= n;
 
   return result;
+}
+
+bool string_chop_string(string *s, string dst) {
+  int pos = string_index_of2(*s, dst);
+  if(pos != 0) {
+    return false;
+  }
+  string_chop_left(s, dst.len);
+  return true;
 }
 
 size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata) {

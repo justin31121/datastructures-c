@@ -336,7 +336,7 @@ int main(s32 argc, char **argv) {
   }
   string_buffer_append(&temp, "\0", 1);
 
-  // Requsting and Parsing htmkl
+  // Requsting and Parsing html
   ////////////////////////////////////////////////////////////
 
   String_Buffer sb = {0};

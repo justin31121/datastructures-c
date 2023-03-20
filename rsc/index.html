@@ -5,6 +5,29 @@
   </head>
   <body>
     <div>C - Live-Web Server - Demo</div>
+	  <div>Hello World</div>
     <script src="./script.js"></script>
+		<script>
+	    if('WebSocket' in window) {
+				(function() {
+	       var protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
+	       var address = protocol + window.location.host + window.location.pathname;
+	       var socket = new WebSocket(address);
+	       socket.onopen = function(e) {
+	          socket.send('ping');	
+		     }		
+	       socket.onmessage = function(msg) {
+	          if(msg.data === 'reload') {
+	             window.location.reload();
+		        }
+		     }	
+	       if(sessionStorage && !sessionStorage.getItem('IsThisFirstTime_Log_From_LiveServer')) {
+	         sessionStorage.setItem('IsThisFirstTime_Log_From_LiveServer', true);
+	       }
+	      })();			
+	    } else {
+	      console.error('Upgrade your Browser. This Browser does not support WebSockets for Live-Reloading');
+	    }	
+	  </script>
   </body>
 </html>
