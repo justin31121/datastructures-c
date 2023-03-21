@@ -18,39 +18,16 @@
 
 #ifdef HTTP_IMPLEMENTATION
 
-#ifndef UTIL_IMPLEMENTATION
+#define SHA1_IMPLEMENTATION
+#define BASE64_IMPLEMENTATION
 #define UTIL_IMPLEMENTATION
-#endif //UTIL_IMPLEMENTATION
+#define STRING_IMPLEMENTATION
 
 #endif //HTTP_IMPLEMENTATION
 
 #include "./util.h"
-
-#ifdef HTTP_IMPLEMENTATION
-
-#ifndef STRING_IMPLEMENTATION
-#define STRING_IMPLEMENTATION
-#endif //STRING_IMPLEMENTATION
-
-#endif //HTTP_IMPLEMENTATION
 #include "./string.h"
-
-#ifdef HTTP_IMPLEMENTATION
-
-#ifndef BASE64_IMPLEMENTATION
-#define BASE64_IMPLEMENTATION
-#endif //BASE64_IMPLEMENTATION
-
-#endif //HTTP_IMPLEMENTATION
 #include "./base64.h"
-
-#ifdef HTTP_IMPLEMENTATION
-
-#ifndef SHA1_IMPLEMENTATION
-#define SHA1_IMPLEMENTATION
-#endif //SHA1_IMPLEMENTATION
-
-#endif //HTTP_IMPLEMENTATION
 #include "./sha1.h"
 
 #define HTTP_PORT 80
@@ -68,6 +45,10 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 #endif //linux
+
+#ifndef HTTP_DEF
+#define HTTP_DEF static inline
+#endif //HTTP_DEF
 
 typedef struct{
 #ifdef _WIN32
@@ -146,92 +127,92 @@ typedef struct {
 }HttpWebSocketContext;
 
 //----------BEGIN HTTP----------
-bool http_init(Http *http, const char *url);
-bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl);
-bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port);
+HTTP_DEF bool http_init(Http *http, const char *url);
+HTTP_DEF bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl);
+HTTP_DEF bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port);
 
-int http_find_hostname(const char *url, size_t url_len, size_t *hostname_len, bool *ssl);
-const char *http_get_route(const char *url);
-bool http_sleep_ms(int ms);
-bool http_encodeURI(const char *input, size_t input_size,
+HTTP_DEF int http_find_hostname(const char *url, size_t url_len, size_t *hostname_len, bool *ssl);
+HTTP_DEF const char *http_get_route(const char *url);
+HTTP_DEF bool http_sleep_ms(int ms);
+HTTP_DEF bool http_encodeURI(const char *input, size_t input_size,
 		    char* output, size_t output_cap,
 		    size_t *output_size);
-bool http_decodeURI(const char *input, size_t input_size,
+HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
 		    char* output, size_t output_cap,
 		    size_t *output_size);
 
-bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
+HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
 
 // -- HTTP1 API
-bool http_request(Http *http, const char *route, const char *method, const char* body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
-bool http_get(const char *url, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
-bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
-bool http_head(const char *url, HttpHeader *header, const char *headers_extra);
-void http_free(Http *http);
+HTTP_DEF bool http_request(Http *http, const char *route, const char *method, const char* body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
+HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
+HTTP_DEF bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
+HTTP_DEF bool http_head(const char *url, HttpHeader *header, const char *headers_extra);
+HTTP_DEF void http_free(Http *http);
 
-bool http_header_has(const HttpHeader *header, string key, string *value);
-int http_header_response_code(const HttpHeader *header);
+HTTP_DEF bool http_header_has(const HttpHeader *header, string key, string *value);
+HTTP_DEF int http_header_response_code(const HttpHeader *header);
 //----------END HTTP----------
 
 
 //----------BEGIN HTTP_SERVER----------
-bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
-bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
-void http_server_stop(HttpServer *server);
-void http_server_free(HttpServer *server);
+HTTP_DEF bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
+HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
+HTTP_DEF void http_server_stop(HttpServer *server);
+HTTP_DEF void http_server_free(HttpServer *server);
 
-void *http_server_listen_function(void *arg);
-bool http_server_create_serve_thread(HttpServer *server, Http client);
-void *http_server_serve_function(void *arg);
+HTTP_DEF void *http_server_listen_function(void *arg);
+HTTP_DEF bool http_server_create_serve_thread(HttpServer *server, Http client);
+HTTP_DEF void *http_server_serve_function(void *arg);
 
-bool http_server_fill_http_request(string request_string, HttpRequest *request, string *websocket_key);
+HTTP_DEF bool http_server_fill_http_request(string request_string, HttpRequest *request, string *websocket_key);
 
 // -- UTIL
-bool http_send_not_found(Http *http);
-bool http_send_websocket_accept(Http *http, string websocket_key);
+HTTP_DEF bool http_send_not_found(Http *http);
+HTTP_DEF bool http_send_websocket_accept(Http *http, string websocket_key);
 
-const char* http_server_content_type_from_name(string file_name);
-void http_send_files(Http *client, const char *dir, const char *home, string file_path);
+HTTP_DEF const char* http_server_content_type_from_name(string file_name);
+HTTP_DEF void http_send_files(Http *client, const char *dir, const char *home, string file_path);
 
-bool http_open_file(FILE **f, const char* file_path);
-bool http_open_file2(FILE **f, string file_path);
-bool http_open_file3(FILE **f, const char *dir, string file_path);
-bool http_send_file(FILE **f, Http *http, const char *add_headers);
-void http_close_file(FILE **f);
+HTTP_DEF bool http_open_file(FILE **f, const char* file_path);
+HTTP_DEF bool http_open_file2(FILE **f, string file_path);
+HTTP_DEF bool http_open_file3(FILE **f, const char *dir, string file_path);
+HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *add_headers);
+HTTP_DEF void http_close_file(FILE **f);
 
-void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg);
+HTTP_DEF void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg);
 //----------END HTTP_SERVER----------
 
 
 //----------BEGIN SOCKET----------
-int http_open();
-bool http_bind(int socket, int port);
-void http_shutdown(int socket);
-void http_close(int socket);
+HTTP_DEF int http_open();
+HTTP_DEF bool http_bind(int socket, int port);
+HTTP_DEF void http_shutdown(int socket);
+HTTP_DEF void http_close(int socket);
 
-bool http_valid(int socket);
-void http_make_blocking(int socket);
-void http_make_nonblocking(int socket);
+HTTP_DEF bool http_valid(int socket);
+HTTP_DEF void http_make_blocking(int socket);
+HTTP_DEF void http_make_nonblocking(int socket);
 
-HttpAccept http_accept(int server, int *client);
-HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
-bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len);
-bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len);
-bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
-bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
-bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
-bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
+HTTP_DEF HttpAccept http_accept(int server, int *client);
+HTTP_DEF HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
+HTTP_DEF bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len);
+HTTP_DEF bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len);
+HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
+HTTP_DEF bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
+HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
+HTTP_DEF bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
-void http_init_external_libs(const char *cert_file, const char *key_file);
+HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_file);
 //----------END SOCKET----------
 
 //----------BEGIN WEBSOCKET----------
-bool http_websocket_send(const char *buffer, Http *client);
-bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client);
-bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer);
+HTTP_DEF bool http_websocket_send(const char *buffer, Http *client);
+HTTP_DEF bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client);
+HTTP_DEF bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer);
 //----------END WEBSOCKET----------
 
-size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata);
+HTTP_DEF size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata);
 
 #ifdef HTTP_IMPLEMENTATION
 
@@ -243,7 +224,7 @@ static bool http_global_wsa_startup = false;
 
 //----------BEGIN HTTP----------
 
-bool http_init(Http *http, const char *url) {
+HTTP_DEF bool http_init(Http *http, const char *url) {
   if(!http) {
     return false;
   }
@@ -265,11 +246,11 @@ bool http_init(Http *http, const char *url) {
   return http_init2(http, url + hostname, hostname_len, ssl);
 }
 
-bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl) {
+HTTP_DEF bool http_init2(Http *http, const char *hostname, size_t hostname_len, bool ssl) {
     return http_init3(http, hostname, hostname_len, ssl, ssl ? HTTPS_PORT : HTTP_PORT);
 }
 
-bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port) {
+HTTP_DEF bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port) {
     if(http == NULL) {
 	return false;
     }
@@ -318,7 +299,7 @@ bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl,
     return true;    
 }
 
-int http_find_hostname(const char *url, size_t url_len,
+HTTP_DEF int http_find_hostname(const char *url, size_t url_len,
 		       size_t *hostname_len, bool *ssl) {
   char *http = "http://";
   size_t http_len = 7;
@@ -345,7 +326,7 @@ int http_find_hostname(const char *url, size_t url_len,
   return start;
 }
 
-const char *http_get_route(const char *url) {
+HTTP_DEF const char *http_get_route(const char *url) {
   size_t url_len = strlen(url);
   bool ssl;
   size_t hostname_len;
@@ -364,7 +345,7 @@ const char *http_get_route(const char *url) {
   return route;
 }
 
-bool http_sleep_ms(int ms) {
+HTTP_DEF bool http_sleep_ms(int ms) {
   //TOOD: proper sleep_time if ms is longer than a second
   struct timespec sleep_time;
   if(ms < 1000) {
@@ -380,7 +361,7 @@ bool http_sleep_ms(int ms) {
   return true;
 }
 
-bool http_encodeURI(const char *input, size_t input_size,
+HTTP_DEF bool http_encodeURI(const char *input, size_t input_size,
 		    char* output, size_t output_cap,
 		    size_t *output_size) {
 
@@ -413,7 +394,7 @@ bool http_encodeURI(const char *input, size_t input_size,
   return true;  
 }
 
-bool http_decodeURI(const char *input, size_t input_size,
+HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
 		    char* output, size_t output_cap,
 		    size_t *output_size) {
   if(!input || !output || !output_size) {
@@ -447,7 +428,7 @@ bool http_decodeURI(const char *input, size_t input_size,
   return true;
 }
 
-bool http_request(Http *http, const char *route, const char *method,
+HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
 		  const char* body, const char *content_type,
 		  size_t (*write_callback)(const void*, size_t, size_t, void *),
 		  void *userdata, HttpHeader *header, const char *headers_extra)
@@ -489,7 +470,7 @@ bool http_request(Http *http, const char *route, const char *method,
   return true;
 }
 
-bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,size_t, void *), void *userdata, HttpHeader *header, const char *headers_extra) {
+HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,size_t, void *), void *userdata, HttpHeader *header, const char *headers_extra) {
   size_t url_len = strlen(url);
   bool ssl;
   size_t hostname_len;
@@ -522,7 +503,7 @@ bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,siz
   return true;
 }
 
-bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra) {
+HTTP_DEF bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra) {
   size_t url_len = strlen(url);
   bool ssl;
   size_t hostname_len;
@@ -554,7 +535,7 @@ bool http_post(const char *url, const char *body, const char *content_type, size
   return true;
 }
 
-bool http_header_has(const HttpHeader *_header, string key, string *value) {
+HTTP_DEF bool http_header_has(const HttpHeader *_header, string key, string *value) {
   if(!_header) {
     return false;
   }
@@ -573,7 +554,7 @@ bool http_header_has(const HttpHeader *_header, string key, string *value) {
   return true;
 }
 
-int http_header_response_code(const HttpHeader *_header) {
+HTTP_DEF int http_header_response_code(const HttpHeader *_header) {
  string header = string_from(_header->data, _header->size);
  string line = string_trim(string_chop_by_delim(&header, '\n'));
  string_chop_left(&line, 9);
@@ -582,7 +563,7 @@ int http_header_response_code(const HttpHeader *_header) {
  return n;
 }
 
-bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
+HTTP_DEF bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
   size_t url_len = strlen(url);
   bool ssl;
   size_t hostname_len;
@@ -624,7 +605,7 @@ bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
   return true;
 }
 
-void http_free(Http *http) {
+HTTP_DEF void http_free(Http *http) {
   if(http_valid(http->socket)) {
     http_shutdown(http->socket);
     http_close(http->socket);
@@ -645,7 +626,7 @@ void http_free(Http *http) {
 
 
 //----------BEGIN HTTP_SERVER----------
-bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file) {
+HTTP_DEF bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file) {
 
   if(server == NULL) {
     return false;
@@ -686,7 +667,7 @@ bool http_server_init(HttpServer *server, size_t port, const char *cert_file, co
   return true;
 }
 
-bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *, Http *, void *), size_t number_of_threads, void *_args, size_t arg_size_bytes) {
+HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *, Http *, void *), size_t number_of_threads, void *_args, size_t arg_size_bytes) {
   if(server == NULL) {
     return false;
   }
@@ -744,7 +725,7 @@ bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(con
   return true;
 }
 
-void http_server_stop(HttpServer *server) {
+HTTP_DEF void http_server_stop(HttpServer *server) {
   if(server == NULL) {
     return;
   }
@@ -776,7 +757,7 @@ void http_server_stop(HttpServer *server) {
   }
 }
 
-void http_server_free(HttpServer *server) {
+HTTP_DEF void http_server_free(HttpServer *server) {
   if(server == NULL) {
     return;
   }
@@ -794,7 +775,7 @@ void http_server_free(HttpServer *server) {
   http_close(server->socket);
 }
 
-void *http_server_listen_function(void *arg) {
+HTTP_DEF void *http_server_listen_function(void *arg) {
   HttpServer *server = (HttpServer *) arg;
   bool *running = &(server->threads[0].used);
 
@@ -842,7 +823,7 @@ void *http_server_listen_function(void *arg) {
   return NULL;
 }
 
-bool http_server_create_serve_thread(HttpServer *server, Http client) {  
+HTTP_DEF bool http_server_create_serve_thread(HttpServer *server, Http client) {  
   for(size_t i=1;i<server->threads_count;i++) {
     HttpServerThread *thread = &(server->threads[i]);
     if(thread->used==true) continue;
@@ -857,7 +838,7 @@ bool http_server_create_serve_thread(HttpServer *server, Http client) {
   return false;
 }
 
-void *http_server_serve_function(void *_arg) {
+HTTP_DEF void *http_server_serve_function(void *_arg) {
   HttpServerThread *thread = (HttpServerThread *) _arg;
   Http client = thread->client;
   bool *used = &(thread->used);
@@ -916,7 +897,7 @@ void *http_server_serve_function(void *_arg) {
 }
 
 //TODO: Validate HttpRequest properly, to distinguish between Websocket and httpRequest
-bool http_server_fill_http_request(string request_string, HttpRequest *request, string *websocket_key) {
+HTTP_DEF bool http_server_fill_http_request(string request_string, HttpRequest *request, string *websocket_key) {
   if(request == NULL) {
     return false;
   }
@@ -999,7 +980,7 @@ bool http_server_fill_http_request(string request_string, HttpRequest *request, 
   return true;
 }
 
-bool http_send_not_found(Http *http) {
+HTTP_DEF bool http_send_not_found(Http *http) {
   if(!http_valid(http->socket)) {
     return false;
   }
@@ -1013,7 +994,7 @@ bool http_send_not_found(Http *http) {
   return http_send_len(not_found_string, strlen(not_found_string), http); 
 }
 
-bool http_send_websocket_accept(Http *http, string ws_key) {
+HTTP_DEF bool http_send_websocket_accept(Http *http, string ws_key) {
   const char *guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   unsigned char result[20];
     
@@ -1044,7 +1025,7 @@ static const char* HTTP_CONTENT_TYPE_JS = "application/javascript; charset=utf-8
 static const char* HTTP_CONTENT_TYPE_JSON = "application/json; charset=utf-8";
 static const char* HTTP_CONTENT_TYPE_CSS = "text/css; charset=utf-8";
 
-const char* http_server_content_type_from_name(string file_name) {
+HTTP_DEF const char* http_server_content_type_from_name(string file_name) {
   const char *content_type = HTTP_CONTENT_TYPE_TEXT_PLAIN;
 
   if(file_name.len <= 2) {
@@ -1070,7 +1051,7 @@ const char* http_server_content_type_from_name(string file_name) {
   return content_type;
 }
 
-void http_send_files(Http *client, const char *dir, const char *home, string file_path) {
+HTTP_DEF void http_send_files(Http *client, const char *dir, const char *home, string file_path) {
   if(string_eq(file_path, STRING("/"))) {
     file_path = string_from_cstr(home);
   }
@@ -1084,7 +1065,7 @@ void http_send_files(Http *client, const char *dir, const char *home, string fil
   http_close_file(&f);
 }
 
-bool http_open_file(FILE **f, const char *file_path) {
+HTTP_DEF bool http_open_file(FILE **f, const char *file_path) {
   FILE *file = fopen(file_path, "rb");
   if(!file) {
     fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
@@ -1097,7 +1078,7 @@ bool http_open_file(FILE **f, const char *file_path) {
   return true;
 }
 
-bool http_open_file2(FILE **f, string file_path) {
+HTTP_DEF bool http_open_file2(FILE **f, string file_path) {
 #ifdef _WIN32
   char buffer[MAX_PATH+1];
   assert(file_path.len < MAX_PATH);
@@ -1111,7 +1092,7 @@ bool http_open_file2(FILE **f, string file_path) {
   return http_open_file(f, buffer);
 }
 
-bool http_open_file3(FILE **f, const char *dir, string file_path) {
+HTTP_DEF bool http_open_file3(FILE **f, const char *dir, string file_path) {
   size_t dir_len = strlen(dir);
   if(dir_len == 0) {
     return false;
@@ -1133,7 +1114,7 @@ bool http_open_file3(FILE **f, const char *dir, string file_path) {
   return http_open_file(f, buffer);
 }
 
-bool http_send_file(FILE **f, Http *http, const char *content_type) {
+HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
   if(!http_valid(http->socket)) {
     return false;
   }
@@ -1217,11 +1198,11 @@ bool http_send_file(FILE **f, Http *http, const char *content_type) {
   return true;
 }
 
-void http_close_file(FILE **f) {
+HTTP_DEF void http_close_file(FILE **f) {
   if(f) fclose(*f);
 }
 
-void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
+HTTP_DEF void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
 
   if(string_eq(request->method, STRING("GET"))) {
@@ -1235,7 +1216,7 @@ void http_server_simple_file_handler(const HttpRequest *request, Http *client, v
 
 
 //----------BEGIN SOCKET----------
-int http_open() {
+HTTP_DEF int http_open() {
 #ifdef _WIN32
   return WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, 0);
 #endif //_WIN32
@@ -1249,7 +1230,7 @@ int http_open() {
 #endif //linux
 }
 
-bool http_bind(int socket, int port) {
+HTTP_DEF bool http_bind(int socket, int port) {
   if(!http_valid(socket)) {
     return false;
   }
@@ -1282,7 +1263,7 @@ bool http_bind(int socket, int port) {
   return true;
 }
 
-void http_shutdown(int socket) {
+HTTP_DEF void http_shutdown(int socket) {
 #ifdef _WIN32
   shutdown(socket, SD_BOTH);
 #endif //_WIN32
@@ -1291,7 +1272,7 @@ void http_shutdown(int socket) {
 #endif //linux
 }
 
-void http_close(int socket) {
+HTTP_DEF void http_close(int socket) {
 #ifdef _WIN32
   closesocket(socket);
 #endif //_WIN32
@@ -1301,7 +1282,7 @@ void http_close(int socket) {
 }
 
 
-bool http_valid(int socket) {
+HTTP_DEF bool http_valid(int socket) {
 #ifdef _WIN32
   return ((SOCKET) socket) != INVALID_SOCKET;
 #endif //_WIN32
@@ -1310,7 +1291,7 @@ bool http_valid(int socket) {
 #endif //linux
 }
 
-void http_make_blocking(int socket) {
+HTTP_DEF void http_make_blocking(int socket) {
 #ifdef _WIN32
   (void) socket;
 #endif //_WIN32
@@ -1320,7 +1301,7 @@ void http_make_blocking(int socket) {
 #endif //linux
 }
 
-void http_make_nonblocking(int socket) {
+HTTP_DEF void http_make_nonblocking(int socket) {
 #ifdef _WIN32
   unsigned long mode = 1;
   ioctlsocket(socket, FIONBIO, &mode);
@@ -1331,7 +1312,7 @@ void http_make_nonblocking(int socket) {
 #endif //linux
 }
 
-HttpAccept http_accept(int socket, int *out_client) {
+HTTP_DEF HttpAccept http_accept(int socket, int *out_client) {
   struct sockaddr_in addr;
 
 #ifdef _WIN32
@@ -1374,7 +1355,7 @@ HttpAccept http_accept(int socket, int *out_client) {
   return HTTP_ACCEPT_OK;
 }
 
-HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
+HTTP_DEF HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
 #ifdef _WIN32
   int ret = select(0, read_fds, NULL, NULL, timeout);
   if(ret == SOCKET_ERROR) {
@@ -1400,11 +1381,11 @@ HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
   return HTTP_ACCEPT_OK;
 }
 
-bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len) {
+HTTP_DEF bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len) {
     return http_connect2(socket, ssl ? HTTPS_PORT : HTTP_PORT, hostname, hostname_len);
 }
 
-bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len) {
+HTTP_DEF bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len) {
 
   if(!http_valid(socket)) {
     return false;
@@ -1451,7 +1432,7 @@ bool http_connect2(int socket, int port, const char *hostname, size_t hostname_l
   return true; 
 }
 
-bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes) {
+HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes) {
   if(!http_valid(http->socket)) {
     return false;
   }
@@ -1492,7 +1473,7 @@ bool http_respond(Http *http, HttpStatus status, const char *content_type, const
 	       prefix, content_type, body_size_bytes, body_size_bytes, body);
 }
 
-bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
+HTTP_DEF bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   if(!http_valid(http->socket)) {
     return false;
   }
@@ -1525,11 +1506,11 @@ bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   return true;
 }
 
-bool http_send_len2(const char *buffer, size_t buffer_len, void *http) {
+HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http) {
   return http_send_len(buffer, buffer_len, (Http *) http);
 }
 
-bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
+HTTP_DEF bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
   if(!http_valid(http->socket)) {
     return false;
   }  
@@ -1581,7 +1562,7 @@ bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t siz
   return false;
 }
 
-bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata),
+HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata),
 		    void *userdata, HttpHeader *header) {
   not_null(http);
 
@@ -1733,7 +1714,7 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
   return true;
 }
 
-void http_init_external_libs(const char *cert_file, const char *key_file) {
+HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_file) {
 
 #ifndef HTTP_NO_SSL
   if(!http_global_ssl_client_ctx) {
@@ -1789,12 +1770,12 @@ void http_init_external_libs(const char *cert_file, const char *key_file) {
 }
 //----------END SOCKET----------
 
-size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata) {
+HTTP_DEF size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata) {
   return fwrite(data, size, memb, (FILE *) userdata);
 }
 
 //----------BEGIN WEBSOCKET----------
-bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer) {
+HTTP_DEF bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer) {
   // -- https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
   if(buffer->len == 0) {
     return true;
@@ -1860,7 +1841,7 @@ bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *buffer) {
   return true;
 }
 
-bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client) {
+HTTP_DEF bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client) {
   if(!buffer) {
     return false;
   }
@@ -1892,7 +1873,7 @@ bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client
   }
 }
 
-bool http_websocket_send(const char *buffer, Http *client) {
+HTTP_DEF bool http_websocket_send(const char *buffer, Http *client) {
   if(!buffer) {
     return false;
   }

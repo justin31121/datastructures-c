@@ -5,6 +5,10 @@
 #define TOKENIZER_IMPLEMENTATION
 #endif //HTML_PARSER_IMPLEMENTATION
 
+#ifndef HTML_PARSER_DEF
+#define HTML_PARSER_DEF static inline
+#endif //HTML_PARSER_DEF
+
 #include "./tokenizer.h"
 
 typedef struct {  
@@ -17,7 +21,7 @@ typedef struct {
   void *arg;
 }Html_Parse_Events;
 
-bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events);
+HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events);
 
 #ifdef HTML_PARSER_IMPLEMENTATION
 
@@ -35,7 +39,7 @@ static char *html_node_maybe_singletons[] = {"li"};
     }							\
   }while(0)
 
-static bool html_parse_expect_doctype_html(Tokenizer *t, const Html_Parse_Events *events) {
+HTML_PARSER_DEF bool html_parse_expect_doctype_html(Tokenizer *t, const Html_Parse_Events *events) {
   static const char *err = "<!doctype html>";
   
   Token token;
@@ -69,7 +73,7 @@ static bool html_parse_expect_doctype_html(Tokenizer *t, const Html_Parse_Events
     }									\
 }while(0)
 
-static bool html_parse_expect_word_concatination(Tokenizer *t, const Html_Parse_Events *events, string *result) {
+HTML_PARSER_DEF bool html_parse_expect_word_concatination(Tokenizer *t, const Html_Parse_Events *events, string *result) {
   assert(result);
 
   Token token;
@@ -91,7 +95,7 @@ static bool html_parse_expect_word_concatination(Tokenizer *t, const Html_Parse_
   return true;
 }
 
-static bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events *events, bool *closed, void **root, string *root_name) {
+HTML_PARSER_DEF bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events *events, bool *closed, void **root, string *root_name) {
   assert(closed);
   *closed = false;
 
@@ -167,7 +171,7 @@ static bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events *events, 
   return true;
 }
 
-static bool html_parse_expect_node_close(Tokenizer *t, const Html_Parse_Events *events, string root_name) {
+HTML_PARSER_DEF bool html_parse_expect_node_close(Tokenizer *t, const Html_Parse_Events *events, string root_name) {
   Token token;
   __html_parse_expect_token(TOKENTYPE_ANGLE_OPEN);
   __html_parse_expect_token(TOKENTYPE_SLASH);
@@ -189,7 +193,7 @@ static bool html_parse_expect_node_close(Tokenizer *t, const Html_Parse_Events *
     }									\
   }while(0)
 
-bool html_parse_peek_n_word_concatenation(Tokenizer *t, int n, string *result) {
+HTML_PARSER_DEF bool html_parse_peek_n_word_concatenation(Tokenizer *t, int n, string *result) {
   Token token;
   if(!tokenizer_peek_n(t, &token, n)) {
     return false;
@@ -229,7 +233,7 @@ bool html_parse_peek_n_word_concatenation(Tokenizer *t, int n, string *result) {
   return true;
 }
 
-static void *html_parse_node(Tokenizer *t, const Html_Parse_Events *events) {
+HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *events) {
   
   bool closed;
   void *root;
@@ -371,7 +375,7 @@ static void *html_parse_node(Tokenizer *t, const Html_Parse_Events *events) {
   return NULL;
 }
 
-bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events) {
+HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events) {
   assert(events);
   assert(events->on_error);
   assert(events->on_node);

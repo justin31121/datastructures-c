@@ -2,19 +2,15 @@
 #define JSON_H_H
 
 #ifdef JSON_IMPLEMENTATION
-
 #define HASHTABLE_IMPLEMENTATION
 #define ARRAY_IMPLEMENTATION
 #define PARSE_IMPLEMENTATION
-
-#endif
+#endif //JSON_IMPLEMENTATION
 
 #ifdef JSON_NOTNULL
-
 #define HT_NOTNULL
 #define ARRAY_NOTNULL
-
-#endif
+#endif //JSON_NOTNULL
 
 #include "hashtable.h"
 #include "array.h"
