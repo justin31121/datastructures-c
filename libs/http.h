@@ -6,15 +6,14 @@
 
 //MAYBE: Remove some null checks
 
-#include <assert.h>
-#include <stdbool.h>
-
-
 #ifndef HTTP_NO_SSL
 #include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/conf.h> //link with -lssl -lcrypto
+#include <openssl/err.h>  //link with -lssl -lcrypto
+#include <openssl/conf.h> //or        libsslMT.lib libcryptoMT.lib
 #endif //HTTP_NO_SSL
+
+#include <assert.h>
+#include <stdbool.h>
 
 #ifdef HTTP_IMPLEMENTATION
 
@@ -35,16 +34,20 @@
 #define HTTP_BUFFER_CAP 8192
 
 #ifdef _WIN32
-#include <winsock2.h> //link with -lws2_32
+#include <winsock2.h>     //link with -lws2_32
+typedef SSIZE_T ssize_t;  //or        crypt32.lib ws2_32.lib advapi32.lib user32.lib
+#include <malloc.h> // _malloca
 #endif //_WIN32
 
 #ifdef linux
+
 #include <netdb.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+
 #endif //linux
 
 #ifndef HTTP_DEF
@@ -93,9 +96,16 @@ typedef struct{
   bool used;
   String_Buffer buffer;
   const HttpServer *server;
-  pthread_t id;  
+
   void *arg;
   HttpRequest request;
+
+#ifdef _WIN32
+  HANDLE id;
+#endif //_WIN32
+#ifdef linux
+  pthread_t id;  
+#endif //linux
 }HttpServerThread;
 
 struct HttpServer {
@@ -347,6 +357,13 @@ HTTP_DEF const char *http_get_route(const char *url) {
 }
 
 HTTP_DEF bool http_sleep_ms(int ms) {
+
+#ifdef _WIN32
+  Sleep(ms);
+  return true;
+#endif //_WIN32
+
+#ifdef linux
   //TOOD: proper sleep_time if ms is longer than a second
   struct timespec sleep_time;
   if(ms < 1000) {
@@ -360,6 +377,7 @@ HTTP_DEF bool http_sleep_ms(int ms) {
     return false;
   }
   return true;
+#endif //linux
 }
 
 HTTP_DEF bool http_encodeURI(const char *input, size_t input_size,
@@ -716,10 +734,20 @@ HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_req
   }
 
   server->threads[0].used = true;
+#ifdef _WIN32
+  HANDLE ret = (HANDLE) _beginthread(http_server_listen_function, 0, server);
+  if(ret < 0) {
+    return false;
+  }
+  server->threads[0].id = ret;
+#endif //_WIN32
+
+#ifdef linux
   if(pthread_create(&server->threads[0].id, NULL, http_server_listen_function, server) != 0)  {
     free(server->threads);
     return false;
   }
+#endif //linux
 
   server->running = true;
 
@@ -740,14 +768,30 @@ HTTP_DEF void http_server_stop(HttpServer *server) {
       continue;
     }
     http_free(&thread->client);
+
+#ifdef _WIN32
+    
+    
+#endif //_WIN32
+
+#ifdef linux
     pthread_join(thread->id, NULL);
+#endif //linux
+
     thread->used = false;
     string_buffer_free(&(thread->buffer));
   }
 
   //STOP LISTEN THREAD
   server->threads[0].used = false;
-  pthread_join(server->threads[0].id, NULL);
+#ifdef _WIN32
+    WaitForSingleObject(server->threads[0].id, INFINITE);
+#endif //_WIN32
+
+#ifdef linux
+    pthread_join(server->threads[0].id, NULL);
+#endif //linux
+  
 
   //DEALLOCATE THREADS
   if(server->threads_count == 0) {
@@ -829,9 +873,21 @@ HTTP_DEF bool http_server_create_serve_thread(HttpServer *server, Http client) {
     HttpServerThread *thread = &(server->threads[i]);
     if(thread->used==true) continue;
     thread->client = client;
+
+#ifdef _WIN32
+    HANDLE ret = (HANDLE) _beginthread(http_server_serve_function, 0, thread);
+    if(ret < 0) {
+      return false;
+    }
+    thread->id = ret;    
+#endif //_WIN32    
+
+#ifdef linux
     if(pthread_create(&(thread->id), NULL, http_server_serve_function, thread) != 0) {
       return false;
     }
+#endif //linux
+
     thread->used = true;
     return true;
   }
@@ -1398,13 +1454,14 @@ HTTP_DEF bool http_connect2(int socket, int port, const char *hostname, size_t h
 
 #ifdef _WIN32
   SOCKADDR_IN addr = {0};
+  char *name = (char *) alloca(hostname_len + 1);
 #endif //WIN32
 #ifdef linux
   struct sockaddr_in addr = {0};
+  char name[hostname_len + 1];
 #endif //linux
 
-  char name[hostname_len + 1];
-  memcpy(name, hostname, hostname_len);
+ memcpy(name, hostname, hostname_len);
   name[hostname_len] = 0;
   
   struct hostent *hostent = gethostbyname(name);

@@ -3,7 +3,7 @@
 #define HTTP_IMPLEMENTATION
 #include "../libs/http.h"
 
-static char cwd[PATH_MAX];
+static char cwd[MAX_PATH];
 
 void handle(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;

@@ -22,7 +22,7 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
     string_buffer_append(res, request->body.data, request->body.len);
     string_buffer_append(res, "\0", 1);
 
-    bool proxy_req = http_get(res->data, string_buffer_callback, sb);
+    bool proxy_req = http_get(res->data, string_buffer_callback, sb, NULL, NULL);
     if(!proxy_req || sb->len == 0) {
       const char *message = "Can not reach hostname";
       http_respond(client, HTTP_STATUS_INTERNAL_ERROR, "text/plain", message, strlen(message));

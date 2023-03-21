@@ -7,7 +7,7 @@
 #define WATCHER_IMPLEMENTATION
 #include "../libs/watcher.h"
 
-static char cwd[PATH_MAX];
+static char cwd[MAX_PATH];
 
 #define WATCH_PATH "./rsc/"
 
@@ -23,13 +23,36 @@ void handle(const HttpRequest *request, Http *client, void *arg) {
 }
 
 bool queuedChange = false;
+
+#ifdef _WIN32
+HANDLE lock;
+
+void mutex_lock() {
+  WaitForSingleObject(lock, INFINITE);
+}
+
+void mutex_release() {
+  ReleaseMutex(lock);
+}
+#endif //_WIN32
+
+#ifdef linux
 pthread_mutex_t lock;
+
+void mutex_lock() {
+  pthread_mutex_lock(&lock);
+}
+
+void mutex_release() {
+  pthread_mutex_unlock(&lock);
+}
+#endif //linux
 
 void handle_websocket(const char *message, size_t message_len, Http *client, void *arg) {
   (void) message;
   (void) message_len;
 
-  printf("HANDLING websocket: %lld\n", client->socket);
+  printf("HANDLING websocket: %ld\n", client->socket);
   
   const char *pong = "pong";
   size_t pong_len = strlen(pong);
@@ -41,12 +64,12 @@ void handle_websocket(const char *message, size_t message_len, Http *client, voi
   for(;server->running;) {
     http_sleep_ms(100);
     if(queuedChange) {
-      printf("\tSEND reload: %lld\n", client->socket);
+      printf("\tSEND reload: %ld\n", client->socket);
       http_websocket_send_len(reload, reload_len, client);
       
-      pthread_mutex_lock(&lock);
+      mutex_lock();
       queuedChange = false;
-      pthread_mutex_unlock(&lock);
+      mutex_release();
       
       break;
     } else {
@@ -56,16 +79,16 @@ void handle_websocket(const char *message, size_t message_len, Http *client, voi
     }
   }
 
-  printf("CLOSING websocket: %lld\n", client->socket);
+  printf("CLOSING websocket: %ld\n", client->socket);
 }
 
 void handle_watcher_event(Watcher_Event event, const char *name) {
   (void) event;
   (void) name;
   
-  pthread_mutex_lock(&lock);
+  mutex_lock();
   queuedChange = true;
-  pthread_mutex_unlock(&lock);
+  mutex_release();
 }
 
 int main(int argc, char **argv) {
@@ -80,26 +103,29 @@ int main(int argc, char **argv) {
     }
   }
 
-  if(pthread_mutex_init(&lock, NULL) != 0) {
-    panic("pthread_mutex_init");
-  }
-  
-  HttpServer server;
-  if(!http_server_init(&server, port, NULL, NULL)) {
-    panic("http_server_init");
-  }
-  
 #ifdef _WIN32
+  lock = CreateMutexW(NULL, FALSE, NULL);
+
   #include <direct.h>
   if(!_getcwd(cwd, sizeof(cwd))) {
     panic("getcwd");
   }
 #endif //_WIN32
+
 #ifdef linux
+  if(pthread_mutex_init(&lock, NULL) != 0) {
+    panic("pthread_mutex_init");
+  }
+
   if(!getcwd(cwd, sizeof(cwd))) {
     panic("getcwd");
   }
 #endif //linux
+  
+  HttpServer server;
+  if(!http_server_init(&server, port, NULL, NULL)) {
+    panic("http_server_init");
+  }
 
   server.handle_websocket = handle_websocket;
   if(!http_server_listen_and_serve(&server, handle, 24, &server, 0)) {

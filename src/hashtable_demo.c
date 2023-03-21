@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define HASHTABLE_IMPLEMENTATION
-#include "../hashtable.h"
+#include "../libs/hashtable.h"
 
 int main() {
   Ht *ht = ht_init();

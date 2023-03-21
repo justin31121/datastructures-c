@@ -61,7 +61,7 @@ BASE64_DEF bool base64_decode(const char *input, size_t input_size,
   }
   
   if (input_size % 4 != 0) {
-    return NULL;
+    return false;
   }
 
   size_t output_len = input_size / 4 * 3;

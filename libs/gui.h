@@ -3,8 +3,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#include <GL/GL.h>
-
+#include <GL/GL.h> //link with -opengl32 -lgdi32
+                   //or        opengl32.lib gdi32.lib user32.lib
 #define GL_TEXTURE0 0x84C0
 #define GL_TEXTURE1 0x84C1
 #define GL_TEXTURE2 0x84C2

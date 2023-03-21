@@ -1,9 +1,9 @@
 #include <stdio.h>
 
 #define JSON_IMPLEMENTATION
-#include "../json.h"
+#include "../libs/json.h"
 
-#define FILE_PATH "./prop.json"
+#define FILE_PATH "./rsc/sample.json"
 
 #define return_defer(mess) do{			\
     fprintf(stderr, "ERROR: %s\n", mess);	\
@@ -69,7 +69,7 @@ void write() {
 
 int main() {  
   //READ  
-  char* content = slurp_file("sample.json", NULL);
+  char* content = slurp_file(FILE_PATH, NULL);
 
   Json json;
   if(json_parse(content, &json)) {

@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
   t = clock() - t;
 
   if(sb.len > 0) printf("%s\n\n", sb.data);
-  printf("%lld bytes\n\n", sb.len);
+  printf("%ld bytes\n\n", sb.len);
   double time_taken = ((double)t)/CLOCKS_PER_SEC;
   printf("Took %d ms\n", (int) (time_taken * 1000));
   
