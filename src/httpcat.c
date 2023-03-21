@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
   if(argc < 2) {
     printf("USAGE: main <url>\n");
     panic("Please provide enough arguments");
-  } 
+  }
 
   String_Buffer sb = {0};
   string_buffer_reserve(&sb, 2 * 1024);
@@ -20,8 +20,8 @@ int main(int argc, char **argv) {
   }
   t = clock() - t;
 
-  if(sb.len > 0 && sb.len < 16000) printf("%s\n\n", sb.data);
-  printf("%ld bytes\n\n", sb.len);
+  if(sb.len > 0) printf("%s\n\n", sb.data);
+  printf("%lld bytes\n\n", sb.len);
   double time_taken = ((double)t)/CLOCKS_PER_SEC;
   printf("Took %d ms\n", (int) (time_taken * 1000));
   

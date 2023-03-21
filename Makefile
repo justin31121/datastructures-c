@@ -13,7 +13,7 @@ all: ./src/main.c ./libs/http.h ./libs/util.h ./libs/string.h
 gui: ./src/gui_demo.c ./libs/gui.h
 	gcc ./src/gui_demo.c $(CFLAGS) -ggdb -o gui -lgdi32 -lopengl32
 
-google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h ./libs/tokenizer.h ./libs/html_parser2.h
+google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h ./libs/tokenizer.h ./libs/html_parser.h
 	gcc ./src/google.c $(CFLAGS) -ggdb -o google $(LDFLAGS)
 
 email: ./src/email.c ./libs/http.h
@@ -26,10 +26,10 @@ httpliveserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
 	gcc ./src/httpliveserver.c $(CFLAGS) -ggdb -pthread -o httpliveserver -lws2_32
 
 httpserver: ./src/httpserver.c ./libs/http.h ./libs/util.h ./libs/string.h
-	gcc -O3 ./src/httpserver.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpserver
+	gcc ./src/httpserver.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpserver
 
 httpcat: ./src/httpcat.c ./libs/http.h ./libs/util.h ./libs/string.h
-	gcc -O3 ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat
+	gcc ./src/httpcat.c $(CFLAGS) -ggdb $(LDFLAGS) -o httpcat
 
 watcher_demo:
 	gcc ./src/watcher_demo.c $(CFLAGS) -o watcher_demo $(LDFLAGS)

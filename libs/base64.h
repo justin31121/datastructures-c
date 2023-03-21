@@ -5,11 +5,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-bool base64_encode(const char *input, size_t input_size,
+#ifndef BASE64_DEF
+#define BASE64_DEF static inline
+#endif //BASE64_DEF
+
+BASE64_DEF bool base64_encode(const char *input, size_t input_size,
 		   char *buffer, size_t buffer_size,
 		   size_t *output_size);
 
-bool base64_decode(const char *input, size_t input_size,
+BASE64_DEF bool base64_decode(const char *input, size_t input_size,
 		   char *buffer, size_t buffer_size,
 		   size_t *output_size);
 
@@ -40,7 +44,7 @@ static unsigned char base64_decoding_table[] = {
   [122] = 51
 };
 
-bool base64_decode(const char *input, size_t input_size,
+BASE64_DEF bool base64_decode(const char *input, size_t input_size,
 		   char *buffer, size_t buffer_size,
 		   size_t *output_size) {
 
@@ -104,7 +108,7 @@ static unsigned char base64_encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G
   '4', '5', '6', '7', '8', '9', '+', '/'};
 static int mod_table[] = {0, 2, 1};
 
-bool base64_encode(const char *input, size_t input_size,
+BASE64_DEF bool base64_encode(const char *input, size_t input_size,
 		   char *buffer, size_t buffer_size,
 		   size_t *output_size) {
 

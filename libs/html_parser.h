@@ -2,12 +2,10 @@
 #define HTML_PARSER_H_H
 
 #ifdef HTML_PARSER_IMPLEMENTATION
-#define STRING_IMPLEMENTATION
 #define TOKENIZER_IMPLEMENTATION
 #endif //HTML_PARSER_IMPLEMENTATION
 
 #include "./tokenizer.h"
-#include "./string.h"
 
 typedef struct {  
   void *(*on_node)(string name, void *arg);
@@ -19,11 +17,12 @@ typedef struct {
   void *arg;
 }Html_Parse_Events;
 
-static char *html_node_singletons[] = {"meta", "input", "img", "br", "hr"};
-
 bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events);
 
 #ifdef HTML_PARSER_IMPLEMENTATION
+
+static char *html_node_singletons[] = {"area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"};
+static char *html_node_maybe_singletons[] = {"li"};
 
 #define __html_parse_expect_doctype(_type) do{		\
     if(!tokenizer_next(t, &token)) {			\
@@ -94,7 +93,6 @@ static bool html_parse_expect_word_concatination(Tokenizer *t, const Html_Parse_
 
 static bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events *events, bool *closed, void **root, string *root_name) {
   assert(closed);
-  assert(root);
   *closed = false;
 
   Token token;
@@ -102,22 +100,32 @@ static bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events *events, 
   if(!html_parse_expect_word_concatination(t, events, root_name)) {
     return false;
   }
-  *root = events->on_node(*root_name, events->arg);
+  if(root) {
+      *root = events->on_node(*root_name, events->arg);      
+  }
   
   __html_parse_peek_token(TOKENTYPE_WORD);
   while(token.type == TOKENTYPE_WORD) {
     tokenizer_next(t, &token); // attribute
     string key = token.content;
 
-    while(token.type != TOKENTYPE_EQUALS) {
+    while(token.type != TOKENTYPE_EQUALS && token.type != TOKENTYPE_ANGLE_CLOSE) {
       tokenizer_next(t, &token);
       if(token.content.data != key.data) {
 	u64 diff = token.content.data - key.data - key.len;
 	key = string_from(key.data, key.len + diff + token.content.len);
       }
-      //__html_peek_token(TOKENTYPE_WORD);
+      //__html_parse_peek_token(TOKENTYPE_WORD);
     }
     key = string_from(key.data, key.len - 1);
+
+    if(token.type == TOKENTYPE_ANGLE_CLOSE) {
+	if(root) {
+	    events->on_node_attribute(*root, key, string_from_cstr(""), events->arg);	    
+	}
+	t->pos = t->last;
+	continue;
+    }
 
     __html_parse_peek_token(TOKENTYPE_EQUALS);
     Tokentype quotation = TOKENTYPE_DOUBLE_QUOTATION;
@@ -142,9 +150,10 @@ static bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events *events, 
     __html_parse_expect_token(quotation);
     __html_parse_peek_token(TOKENTYPE_ANGLE_CLOSE);
     
-    events->on_node_attribute(*root, key, value, events->arg);
+    if(root) {
+	events->on_node_attribute(*root, key, value, events->arg);	
+    }
   }
-
 
   __html_parse_peek_token(TOKENTYPE_ANGLE_CLOSE);
   if(token.type == TOKENTYPE_SLASH) {
@@ -233,15 +242,28 @@ static void *html_parse_node(Tokenizer *t, const Html_Parse_Events *events) {
     return root;
   }
 
-  bool isScript = string_eq(root_name, STRING("script"));
+  u32 old = t->pos;
+  
+  bool potential_maybe_singleton = false;
+  u32 maybe_singletons_len = sizeof(html_node_maybe_singletons)/sizeof(html_node_maybe_singletons[0]);  
+  for(u32 i=0;i<maybe_singletons_len;i++) {
+      string singleton = string_from_cstr(html_node_maybe_singletons[i]);
+      if(string_eq(root_name, singleton)) {
+	  potential_maybe_singleton = true;
+	  break;
+      }
+  }
 
   u32 singletons_len = sizeof(html_node_singletons)/sizeof(html_node_singletons[0]);
-  for(u32 i=0;i<singletons_len;i++) {
-    string singleton = string_from_cstr(html_node_singletons[i]);
-    if(string_eq(root_name, singleton)) {
-      return root;
-    }
+  for(u32 i=0;!potential_maybe_singleton && i<singletons_len;i++) {
+      string singleton = string_from_cstr(html_node_singletons[i]);
+      if(string_eq(root_name, singleton)) {
+	  return root;
+      }
   }
+
+
+  bool isScript = string_eq(root_name, STRING("script"));
 
   Token token;
   string current = {0};
@@ -262,6 +284,27 @@ static void *html_parse_node(Tokenizer *t, const Html_Parse_Events *events) {
 	  return root;
 	} else {
 	  if(!isScript) {
+	      if(potential_maybe_singleton) {
+		  u32 current_pos = t->pos;
+		  t->pos = old;
+		  bool child_closed;
+		  string child_name;
+		  //implement a peek version
+		  if(html_parse_node_open(t, events, &child_closed, NULL, &child_name)) {
+		      if(string_eq(child_name, root_name)) {
+			  t->pos = current_pos;					      
+			  return root;
+		      }
+		  }
+		  t->pos = current_pos;
+	      }
+
+	      if(string_eq(root_name, STRING("li")) && string_eq(content, STRING("ul"))) {
+		  return root;
+	      }
+	      
+	      fprintf(stderr, "ERORR: Tag not closed "String_Fmt"\n", String_Arg(root_name));
+	      fprintf(stderr, "ERORR: Instead closed "String_Fmt"\n", String_Arg(content));
 	    events->on_error(tokentype_name(TOKENTYPE_WORD), t->last, events->arg);
 	    return NULL;
 	  } else {
@@ -337,9 +380,7 @@ bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events)
   assert(events->on_node_content);
   
   Tokenizer tokenizer = {cstr, cstr_len, 0, 0};
-  if(!html_parse_expect_doctype_html(&tokenizer, events)) {
-    return false;
-  }
+  html_parse_expect_doctype_html(&tokenizer, events);
   if(!html_parse_node(&tokenizer, events)) {
     return false;
   }

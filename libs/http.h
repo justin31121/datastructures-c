@@ -452,13 +452,12 @@ bool http_request(Http *http, const char *route, const char *method,
 		  size_t (*write_callback)(const void*, size_t, size_t, void *),
 		  void *userdata, HttpHeader *header, const char *headers_extra)
 {
-  not_null(http);
-
   bool hasBody = body != NULL && content_type != NULL;
 
   //SEND
   char request_buffer[HTTP_BUFFER_CAP];
   if(!hasBody) {
+      
     if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 	      "%s %s HTTP/1.1\r\n"
 	      "Host: %.*s\r\n"
@@ -1357,7 +1356,7 @@ HttpAccept http_accept(int socket, int *out_client) {
   }
 #endif //linux
 
-#ifdef HTTP_DEBUG
+#if 0
   //LOG: ip address
   struct sockaddr_in* pV4Addr = (struct sockaddr_in*)&addr;
   struct in_addr ipAddr = pV4Addr->sin_addr;
@@ -1633,7 +1632,7 @@ bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_
 #ifdef HTTP_DEBUG
 	printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value));
 #endif	
-	if(string_eq(key, STRING("Content-Length"))) {
+	if(string_eq(key, STRING("Content-Length")) || string_eq(key, STRING("content-length"))) {
 	  if(!string_chop_int64_t(&value, &content_length)) {
 	    warn("Failed to parse content length");
 	    content_length = -1;

@@ -4,6 +4,10 @@
 #define HT_ITEM_CAP 4
 #define HT_CAP 128
 
+#ifndef HASHTABLE_DEF
+#define HASHTABLE_DEF static inline
+#endif //HASHTABLE_DEF
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,13 +33,13 @@ typedef struct {
   size_t count;
 }Ht;
 
-Ht *ht_init();
-void ht_insert(Ht *ht, const char *key, const void *value, size_t value_size);
-void *ht_get(const Ht *ht, const char* key);
-bool ht_has(const Ht *ht, const char *key);
-bool ht_remove(Ht *ht, const char* key);
-bool ht_next(const Ht *ht, int *last, Ht_Entry **entry);
-void ht_free(Ht *ht);
+HASHTABLE_DEF Ht *ht_init();
+HASHTABLE_DEF void ht_insert(Ht *ht, const char *key, const void *value, size_t value_size);
+HASHTABLE_DEF void *ht_get(const Ht *ht, const char* key);
+HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key);
+HASHTABLE_DEF bool ht_remove(Ht *ht, const char* key);
+HASHTABLE_DEF bool ht_next(const Ht *ht, int *last, Ht_Entry **entry);
+HASHTABLE_DEF void ht_free(Ht *ht);
 
 #ifdef HASHTABLE_IMPLEMENTATION
 
@@ -62,7 +66,7 @@ void ht_free(Ht *ht);
 
 //const ht->size || !const ht_item->size
 //!const ht->count
-bool ht_next(const Ht *ht, int *last, Ht_Entry **entry) {
+HASHTABLE_DEF bool ht_next(const Ht *ht, int *last, Ht_Entry **entry) {
   HT_CHECK_NOTNULL(ht);
   if(!entry) return false;
   if(!last) return false;
@@ -82,7 +86,7 @@ bool ht_next(const Ht *ht, int *last, Ht_Entry **entry) {
   return false;
 }
 
-void ht_entry_create(Ht_Entry *entry,
+HASHTABLE_DEF void ht_entry_create(Ht_Entry *entry,
 		     const char *key, size_t key_size,
 		     const void *value, size_t value_size) {
   HT_ENTRY_CHECK_NOTNULL(entry);
@@ -103,13 +107,13 @@ void ht_entry_create(Ht_Entry *entry,
   entry->value_size = value_size;
 }
 
-void ht_entry_free(Ht_Entry *entry) {
+HASHTABLE_DEF void ht_entry_free(Ht_Entry *entry) {
   HT_ENTRY_CHECK_NOTNULL(entry);
   if(entry->key) free(entry->key);
   if(entry->value) free(entry->value);
 }
 
-void ht_item_init(Ht_Item *item) {
+HASHTABLE_DEF void ht_item_init(Ht_Item *item) {
   HT_ITEM_CHECK_NOTNULL(item);
 
   item->size = HT_ITEM_CAP;
@@ -121,7 +125,7 @@ void ht_item_init(Ht_Item *item) {
   }
 }
 
-void ht_item_increment(Ht_Item *item) {
+HASHTABLE_DEF void ht_item_increment(Ht_Item *item) {
   HT_ITEM_CHECK_NOTNULL(item);
 
   item->size *= 2;
@@ -132,14 +136,14 @@ void ht_item_increment(Ht_Item *item) {
   }  
 }
 
-void ht_item_free(Ht_Item *item) {
+HASHTABLE_DEF void ht_item_free(Ht_Item *item) {
   HT_ITEM_CHECK_NOTNULL(item);
   if(!item->entries) return;
   for(size_t i=0;i<item->count;i++) ht_entry_free(&item->entries[i]);
   free(item->entries);
 }
 
-unsigned long hash_function(const char* str, int *size) {
+HASHTABLE_DEF unsigned long hash_function(const char* str, int *size) {
   unsigned long hash = 0;
   int c = *str;
 
@@ -155,7 +159,7 @@ unsigned long hash_function(const char* str, int *size) {
   return hash % HT_CAP;
 }
 
-Ht* ht_init() {
+HASHTABLE_DEF Ht* ht_init() {
   Ht *ht = (Ht *) malloc(sizeof(Ht));
   if(!ht) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: ht_init\n");
@@ -178,7 +182,7 @@ Ht* ht_init() {
   return ht;
 }
 
-void ht_insert(Ht *ht,
+HASHTABLE_DEF void ht_insert(Ht *ht,
 	       const char *key,
 	       const void *value, size_t value_size) {
   HT_CHECK_NOTNULL(ht);
@@ -219,7 +223,7 @@ void ht_insert(Ht *ht,
   ht->count++;
 }
 
-bool ht_remove(Ht *ht, const char* key) {
+HASHTABLE_DEF bool ht_remove(Ht *ht, const char* key) {
   HT_CHECK_NOTNULL(ht);
   int index = (int) hash_function(key, NULL);
   Ht_Item *item = &ht->items[index];
@@ -238,7 +242,7 @@ bool ht_remove(Ht *ht, const char* key) {
   return false;
 }
 
-bool ht_has(const Ht *ht, const char *key) {
+HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key) {
   HT_CHECK_NOTNULL(ht);
 
   int index = (int) hash_function(key, NULL);
@@ -255,7 +259,7 @@ bool ht_has(const Ht *ht, const char *key) {
   return false;  
 }
 
-void *ht_get(const Ht *ht, const char* key) {
+HASHTABLE_DEF void *ht_get(const Ht *ht, const char* key) {
   HT_CHECK_NOTNULL(ht);
   int index = (int) hash_function(key, NULL);
 
@@ -272,7 +276,7 @@ void *ht_get(const Ht *ht, const char* key) {
   return NULL;
 }
 
-void ht_free(Ht *ht) {
+HASHTABLE_DEF void ht_free(Ht *ht) {
   HT_CHECK_NOTNULL(ht);
   for(int i=0;i<HT_CAP;i++) if(ht->items[i].size>0) ht_item_free(&ht->items[i]);
   free(ht->items);
