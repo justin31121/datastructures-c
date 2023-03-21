@@ -47,7 +47,6 @@ string string_substring(string s, size_t start, size_t end);
 bool string_eq(string s, string t);
 
 char* string_to_cstr(string *s);
-bool string_to_int(const string s, int *n);
 
 bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t val_size);
 int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size);
@@ -281,35 +280,6 @@ string string_chop_by_delim(string *s, char delim) {
   }
 
   return result;
-}
-
-bool string_to_int(string s, int *target) {
-  char s1[s.len];
-  string_in_cstr(s, s1);
-  long lnum;
-  int num;
-  char* end;
-
-  errno = 0;
-  lnum = strtol(s1, &end, 10);
-  if(end==s1) {
-    //fprintf(stderr, "ERROR: Can't convert string to number\n");
-    return false;
-  }
-
-  if((lnum == LONG_MAX || lnum == LONG_MIN) && errno == ERANGE) {
-    // fprintf(stderr, "ERROR: number out of range for LONG\n");
-    return false;
-  }
-  
-  if((lnum > INT_MAX) || (lnum < INT_MIN) ) {
-    //fprintf(stderr, "ERROR: number out of range for INT\n");
-    return false;
-  }
-  
-  num = (int) lnum;
-  if(target) (*target) = num;
-  return true;
 }
 
 string string_chop_left(string *s, size_t n) {

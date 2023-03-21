@@ -26,7 +26,7 @@ bool slurp_file2(const char* file_path, size_t (*write_callback)(const void *dat
 void write_file(const char *file_path, const char *data);
 void write_file_len(const char *file_path, const char *data, size_t size);
 bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
-	   char *buffer, size_t buffer_cap, const char *format, ...);
+  char *buffer, size_t buffer_cap, const char *format, ...);
 
 typedef unsigned char u8;
 typedef char s8;
@@ -127,32 +127,32 @@ bool slurp_file2(const char* file_path, size_t (*write_callback)(const void *, s
     return false;
   }
 
-  size_t buffer_size = 8192 << 2;
+#define UTIL_SLURP_FILE_2_BUFFER_SIZE (8192 << 2)
 
   while(true) {
     bool bbreak = false;
-    char buffer[buffer_size];
-    size_t nbytes = fread(buffer, 1, buffer_size, f);
-    if(nbytes != buffer_size) {
+    char buffer[UTIL_SLURP_FILE_2_BUFFER_SIZE ];
+    size_t nbytes = fread(buffer, 1, UTIL_SLURP_FILE_2_BUFFER_SIZE , f);
+    if(nbytes != UTIL_SLURP_FILE_2_BUFFER_SIZE ) {
       if(ferror(f)) {
-	fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
-	fclose(f);
-	return false;	
-      }
-      if(feof(f)) {
-	bbreak = true;
-      }
-    }
-    if(nbytes > 0) {
-      write_callback(buffer, nbytes, 1, userdata);
-    }
-    if(bbreak) {
-      break;
-    }
+       fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
+       fclose(f);
+       return false;	
+     }
+     if(feof(f)) {
+       bbreak = true;
+     }
+   }
+   if(nbytes > 0) {
+    write_callback(buffer, nbytes, 1, userdata);
   }
+  if(bbreak) {
+    break;
+  }
+}
 
-  fclose(f);  
-  return true;
+fclose(f);  
+return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -166,7 +166,7 @@ typedef struct{
 }Sendf_Context;
 
 static size_t sendf_foo(Sendf_Context *context, size_t buffer_size,
-	       const char *cstr, size_t cstr_len, size_t *cstr_off) {
+  const char *cstr, size_t cstr_len, size_t *cstr_off) {
   size_t diff = cstr_len - *cstr_off;
 
   if(buffer_size + diff < context->buffer_cap) {
@@ -189,18 +189,18 @@ static size_t sendf_bar(Sendf_Context *context, size_t *buffer_size, const char 
     *buffer_size = sendf_foo(context, *buffer_size, cstr, cstr_len, &cstr_off);
     if(*buffer_size == context->buffer_cap || (context->last && *buffer_size != 0)) {
       if(!context->send_callback(context->buffer, *buffer_size, context->userdata)) {
-	return false;
-      }
-    }
-    if(*buffer_size < context->buffer_cap) break;
-    *buffer_size = 0;
-  }
+       return false;
+     }
+   }
+   if(*buffer_size < context->buffer_cap) break;
+   *buffer_size = 0;
+ }
 
-  return true;
+ return true;
 }
 
 bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
-	   char *buffer, size_t buffer_cap, const char *format, ...) {
+  char *buffer, size_t buffer_cap, const char *format, ...) {
 
   Sendf_Context context = {0};
   context.send_callback = send_callback;
@@ -218,111 +218,109 @@ bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
   for(size_t i=0;i<format_len;i++) {
     if(format[i]=='%' && i+1 < format_len) {      
       if(!sendf_bar(&context, &buffer_size, format + format_last, i - format_last)) {
-	return false;
-      }
+       return false;
+     }
       if (format[i+1] == 'c') { // %c	
         char c = (char) va_arg(va, int);
-	if(!sendf_bar(&context, &buffer_size, &c, 1)) {
-	  return false;
-	}
+        if(!sendf_bar(&context, &buffer_size, &c, 1)) {
+         return false;
+       }
 
-	format_last = i+2;
-	i++;
+       format_last = i+2;
+       i++;
       } else if(format[i+1]=='s') { // %	
-	const char *argument_cstr = va_arg(va, char *);
-	if(!sendf_bar(&context, &buffer_size, argument_cstr, strlen(argument_cstr))) {
-	  return false;
-	}
+       const char *argument_cstr = va_arg(va, char *);
+       if(!sendf_bar(&context, &buffer_size, argument_cstr, strlen(argument_cstr))) {
+         return false;
+       }
 
-	format_last = i+2;
-	i++;
+       format_last = i+2;
+       i++;
       } else if(format[i+1]=='d') { // %d
-	int n = va_arg(va, int);
+       int n = va_arg(va, int);
 
-	if(n == 0) {
-	  const char *zero = "0";
-	  if(!sendf_bar(&context, &buffer_size, zero, strlen(zero))) {
-	    return false;
-	  }	  
-	} else {
-	  size_t digit_buffer_cap = 32;
-	  char digit_buffer[digit_buffer_cap];
-	  size_t digit_buffer_count = 0;
-	  bool was_negative = false;
-	  if(n < 0) {
-	    was_negative = true;
-	    n *= -1;
-	  }
-	  while(n > 0) {
-	    int m = n % 10;
-	    assert(digit_buffer_count < digit_buffer_cap);
-	    digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = m + '0';
-	    n = n / 10;
-	  }
-	  if(was_negative) {
-	    assert(digit_buffer_count < digit_buffer_cap);
-	    digit_buffer[digit_buffer_cap - digit_buffer_count++ - 1] = '-';
-	  }
-	  if(!sendf_bar(&context, &buffer_size,
-			digit_buffer + (digit_buffer_cap - digit_buffer_count), digit_buffer_count)) {
-	    return false;
-	  }
-	}	
+       if(n == 0) {
+         const char *zero = "0";
+         if(!sendf_bar(&context, &buffer_size, zero, strlen(zero))) {
+           return false;
+         }	  
+       } else {
+#define UTIL_SENDF_DIGIT_BUFFER_CAP 32
+         char digit_buffer[UTIL_SENDF_DIGIT_BUFFER_CAP ];
+         size_t digit_buffer_count = 0;
+         bool was_negative = false;
+         if(n < 0) {
+           was_negative = true;
+           n *= -1;
+         }
+         while(n > 0) {
+           int m = n % 10;
+           assert(digit_buffer_count < UTIL_SENDF_DIGIT_BUFFER_CAP );
+           digit_buffer[UTIL_SENDF_DIGIT_BUFFER_CAP - digit_buffer_count++ - 1] = m + '0';
+           n = n / 10;
+         }
+         if(was_negative) {
+           assert(digit_buffer_count < UTIL_SENDF_DIGIT_BUFFER_CAP );
+           digit_buffer[UTIL_SENDF_DIGIT_BUFFER_CAP - digit_buffer_count++ - 1] = '-';
+         }
+         if(!sendf_bar(&context, &buffer_size,
+           digit_buffer + (UTIL_SENDF_DIGIT_BUFFER_CAP - digit_buffer_count), digit_buffer_count)) {
+           return false;
+       }
+     }	
 
-	format_last = i+2;
-	i++;
-      } else if(format[i+1] == '.' && i+3 < format_len &&
+     format_last = i+2;
+     i++;
+   } else if(format[i+1] == '.' && i+3 < format_len &&
 		format[i+2] == '*' && format[i+3] == 's') { //%.*s
-	
-	size_t argument_cstr_len = va_arg(va, size_t);
-	const char *argument_cstr = va_arg(va, char *);
 
-	if(!sendf_bar(&context, &buffer_size, argument_cstr, argument_cstr_len)) {
-	  return false;
-	}
+     size_t argument_cstr_len = va_arg(va, size_t);
+     const char *argument_cstr = va_arg(va, char *);
 
-	format_last = i+4;
-	i+=3;
-      } else if(format[i+1] == '_' && i+3 < format_len &&
-		format[i+2] == 'w' && format[i+3] == 's') { //%_ws
-	
-	size_t argument_cstr_len = va_arg(va, size_t);
-	const char *argument_cstr = va_arg(va, char *);
+     if(!sendf_bar(&context, &buffer_size, argument_cstr, argument_cstr_len)) {
+       return false;
+     }
+
+     format_last = i+4;
+     i+=3;
+   } else if(format[i+1] == '_' && i+3 < format_len && format[i+2] == 'w' && format[i+3] == 's') { //%_ws
+     size_t argument_cstr_len = va_arg(va, size_t);
+     const char *argument_cstr = va_arg(va, char *);
 	const char *argument_xormask = va_arg(va, char *); // len 4
 
-	size_t window_cap = 256;
-	char window[window_cap];
+#define UTIL_SENDF_WINDOW_CAP 256
+	char window[UTIL_SENDF_WINDOW_CAP ];
 	size_t window_size = 0;
 
 	for(size_t j=0;j<argument_cstr_len;j++) {
-	  window[window_size++] = argument_cstr[j] ^ argument_xormask[j % 4];
-	  if(window_size >= window_cap) {
-	    if(!sendf_bar(&context, &buffer_size, window, window_size)) {
-	      return false;
-	    }
-	    window_size = 0;
-	  }
-	}
+   window[window_size++] = argument_cstr[j] ^ argument_xormask[j % 4];
+   if(window_size >= UTIL_SENDF_WINDOW_CAP) {
+     if(!sendf_bar(&context, &buffer_size, window, window_size)) {
+       return false;
+     }
+     window_size = 0;
+   }
+ }
 
-	if(window_size > 0 && !sendf_bar(&context, &buffer_size, window, window_size)) {
-	  return false;
-	}
+ if(window_size > 0 && !sendf_bar(&context, &buffer_size, window, window_size)) {
+   return false;
+ }
 
-	format_last = i+4;
-	i+=3;
-      } else {
+ format_last = i+4;
+ i+=3;
+} else {
 	panic("Unexpected format argument");
-      }
-    }
-  }
-  va_end(va);
+}
+}
+}
+va_end(va);
 
-  context.last = true;
-  if(!sendf_bar(&context, &buffer_size, format + format_last, format_len - format_last)) {
-    return false;
-  }
+context.last = true;
+if(!sendf_bar(&context, &buffer_size, format + format_last, format_len - format_last)) {
+  return false;
+}
 
-  return true;
+return true;
 }
 
 #endif //UTIL_IMPLEMENTATION

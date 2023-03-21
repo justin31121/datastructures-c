@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define ARRAY_IMPLEMENTATION
-#include "../array.h"
+#include "../libs/array.h"
 
 int main() {
   Arr *arr = arr_init(sizeof(int));
@@ -11,7 +11,7 @@ int main() {
     arr_push(arr, &i);
   }
   
-  printf("%lld (%lld)\n", arr->count, arr->size);
+  printf("%ld (%ld)\n", arr->count, arr->size);
   fputc('[', stdout);
   for(size_t i=0;i<arr->count;i++) {
     printf("%d", *(int *) arr_get(arr, i));

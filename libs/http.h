@@ -8,7 +8,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <pthread.h>
+
 
 #ifndef HTTP_NO_SSL
 #include <openssl/ssl.h>
@@ -67,6 +67,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 #endif //linux
 
 typedef struct{
