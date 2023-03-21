@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef ARRAY_DEF
+#define ARRAY_DEF static inline
+#endif //ARRAY_DEF
+
 typedef struct{
   void *data;
   size_t size;
@@ -12,10 +16,10 @@ typedef struct{
   size_t msize;
 }Arr;
 
-Arr *arr_init(size_t msize);
-void arr_push(Arr *arr, void *ptr);
-void *arr_get(const Arr *arr, size_t p);
-void arr_free(Arr *arr);
+ARRAY_DEF Arr *arr_init(size_t msize);
+ARRAY_DEF void arr_push(Arr *arr, void *ptr);
+ARRAY_DEF void *arr_get(const Arr *arr, size_t p);
+ARRAY_DEF void arr_free(Arr *arr);
 
 #ifdef ARRAY_IMPLEMENTATION
 
@@ -33,7 +37,7 @@ void arr_free(Arr *arr);
 
 #endif 
 
-Arr *arr_init(size_t msize) {
+ARRAY_DEF Arr *arr_init(size_t msize) {
   Arr *arr = (Arr *) malloc(sizeof(Arr));
   if(!arr) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: arr_init\n");
@@ -54,7 +58,7 @@ Arr *arr_init(size_t msize) {
   return arr;
 }
 
-void arr_realloc(Arr *arr) {
+ARRAY_DEF void arr_realloc(Arr *arr) {
   ARRAY_CHECK_NOTNULL(arr);
   arr->size *= 2;
   arr->data = realloc(arr->data, arr->msize * arr->size);
@@ -64,7 +68,7 @@ void arr_realloc(Arr *arr) {
   }
 }
 
-void arr_push(Arr *arr, void *ptr) {
+ARRAY_DEF void arr_push(Arr *arr, void *ptr) {
   ARRAY_CHECK_NOTNULL(arr);
   if(arr->count>=arr->size) {
     arr_realloc(arr);
@@ -74,7 +78,7 @@ void arr_push(Arr *arr, void *ptr) {
   arr->count++;
 }
 
-void *arr_get(const Arr *arr, size_t p) {
+ARRAY_DEF void *arr_get(const Arr *arr, size_t p) {
   ARRAY_CHECK_NOTNULL(arr);
   if(p>=arr->size) {
 #ifdef _WIN32
@@ -89,7 +93,7 @@ void *arr_get(const Arr *arr, size_t p) {
   return (char *) arr->data + arr->msize*p;
 }
 
-void *arr_pop(Arr *arr) {
+ARRAY_DEF void *arr_pop(Arr *arr) {
   ARRAY_CHECK_NOTNULL(arr);
   if(arr->count==0) {
     fprintf(stderr, "ERROR: Array-Stack-Underflow\n");
@@ -101,7 +105,7 @@ void *arr_pop(Arr *arr) {
   return ret;
 }
 
-void arr_free(Arr *arr) {
+ARRAY_DEF void arr_free(Arr *arr) {
   ARRAY_CHECK_NOTNULL(arr);
   if(arr->data) free(arr->data);
   free(arr);

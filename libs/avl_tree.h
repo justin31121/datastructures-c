@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef AVL_TREE_DEF
+#define AVL_TREE_DEF static inline
+#endif //AVL_TREE_DEF
+
 struct Node{
   int height;
   struct Node *left, *right;
@@ -23,14 +27,14 @@ typedef enum{
   TREE_POSTORDER
 }Tree_Order;
 
-Tree *tree_init(size_t msize, int (*cmp)(const void *,const void *));
-void tree_traverse(Tree *tree, void (*f)(const void *), Tree_Order order);
-void tree_insert(Tree *tree, const void *data);
-Node *tree_min(Tree *tree);
-Node *tree_max(Tree *tree);
-Node *tree_contains(Tree *tree, const void *data);
-void tree_delete(Tree *tree, const void *data);
-void tree_free(Tree *tree);
+AVL_TREE_DEF Tree *tree_init(size_t msize, int (*cmp)(const void *,const void *));
+AVL_TREE_DEF void tree_traverse(Tree *tree, void (*f)(const void *), Tree_Order order);
+AVL_TREE_DEF void tree_insert(Tree *tree, const void *data);
+AVL_TREE_DEF Node *tree_min(Tree *tree);
+AVL_TREE_DEF Node *tree_max(Tree *tree);
+AVL_TREE_DEF Node *tree_contains(Tree *tree, const void *data);
+AVL_TREE_DEF void tree_delete(Tree *tree, const void *data);
+AVL_TREE_DEF void tree_free(Tree *tree);
 
 #ifdef AVL_TREE_IMPLEMENTATION
 
@@ -38,7 +42,7 @@ void tree_free(Tree *tree);
 
 #define NODE_VAL(node, type) (*( type *) (((char *) node) + sizeof(Node)))
 
-Tree *tree_init(size_t dsize, int (*cmp)(const void *,const void *)) {
+AVL_TREE_DEF Tree *tree_init(size_t dsize, int (*cmp)(const void *,const void *)) {
   Tree *tree = (Tree *) malloc(sizeof(Tree));
   if(!tree) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: tree_init\n");
@@ -52,16 +56,16 @@ Tree *tree_init(size_t dsize, int (*cmp)(const void *,const void *)) {
   return tree;
 }
 
-int node_height(Node *node) {
+AVL_TREE_DEF int node_height(Node *node) {
   if(!node) return 0;
   return node->height;
 }
 
-int max(int a, int b) {
+AVL_TREE_DEF int max(int a, int b) {
   return a > b ? a : b;
 }
 
-void node_rotate_right(Node **node) {
+AVL_TREE_DEF void node_rotate_right(Node **node) {
   if(node==NULL || (*node)==NULL || (*node)->left==NULL) {
     fprintf(stderr, "ERROR: Nullpointer-Exception: tree_rotate_right\n");
     exit(1);
@@ -79,7 +83,7 @@ void node_rotate_right(Node **node) {
   *node = left;
 }
 
-void node_rotate_left(Node **node) {
+AVL_TREE_DEF void node_rotate_left(Node **node) {
   if(node==NULL || (*node)==NULL || (*node)->right==NULL) {
     fprintf(stderr, "ERROR: Nullpointer-Exception: tree_rotate_left\n");
     exit(1);
@@ -98,7 +102,7 @@ void node_rotate_left(Node **node) {
   *node = right;
 }
 
-void node_insert(Node **node, const void *data, Tree *tree) {
+AVL_TREE_DEF void node_insert(Node **node, const void *data, Tree *tree) {
   if(!(*node)) {
       Node *tmp = (Node *) malloc(sizeof(Node) + tree->msize);
       if(!tmp) {
@@ -143,19 +147,19 @@ void node_insert(Node **node, const void *data, Tree *tree) {
   }
 }
 
-int node_diff(Node *node) {
+AVL_TREE_DEF int node_diff(Node *node) {
   if(!node) return 0;
   int diff = node_height(node->left) - node_height(node->right);
   return diff;
 }
 
-void node_free(Node *node) {
+AVL_TREE_DEF void node_free(Node *node) {
   if(!node) return;
   node_free(node->left);
   node_free(node->right);
 }
 
-void node_delete(Node **node, const void *data, Tree *tree) {
+AVL_TREE_DEF void node_delete(Node **node, const void *data, Tree *tree) {
   if(!node || !(*node)) {
     return;
   }
@@ -215,7 +219,7 @@ void node_delete(Node **node, const void *data, Tree *tree) {
   }  
 }
 
-void node_traverse(Node *node, void (*f)(const void *), Tree_Order order) {
+AVL_TREE_DEF void node_traverse(Node *node, void (*f)(const void *), Tree_Order order) {
   if(!node) return;
   switch(order) {
   case TREE_INORDER:
@@ -237,15 +241,16 @@ void node_traverse(Node *node, void (*f)(const void *), Tree_Order order) {
     break;
   }
 }
-void tree_traverse(Tree *tree, void (*f)(const void *), Tree_Order order) {
+
+AVL_TREE_DEF void tree_traverse(Tree *tree, void (*f)(const void *), Tree_Order order) {
   node_traverse(tree->root, f, order);
 }
 
-int tree_height(Tree *tree) {
+AVL_TREE_DEF int tree_height(Tree *tree) {
   return node_height(tree->root);
 }
 
-Node *tree_min(Tree *tree) {
+AVL_TREE_DEF Node *tree_min(Tree *tree) {
   if(!(tree->root)) return NULL;
   Node *tmp = tree->root;
   while(tmp->left) {
@@ -254,7 +259,7 @@ Node *tree_min(Tree *tree) {
   return tmp;
 }
 
-Node *tree_max(Tree *tree) {
+AVL_TREE_DEF Node *tree_max(Tree *tree) {
   if(!(tree->root)) return NULL;
   Node *tmp = tree->root;
   while(tmp->right) {
@@ -263,7 +268,7 @@ Node *tree_max(Tree *tree) {
   return tmp;
 }
 
-Node *tree_contains(Tree *tree, const void *data) {
+AVL_TREE_DEF Node *tree_contains(Tree *tree, const void *data) {
   Node *tmp = tree->root;
   int d;
   while(tmp) {
@@ -275,15 +280,15 @@ Node *tree_contains(Tree *tree, const void *data) {
   return NULL;
 }
 
-void tree_insert(Tree *tree, const void *data) {
+AVL_TREE_DEF void tree_insert(Tree *tree, const void *data) {
   node_insert(&(tree->root), data, tree);  
 }
 
-void tree_delete(Tree *tree, const void *data) {
+AVL_TREE_DEF void tree_delete(Tree *tree, const void *data) {
   node_delete(&(tree->root), data, tree);
 }
 
-void tree_free(Tree *tree) {
+AVL_TREE_DEF void tree_free(Tree *tree) {
   node_free(tree->root);
   if(tree) free(tree);
 }
