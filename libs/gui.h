@@ -266,7 +266,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCm
 				 WS_OVERLAPPEDWINDOW,
 				 CW_USEDEFAULT, CW_USEDEFAULT,
 				 canvas != NULL ? canvas->width : CW_USEDEFAULT,
-				 canvas != NULL ? canvas->height : CW_USEDEFAULT,
+				 canvas != NULL ? canvas->height + 39 : CW_USEDEFAULT,
 				 NULL,
 				 NULL,
 				 hInstance,
@@ -392,6 +392,7 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
 }
 
 GUI_DEF bool gui_free(Gui *gui) {
+  ReleaseDC(gui->win, gui->dc);
   return DestroyWindow(gui->win);
 }
 

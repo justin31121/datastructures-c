@@ -1,43 +1,50 @@
 #ifndef PEN_H_
 #define PEN_H_
 
-#include <stdint.h>
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
 
-void circle(uint32_t* src, uint32_t width, uint32_t height, int cx, int cy, int _r, int color);
-void rect(uint32_t* src, uint32_t width, uint32_t height, int x0, int y0, int w, int h, int color);
-void line(uint32_t *src, uint32_t width, uint32_t height, int x1, int y1, int x2, int y2, uint32_t color);
-void copy(uint32_t* src, uint32_t width, uint32_t height, uint32_t* src2, uint32_t width2, uint32_t height2, int x0, int y0, int w, int h);
-void copy2(uint32_t* src, uint32_t width, uint32_t height, uint32_t* src2, uint32_t width2, uint32_t height2, uint32_t stride_in_bytes, int x0, int y0, int w, int h);
-void fill(uint32_t* src, uint32_t width, uint32_t height, uint32_t color);
-void triangle(uint32_t* src, uint32_t width, uint32_t height, int x1, int y1, int x2, int y2, int x3, int y3, int color);
-void project(uint32_t* src, int width, int height, int x0, int y0, int w, int h, int f(int), int px0, int px1, int py0, int py1, uint32_t color);
+#ifndef PEN_DEF
+#define PEN_DEF static inline
+#endif //PEN_DEF
+
+PEN_DEF void circle(u32* src, u32 width, u32 height, int cx, int cy, int _r, int color);
+PEN_DEF void rect(u32* src, u32 width, u32 height, int x0, int y0, int w, int h, int color);
+PEN_DEF void line(u32 *src, u32 width, u32 height, int x1, int y1, int x2, int y2, u32 color);
+PEN_DEF void copy(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, int x0, int y0, int w, int h);
+PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, u32 stride_in_bytes, int x0, int y0, int w, int h);
+PEN_DEF void fill(u32* src, u32 width, u32 height, u32 color);
+PEN_DEF void triangle(u32* src, u32 width, u32 height, int x1, int y1, int x2, int y2, int x3, int y3, int color);
+PEN_DEF void project(u32* src, int width, int height, int x0, int y0, int w, int h, int f(int), int px0, int px1, int py0, int py1, u32 color);
+PEN_DEF u32 rgba_mix(u32 color, u32 base);
 
 #ifdef PEN_IMPLEMENTATION
 
-static inline uint32_t rgba_mix(uint32_t color, uint32_t base) {
+PEN_DEF u32 rgba_mix(u32 color, u32 base) {
 
-  uint8_t color_alpha = (0xff000000 & color) >> 24;
+  u8 color_alpha = (0xff000000 & color) >> 24;
 
-  uint8_t base_red = 0xff & base;
-  uint8_t red = color_alpha * ((0xff & color) - base_red) / 0xff + base_red;
+  u8 base_red = 0xff & base;
+  u8 red = color_alpha * ((0xff & color) - base_red) / 0xff + base_red;
   
-  uint8_t base_green = (0xff00 & base) >> 8;
-  uint8_t green = color_alpha * (((0xff00 & color) >> 8) - base_green) / 0xff + base_green;
+  u8 base_green = (0xff00 & base) >> 8;
+  u8 green = color_alpha * (((0xff00 & color) >> 8) - base_green) / 0xff + base_green;
   
-  uint8_t base_blue = (0xff0000 & base) >> 16;
-  uint16_t blue = color_alpha * (((0xff0000 & color) >> 16) - base_blue) / 0xff + base_blue;
+  u8 base_blue = (0xff0000 & base) >> 16;
+  u16 blue = color_alpha * (((0xff0000 & color) >> 16) - base_blue) / 0xff + base_blue;
   
   return (color_alpha << 24) | (blue << 16) | (green << 8) | red;
 }
 
-void fill(uint32_t* src, uint32_t width, uint32_t height, uint32_t color) {
-  for(uint32_t i=0;i<width*height;i++) {
+PEN_DEF void fill(u32* src, u32 width, u32 height, u32 color) {
+  for(u32 i=0;i<width*height;i++) {
     src[i] = color;
   }
 }
 
-void copy(uint32_t* src, uint32_t width, uint32_t height,
-	  uint32_t* src2, uint32_t width2, uint32_t height2,
+PEN_DEF void copy(u32* src, u32 width, u32 height,
+	  u32* src2, u32 width2, u32 height2,
 	  int x0, int y0, int w, int h) {
   for(int dy = 0; dy<h; ++dy) {
     for(int dx = 0; dx<w; ++dx) {
@@ -55,7 +62,7 @@ void copy(uint32_t* src, uint32_t width, uint32_t height,
   }
 }
 
-void copy2(uint32_t* src, uint32_t width, uint32_t height, uint32_t* src2, uint32_t width2, uint32_t height2, uint32_t stride_in_bytes, int x0, int y0, int w, int h) {
+PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, u32 stride_in_bytes, int x0, int y0, int w, int h) {
   (void) width2;
   for(int dy = 0; dy<h; ++dy) {
     for(int dx = 0; dx<w; ++dx) {
@@ -72,15 +79,15 @@ void copy2(uint32_t* src, uint32_t width, uint32_t height, uint32_t* src2, uint3
   }
 }
 
-void swap(int *a, int *b) {
+PEN_DEF void swap(int *a, int *b) {
   int t = *a;
   *a = *b;
   *b = t;
 }
 
-void project(uint32_t* src, int width, int height,
+PEN_DEF void project(u32* src, int width, int height,
 	     int x0, int y0, int w, int h,
-	     int f(int), int px0, int px1, int py0, int py1, uint32_t color) {
+	     int f(int), int px0, int px1, int py0, int py1, u32 color) {
   int dpx = px1 - px0;
   int dpy = py1 - py0;
   
@@ -104,7 +111,7 @@ void project(uint32_t* src, int width, int height,
   }
 }
 
-void line(uint32_t *src, uint32_t width, uint32_t height, int x1, int y1, int x2, int y2, uint32_t color) {
+PEN_DEF void line(u32 *src, u32 width, u32 height, int x1, int y1, int x2, int y2, u32 color) {
   int dx = x2 - x1;
   int dy = y2 - y1;
 
@@ -159,7 +166,7 @@ void line(uint32_t *src, uint32_t width, uint32_t height, int x1, int y1, int x2
   }
 }
 
-void rect(uint32_t* src, uint32_t width, uint32_t height,
+PEN_DEF void rect(u32* src, u32 width, u32 height,
 	  int x0, int y0, int w, int h, int color) {
   for(int dy = 0; dy < h; ++dy) {
     for(int dx = 0; dx < w; ++dx) {
@@ -173,7 +180,7 @@ void rect(uint32_t* src, uint32_t width, uint32_t height,
   } 
 }
 
-void circle(uint32_t* src, uint32_t width, uint32_t height,
+PEN_DEF void circle(u32* src, u32 width, u32 height,
 	    int cx, int cy, int _r, int color) {
   int r = (int) _r;
   for(int dx = -r; dx < r; ++dx) {
@@ -188,7 +195,7 @@ void circle(uint32_t* src, uint32_t width, uint32_t height,
   }
 }
 
-void sort_by_y(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3) {
+PEN_DEF void sort_by_y(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3) {
   if(*y1 > *y2) {
     swap(y1, y2);
     swap(x1, x2);
@@ -217,11 +224,11 @@ typedef struct{
 #define line_y(l, x) l.y1 + (x - l.x1)*l.dy/l.dx
 #define line_x(l, y) (y*l.dx - l.y1*l.dx + l.dy*l.x1)/l.dy
 
-Line make_line(int x1, int y1, int x2, int y2) {
+PEN_DEF Line make_line(int x1, int y1, int x2, int y2) {
   return (Line) {(x2-x1), (y2-y1), x2, y2};
 }
 
-void triangle(uint32_t* src, uint32_t width, uint32_t height,
+PEN_DEF void triangle(u32* src, u32 width, u32 height,
 	      int x1, int y1, int x2, int y2, int x3, int y3, int color) {
   sort_by_y(&x1, &y1, &x2, &y2, &x3, &y3);
   
