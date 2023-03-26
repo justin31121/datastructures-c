@@ -30,6 +30,7 @@
 
 # Executables
 *.exe
+*.obj
 *.out
 *.app
 *.i*86

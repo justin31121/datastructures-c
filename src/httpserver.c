@@ -31,7 +31,8 @@ int main(int argc, char **argv) {
   }
   
   HttpServer server;
-  if(!http_server_init(&server, port, "./cert.pem", "./key.pem")) {
+  if(!http_server_init(&server, port, NULL, NULL)) {
+  //if(!http_server_init(&server, port, "./cert.pem", "./key.pem")) {
     panic("http_server_init");
   }
 

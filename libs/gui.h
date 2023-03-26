@@ -176,23 +176,31 @@ void glGetUniformiv(GLuint program, GLint location, GLsizei bufSize, GLint *para
 
 typedef struct{
 #ifdef _WIN32
-  HWND win;
-  HDC dc;
-  RECT rect;
-#endif //_WIN32
-  bool running;
-}Gui;
-
-typedef struct{
-#ifdef _WIN32
   MSG msg;
 #endif //_WIN32
 }Gui_Event;
 
+typedef struct{
+  unsigned int width, height;
+  void *data;
+}Gui_Canvas;
+
+typedef struct{
+#ifdef _WIN32  
+  HWND win;
+  HDC dc;
+  RECT rect;
+  BITMAPINFO info;
+#endif //_WIN32
+  bool running;
+  Gui_Canvas *canvas;
+}Gui;
+
 #ifdef _WIN32
-GUI_DEF bool gui_init(Gui *gui, HINSTANCE hInstance, int nCmdShow, const char *name);
+GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCmdShow, const char *name);
 GUI_DEF void win32_opengl_init();
 #endif //_WIN32
+GUI_DEF void gui_render_canvas(Gui *gui);
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height);
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event);
 GUI_DEF bool gui_free(Gui *gui);
@@ -203,24 +211,49 @@ GUI_DEF void gui_swap_buffers(Gui *gui);
 #ifdef GUI_IMPLEMENTATION
 
 LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-  if(message == WM_DESTROY) {
+  if(message == WM_CLOSE) {
+    Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
+    if(gui != NULL) {
+      gui->running = false;
+    }
+    PostQuitMessage(0);
+    return 0;
+  } else if(message == WM_DESTROY) {
     Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
     if(gui != NULL) {
       gui->running = false;
     }
     return 0;
+  } else if(message == WM_PAINT){
+    Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
+    if(gui != NULL && gui->canvas != NULL) {
+      gui_render_canvas(gui);
+      PAINTSTRUCT ps;
+      HDC context = BeginPaint(gui->win, &ps);
+      StretchDIBits(context,
+		    0, 0, gui->canvas->width, gui->canvas->height,
+		    0, 0, gui->canvas->width, gui->canvas->height,
+
+		    gui->canvas->data,
+		    &gui->info,
+		    DIB_RGB_COLORS, SRCCOPY);
+      EndPaint(gui->win, &ps);
+      return 0;
+    }
+    return DefWindowProc(hWnd, message, wParam, lParam);
   } else {
     return DefWindowProc(hWnd, message, wParam, lParam);
   }
 }
 
 #ifdef _WIN32
-GUI_DEF bool gui_init(Gui *gui, HINSTANCE hInstance, int nCmdShow, const char *name) {
+GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCmdShow, const char *name) {  
   
   WNDCLASS wc = {0};
   wc.lpfnWndProc = Gui_Implementation_WndProc;
   wc.hInstance = hInstance;
   wc.lpszClassName = name;
+  //wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
   wc.cbWndExtra = sizeof(LONG_PTR);
 
   if(!RegisterClass(&wc)) {
@@ -231,7 +264,9 @@ GUI_DEF bool gui_init(Gui *gui, HINSTANCE hInstance, int nCmdShow, const char *n
 				 wc.lpszClassName,
 				 wc.lpszClassName,
 				 WS_OVERLAPPEDWINDOW,
-				 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+				 CW_USEDEFAULT, CW_USEDEFAULT,
+				 canvas != NULL ? canvas->width : CW_USEDEFAULT,
+				 canvas != NULL ? canvas->height : CW_USEDEFAULT,
 				 NULL,
 				 NULL,
 				 hInstance,
@@ -245,9 +280,25 @@ GUI_DEF bool gui_init(Gui *gui, HINSTANCE hInstance, int nCmdShow, const char *n
   memcpy(&lptr, &gui, sizeof(gui));  
   SetWindowLongPtr(gui->win, 0, lptr);
 
+  if(canvas != NULL)  {
+    gui->info = (BITMAPINFO) {0};
+    gui->info.bmiHeader.biSize = sizeof(gui->info.bmiHeader);
+    gui->info.bmiHeader.biWidth = canvas->width;
+    gui->info.bmiHeader.biHeight = canvas->height;
+    gui->info.bmiHeader.biBitCount = 32;
+    gui->info.bmiHeader.biPlanes = 1;
+    gui->info.bmiHeader.biCompression = BI_RGB;
+  } else {
+    if(!gui_init_opengl(gui)) {
+      return false;
+    }
+  }
+  gui->canvas = canvas;
+  gui->running = true;
+
   ShowWindow(gui->win, nCmdShow);
   UpdateWindow(gui->win);
-
+  
   return true;
 }
 
@@ -286,6 +337,15 @@ GUI_DEF void win32_opengl_init() {
   _glGetUniformiv= wglGetProcAddress("glGetUniformiv");
 }
 
+GUI_DEF void gui_render_canvas(Gui *gui) {
+  StretchDIBits(gui->dc,
+		0, 0, gui->canvas->width, gui->canvas->height,
+		0, 0, gui->canvas->width, gui->canvas->height,
+		gui->canvas->data,
+		&gui->info,
+		DIB_RGB_COLORS, SRCCOPY);
+}
+
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
   bool result = GetClientRect(gui->win, &gui->rect);
   if(result) {
@@ -298,7 +358,7 @@ GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   MSG *msg = &event->msg;
   bool result = PeekMessage(msg, gui->win, 0, 0, PM_REMOVE);
-  if(result) {
+  if(result > 0) {
     TranslateMessage(msg);
     DispatchMessage(msg);
   }
