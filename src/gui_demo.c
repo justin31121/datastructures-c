@@ -1,7 +1,7 @@
 #define GUI_IMPLEMENTATION
 #include "../libs/gui.h"
 
-#define OPENGL
+//#define OPENGL
 
 #ifdef OPENGL
 
