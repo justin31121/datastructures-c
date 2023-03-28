@@ -51,17 +51,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 #else
 
-#define WIDTH 800
-#define HEIGHT 600
-
-#define PEN_IMPLEMENTATION
-#include "../libs/pen.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "../thirdparty/stb_image.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../thirdparty/stb_truetype.h"
 
+////////////////////////////////////
+
+#define PEN_IMPLEMENTATION
+#include "../libs/pen.h"
+
 #define FONT_IMPLEMENTATION
 #include "../libs/font.h"
+
+#include "../libs/util.h"
+
+#define WIDTH 1280
+#define HEIGHT 720
 
 static unsigned int pixels[WIDTH * HEIGHT];
 
@@ -70,21 +77,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
   (void) lpCmdLine;
 
   Font font;
-  if(!font_init(&font, "C:\\Windows\\Fonts\\arial.ttf", 128)) {
+  if(!font_init(&font, "C:\\Windows\\Fonts\\arial.ttf", 24)) {
     return -1;
   }
+
+  s32 img_w, img_h;
+  u32 *img = (u32 *) stbi_load("./test.jpg", &img_w, &img_h, NULL, 4);
   
   fill(pixels, WIDTH, HEIGHT, 0xff181818);
-
-  char c = 'A';
-  for(u32 j=0;j<font.height;j++) {
-    for(u32 i=0;i<font.height;i++) {
-      char d = font.data[(j * font.width) + ((c - 32) * font.height) + i];
-      pixels[(font.height - j - 1)*WIDTH+i] =
-	rgba_mix(((d << 24) | (d << 16) | (d << 8) | d), pixels[(font.height - j - 1)*WIDTH+i]);
-    }
+  copy2(pixels, WIDTH, HEIGHT, img, img_w, img_h, WIDTH - img_w / 2, HEIGHT - img_h / 2, img_w / 2, img_h / 2);
+  char *word = "The quick brown fox jumps over the lazy dog!?.";
+  u8 n = 20;
+  for(u8 i=1;i<n+1;i++) {
+      font_render(&font, word, strlen(word),
+		  pixels, WIDTH, HEIGHT,
+		  0, HEIGHT - i*font.height, ((0xff * (i-1) / n) << 24) | 0x00ffffff);
   }
-  rect(pixels, WIDTH, HEIGHT, 0, 0, 200, 100, 0xaa33ddff);  
 
   Gui gui;
   Gui_Canvas canvas = {WIDTH, HEIGHT, pixels};
@@ -102,6 +110,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
   }
 
   gui_free(&gui);
+  stbi_image_free(img);
   font_free(&font);
 
   return 0;

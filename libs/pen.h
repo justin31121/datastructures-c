@@ -13,7 +13,7 @@ PEN_DEF void circle(u32* src, u32 width, u32 height, int cx, int cy, int _r, int
 PEN_DEF void rect(u32* src, u32 width, u32 height, int x0, int y0, int w, int h, int color);
 PEN_DEF void line(u32 *src, u32 width, u32 height, int x1, int y1, int x2, int y2, u32 color);
 PEN_DEF void copy(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, int x0, int y0, int w, int h);
-PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, u32 stride_in_bytes, int x0, int y0, int w, int h);
+PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, int x0, int y0, int w, int h);
 PEN_DEF void fill(u32* src, u32 width, u32 height, u32 color);
 PEN_DEF void triangle(u32* src, u32 width, u32 height, int x1, int y1, int x2, int y2, int x3, int y3, int color);
 PEN_DEF void project(u32* src, int width, int height, int x0, int y0, int w, int h, int f(int), int px0, int px1, int py0, int py1, u32 color);
@@ -62,20 +62,22 @@ PEN_DEF void copy(u32* src, u32 width, u32 height,
   }
 }
 
-PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, u32 stride_in_bytes, int x0, int y0, int w, int h) {
-  (void) width2;
+PEN_DEF void copy2(u32* src, u32 width, u32 height,
+	  u32* src2, u32 width2, u32 height2,
+	  int x0, int y0, int w, int h) {
   for(int dy = 0; dy<h; ++dy) {
     for(int dx = 0; dx<w; ++dx) {
       int x = x0 + dx;
       int y = y0 + dy;
-      int nx = dx*stride_in_bytes/w;
+      int nx = dx*width2/w;
       int ny = dy*height2/h;
 
-      if(0<=x && x<(int) width && 0<=y && y<(int) height) {
-	src[y*width+x] = src2[ny*(stride_in_bytes)+nx];
-      }      
-    }
 
+      if(x<0 || x>=(int) width || y<0 || y>=(int) height) {
+	continue;
+      }      
+      src[(height - y - 1)*width+x] = rgba_mix(src2[ny*width2+nx], src[(height - y - 1)*width+x]);
+    }
   }
 }
 

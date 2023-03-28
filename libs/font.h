@@ -3,6 +3,13 @@
 
 #include <stdio.h>
 
+#ifdef FONT_IMPLEMENTATION
+#define PEN_IMPLEMENTATION
+#endif //FONT_IMPLEMENTATION
+
+#include "./pen.h"
+#include "./util.h"
+
 #ifndef FONT_DEF
 #define FONT_DEF static inline
 #endif //FONT_DEF
@@ -15,6 +22,10 @@ typedef struct{
 
 FONT_DEF bool font_init(Font *font, const char* font_path, int font_height);
 FONT_DEF unsigned int font_estimate_width(const Font *font, const char *cstr);
+FONT_DEF void font_render(Font *font, const char* data, u32 data_len,
+			  u32 *pixels, u32 width, u32 height,
+			  u32 x, u32 y,
+			  u32 color);
 FONT_DEF void font_free(Font *font);
 
 #ifdef FONT_IMPLEMENTATION
@@ -115,20 +126,19 @@ FONT_DEF bool font_init(Font *font, const char* font_path, int font_height) {
     
     int w, h, x ,y;
     u8 *bitmap =
-      stbtt_GetCodepointSDF(&font_info, scale, c, 0, 64, 128.0, &w, &h, &x, &y);
-      //stbtt_GetCodepointBitmap(&font_info, 0, scale, c, &w, &h, &x, &y);
+	stbtt_GetCodepointSDF(&font_info, scale, c, 0, 128, 256.0, &w, &h, &x, &y);
+	//stbtt_GetCodepointBitmap(&font_info, 0, scale, c, &w, &h, &x, &y);
 
     font->xs[c - 32] = x;
     font->ys[c - 32] = y;
     font->ws[c - 32] = w;
-    //font->hs[c-32] = h;    
     
     for (int j=0; j< _font_height; ++j) {
       for (int i=0; i < _font_height; ++i) {
 	if(bitmap && i<w && j<h) {
-	  font->data[j*ascii_width+glyph_off+i] = bitmap[j*w+i];
+	    font->data[j*ascii_width+glyph_off+i] = bitmap[j*w+i];
 	} else {
-	  font->data[j*ascii_width+glyph_off+i] = 0x00;
+	    font->data[j*ascii_width+glyph_off+i] = 0x00;
 	}
       }
     }
@@ -153,6 +163,48 @@ FONT_DEF unsigned int font_estimate_width(const Font *font, const char *cstr) {
     else x0 += font->xs[c - 32] + font->ws[c - 32];
   }
   return x0;
+}
+
+FONT_DEF void font_render(Font *font, const char* data, u32 data_len,
+			  u32 *pixels, u32 width0, u32 height0,
+			  u32 x0, u32 y0,
+			  u32 color) {
+    s32 width = (s32) width0;
+    s32 height = (s32) height0;
+
+    s32 x_off = (s32) x0;
+    s32 y_off = (s32) y0;
+
+    u32 alpha = 0xff000000 & color;
+    color = 0x00ffffff & color;
+
+    for(u32 k=0;k<data_len;k++) {
+	char c = data[k];
+	if(c == ' ') {
+	    x_off += font->height / 2;
+	    continue;
+	}
+
+	for(u32 j=0;j<font->height;j++) {
+	    for(s32 i=0;i<font->ws[c - 32];i++) {
+		s32 y = y_off + j + font->ys[c - 32];
+		s32 x = x_off + i + font->xs[c - 32];
+
+		y = 2*y_off - y;
+	  
+		if(x<0 || x>=width || y<0 || y>=height) {
+		    continue;
+		}
+		char d = font->data[(j * font->width) + ((c - 32) * font->height) + i];
+		u32 old_color = pixels[y*width+x];
+		u32 new_color = rgba_mix( ((d << 24) | color), old_color) & 0x00ffffff;
+		pixels[y*width+x] = rgba_mix( (alpha | new_color), old_color);
+	    }
+	}
+
+	x_off += font->ws[c - 32] + font->xs[c - 32];
+
+    }
 }
 
 FONT_DEF void font_free(Font *font) {

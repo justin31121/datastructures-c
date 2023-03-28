@@ -82,10 +82,10 @@ ARRAY_DEF void *arr_get(const Arr *arr, size_t p) {
   ARRAY_CHECK_NOTNULL(arr);
   if(p>=arr->size) {
 #ifdef _WIN32
-    fprintf(stderr, "ERROR: Index out of Bounce Exception. Requested index: '%ld' but len(array) is '%ld'\n", p, arr->size);
+      fprintf(stderr, "ERROR: Index out of Bounce Exception. Requested index: '%d' but len(array) is '%d'\n", (int) p, (int) arr->size);
 #endif //_WIN32
 #ifdef linux
-    fprintf(stderr, "ERROR: Index out of Bounce Exception. Requested index: '%ld' but len(array) is '%ld'\n", p, arr->size);
+      fprintf(stderr, "ERROR: Index out of Bounce Exception. Requested index: '%d' but len(array) is '%d'\n", (int) p, (int) arr->size);
 #endif //linu
     exit(1);
   }

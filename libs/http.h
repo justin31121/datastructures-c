@@ -36,19 +36,17 @@
 #ifdef _WIN32
 #include <winsock2.h>     //link with -lws2_32
 typedef SSIZE_T ssize_t;  //or        crypt32.lib ws2_32.lib advapi32.lib user32.lib
-#include <malloc.h> // _malloca
+#  include <malloc.h> // _malloca
 #endif //_WIN32
 
-#ifdef linux
+#ifdef __GNUC__
+#  include <pthread.h>
+#endif //__GNUC__
 
-#include <netdb.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-
-#endif //linux
+/* #  include <sys/socket.h> */
+/* #  include <unistd.h> */
+/* #  include <fcntl.h> */
+/* #  include <arpa/inet.h> */
 
 #ifndef HTTP_DEF
 #define HTTP_DEF static inline
@@ -57,9 +55,7 @@ typedef SSIZE_T ssize_t;  //or        crypt32.lib ws2_32.lib advapi32.lib user32
 typedef struct{
 #ifdef _WIN32
   SOCKET socket;
-#endif //_WIN32
-
-#ifdef linux
+#else
   int socket;
 #endif //linux
   const char *host;
@@ -100,18 +96,19 @@ typedef struct{
   void *arg;
   HttpRequest request;
 
-#ifdef _WIN32
+#ifdef _MSV_VER
   HANDLE id;
-#endif //_WIN32
-#ifdef linux
-  pthread_t id;  
-#endif //linux
+#else
+  pthread_t id;
+#endif
+  
 }HttpServerThread;
 
 struct HttpServer {
 #ifdef _WIN32
   SOCKET socket;
-#endif //_WIN32  
+#endif //_WIN32
+
 #ifdef linux  
   int socket;
 #endif //linux
@@ -734,20 +731,18 @@ HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_req
   }
 
   server->threads[0].used = true;
-#ifdef _WIN32
+#ifdef _MSC_VER
   HANDLE ret = (HANDLE) _beginthread(http_server_listen_function, 0, server);
   if(ret < 0) {
     return false;
   }
   server->threads[0].id = ret;
-#endif //_WIN32
-
-#ifdef linux
+#elif __GNUC__
   if(pthread_create(&server->threads[0].id, NULL, http_server_listen_function, server) != 0)  {
-    free(server->threads);
-    return false;
-  }
-#endif //linux
+      free(server->threads);
+      return false;
+  }  
+#endif
 
   server->running = true;
 
@@ -769,12 +764,9 @@ HTTP_DEF void http_server_stop(HttpServer *server) {
     }
     http_free(&thread->client);
 
-#ifdef _WIN32
-    
-    
-#endif //_WIN32
-
-#ifdef linux
+#ifdef _MSC_VER
+    WaitForSingleObject(thread->id, INFINITE);
+#elif __GNUC__
     pthread_join(thread->id, NULL);
 #endif //linux
 
@@ -784,11 +776,9 @@ HTTP_DEF void http_server_stop(HttpServer *server) {
 
   //STOP LISTEN THREAD
   server->threads[0].used = false;
-#ifdef _WIN32
+#ifdef __MSC_VER
     WaitForSingleObject(server->threads[0].id, INFINITE);
-#endif //_WIN32
-
-#ifdef linux
+#elif __GNUC__
     pthread_join(server->threads[0].id, NULL);
 #endif //linux
   
@@ -874,15 +864,13 @@ HTTP_DEF bool http_server_create_serve_thread(HttpServer *server, Http client) {
     if(thread->used==true) continue;
     thread->client = client;
 
-#ifdef _WIN32
+#ifdef _MSC_VER
     HANDLE ret = (HANDLE) _beginthread(http_server_serve_function, 0, thread);
     if(ret < 0) {
       return false;
     }
     thread->id = ret;    
-#endif //_WIN32    
-
-#ifdef linux
+#elif __GNUC__
     if(pthread_create(&(thread->id), NULL, http_server_serve_function, thread) != 0) {
       return false;
     }
