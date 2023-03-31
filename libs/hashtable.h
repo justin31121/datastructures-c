@@ -35,7 +35,11 @@ typedef struct {
 
 HASHTABLE_DEF Ht *ht_init();
 HASHTABLE_DEF void ht_insert(Ht *ht, const char *key, const void *value, size_t value_size);
+HASHTABLE_DEF void ht_insert2(Ht *ht,
+			      const char *key, size_t key_len,
+			      const void *value, size_t value_size);
 HASHTABLE_DEF void *ht_get(const Ht *ht, const char* key);
+HASHTABLE_DEF void *ht_get2(const Ht *ht, const char* key, size_t key_len);
 HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key);
 HASHTABLE_DEF bool ht_remove(Ht *ht, const char* key);
 HASHTABLE_DEF bool ht_next(const Ht *ht, int *last, Ht_Entry **entry);
@@ -143,11 +147,11 @@ HASHTABLE_DEF void ht_item_free(Ht_Item *item) {
   free(item->entries);
 }
 
-HASHTABLE_DEF unsigned long hash_function(const char* str, int *size) {
+HASHTABLE_DEF unsigned long hash_function(const char* str, size_t *size) {
   unsigned long hash = 0;
   int c = *str;
 
-  int f = 0;
+  size_t f = 0;
   while(c) {
     hash = ((hash << 5) + hash) + (unsigned long) c;
     c=*str++;
@@ -155,6 +159,18 @@ HASHTABLE_DEF unsigned long hash_function(const char* str, int *size) {
   }
 
   if(size) *size = f - 1;
+
+  return hash % HT_CAP;
+}
+
+HASHTABLE_DEF unsigned long hash_function2(const char* str, size_t str_size) {
+  unsigned long hash = 0;
+  int c = *str;
+
+  while(str_size--) {
+    hash = ((hash << 5) + hash) + (unsigned long) c;
+    c=*str++;
+  }
 
   return hash % HT_CAP;
 }
@@ -185,9 +201,14 @@ HASHTABLE_DEF Ht* ht_init() {
 HASHTABLE_DEF void ht_insert(Ht *ht,
 	       const char *key,
 	       const void *value, size_t value_size) {
+  ht_insert2(ht, key, strlen(key), value, value_size);
+}
+
+HASHTABLE_DEF void ht_insert2(Ht *ht,
+			      const char *key, size_t key_len,
+			      const void *value, size_t value_size) {
   HT_CHECK_NOTNULL(ht);
-  int key_size;
-  int index = (int) hash_function(key, &key_size);
+  int index = (int) hash_function2(key, key_len);
 
   Ht_Item *item = &ht->items[index];
   
@@ -200,17 +221,12 @@ HASHTABLE_DEF void ht_insert(Ht *ht,
     ht_item_increment(item);
   }
 
-/*
-  if(item->count!=0) {
-    printf("collision\n");
-  }
-  */
-
   for(size_t i=0;i<item->count;i++) {
-    if(strcmp(item->entries[i].key, key)==0) {
+    if(item->entries[i].key_size == key_len &&
+       memcmp(item->entries[i].key, key, key_len)==0) {
       ht_entry_free(&item->entries[i]);
       ht_entry_create(&item->entries[i],
-		      key, (size_t) key_size,
+		      key, (size_t) key_len,
 		      value, value_size);
       return;
     }
@@ -218,20 +234,22 @@ HASHTABLE_DEF void ht_insert(Ht *ht,
 
   //ADD ITEM
   ht_entry_create(&item->entries[item->count++],
-		  key, (size_t) key_size,
+		  key, (size_t) key_len,
 		  value, value_size);
-  ht->count++;
+  ht->count++;  
 }
 
 HASHTABLE_DEF bool ht_remove(Ht *ht, const char* key) {
   HT_CHECK_NOTNULL(ht);
-  int index = (int) hash_function(key, NULL);
+  size_t key_size;
+  int index = (int) hash_function(key, &key_size);
   Ht_Item *item = &ht->items[index];
 
   if(item->size==0) return false;
 
   for(size_t i=0;i<item->count;i++) {
-    if(strcmp(item->entries[i].key, key)==0) {
+    if(item->entries[i].key_size == key_size && 
+       memcmp(item->entries[i].key, key, key_size)==0) {
       ht_entry_free(&item->entries[i]);
       item->count--;
       ht->count--;
@@ -245,13 +263,15 @@ HASHTABLE_DEF bool ht_remove(Ht *ht, const char* key) {
 HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key) {
   HT_CHECK_NOTNULL(ht);
 
-  int index = (int) hash_function(key, NULL);
+  size_t key_size;
+  int index = (int) hash_function(key, &key_size);
   Ht_Item *item = &ht->items[index];
 
   if(item->size==0) return false;
 
   for(size_t i=0;i<item->count;i++) {
-    if(strcmp(item->entries[i].key, key)==0) {
+    if(item->entries[i].key_size == key_size && 
+       memcmp(item->entries[i].key, key, key_size)==0) {
       return true;
     }
   }
@@ -260,15 +280,20 @@ HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key) {
 }
 
 HASHTABLE_DEF void *ht_get(const Ht *ht, const char* key) {
+  return ht_get2(ht, key, strlen(key));
+}
+
+HASHTABLE_DEF void *ht_get2(const Ht *ht, const char* key, size_t key_len) {
   HT_CHECK_NOTNULL(ht);
-  int index = (int) hash_function(key, NULL);
+  int index = (int) hash_function2(key, key_len);
 
   Ht_Item *item = &ht->items[index];
 
   if(item->size==0) return NULL;
   
   for(size_t i=0;i<item->count;i++) {
-    if(strcmp(item->entries[i].key, key)==0) {
+    if(item->entries[i].key_size == key_len &&
+       memcmp(item->entries[i].key, key, key_len)==0) {
       return item->entries[i].value;
     }
   }

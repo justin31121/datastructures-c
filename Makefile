@@ -5,13 +5,13 @@ GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 ifeq ($(OS),Windows_NT)
 	PREFIX = CL
 	CLEAN_UP = && del *.obj
-	CL_MISSING = where cl 2> NUL
+	CL_EXISTS = where cl 2> NUL
 else	
 	PREFIX = GCC
 endif
 
-ifdef CL_MISSING
-	PREFIX = GCC
+ifndef CL_EXISTS
+	PREFIX = CL
 	undefine CLEAN_UP
 endif
 
@@ -33,6 +33,14 @@ GCC-google:
 
 #==========================================================================
 
+httpserver: ./libs/http.h ./src/httpserver.c
+	make $(PREFIX)-httpserver $(CLEAN_UP)
+
+CL-httpserver:
+	cl ./src/httpserver.c /Fe:httpserver.exe
+
+#==========================================================================
+
 gui: ./src/gui_demo.c ./libs/gui.h ./libs/font.h
 	make $(PREFIX)-gui $(CLEAN_UP)
 
@@ -40,4 +48,4 @@ GCC-gui:
 	gcc ./src/gui_demo.c $(GCC-FLAGS) -o gui -lopengl32 -lgdi32
 
 CL-gui:
-	cl ./src/gui_demo.c /Fe:gui.exe opengl32.lib gdi32.lib user32.lib
+	cl ./src/gui_demo.c /Fe:gui.exe

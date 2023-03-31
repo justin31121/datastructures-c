@@ -174,16 +174,35 @@ void glGetUniformiv(GLuint program, GLint location, GLsizei bufSize, GLint *para
 #define GUI_DEF static inline
 #endif //GUI_DEF
 
+typedef enum{
+  GUI_EVENT_NONE = 0,
+  GUI_EVENT_KEYRELEASE,
+  GUI_EVENT_KEYPRESS,
+  GUI_EVENT_MOUSEMOTION,
+  GUI_EVENT_COUNT,
+}Gui_Event_Type;
+
 typedef struct{
 #ifdef _WIN32
   MSG msg;
+  POINT cursor;
 #endif //_WIN32
+  Gui_Event_Type type;  
+  char key;
+  int mousex;
+  int mousey;
 }Gui_Event;
 
 typedef struct{
   unsigned int width, height;
   void *data;
 }Gui_Canvas;
+
+typedef struct{
+#ifdef _WIN32
+  LARGE_INTEGER counter;
+#endif //_WIN32
+}Gui_Time;
 
 typedef struct{
 #ifdef _WIN32  
@@ -201,7 +220,11 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCm
 GUI_DEF void win32_opengl_init();
 #endif //_WIN32
 GUI_DEF void gui_render_canvas(Gui *gui);
+GUI_DEF void gui_toggle_fullscreen(Gui *gui);
+GUI_DEF bool gui_get_window_size(Gui *gui, int *width, int *height);
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height);
+GUI_DEF void gui_time_capture(Gui_Time *time);
+GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event);
 GUI_DEF bool gui_free(Gui *gui);
 
@@ -209,6 +232,14 @@ GUI_DEF bool gui_init_opengl(Gui *gui); //-lgdi32 -lopengl32
 GUI_DEF void gui_swap_buffers(Gui *gui);
 
 #ifdef GUI_IMPLEMENTATION
+
+#ifdef _WIN32
+#  pragma comment(lib,"gdi32.lib")
+#  pragma comment(lib,"user32.lib")
+#  ifdef GUI_OPENGL
+#    pragma comment(lib,"opengl32.lib")
+#  endif //GUI_OPENGL
+#endif //_WIN32
 
 LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   if(message == WM_CLOSE) {
@@ -227,13 +258,11 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
   } else if(message == WM_PAINT){
     Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
     if(gui != NULL && gui->canvas != NULL) {
-      gui_render_canvas(gui);
       PAINTSTRUCT ps;
       HDC context = BeginPaint(gui->win, &ps);
       StretchDIBits(context,
 		    0, 0, gui->canvas->width, gui->canvas->height,
 		    0, 0, gui->canvas->width, gui->canvas->height,
-
 		    gui->canvas->data,
 		    &gui->info,
 		    DIB_RGB_COLORS, SRCCOPY);
@@ -247,7 +276,12 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 }
 
 #ifdef _WIN32
-GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCmdShow, const char *name) {  
+static LARGE_INTEGER guiWin32PerfCountFrequency;
+
+GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCmdShow, const char *name) {
+  if(!guiWin32PerfCountFrequency.QuadPart) {
+    QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
+  }
   
   WNDCLASS wc = {0};
   wc.lpfnWndProc = Gui_Implementation_WndProc;
@@ -258,7 +292,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCm
 
   if(!RegisterClass(&wc)) {
     return false;
-  }
+  }  
 
   if(!(gui->win = CreateWindowEx(0,
 				 wc.lpszClassName,
@@ -346,6 +380,39 @@ GUI_DEF void gui_render_canvas(Gui *gui) {
 		DIB_RGB_COLORS, SRCCOPY);
 }
 
+GUI_DEF void gui_toggle_fullscreen(Gui *gui) {
+  static WINDOWPLACEMENT windowPlacement = {sizeof(windowPlacement)};
+  DWORD style = GetWindowLong(gui->win, GWL_STYLE);
+
+  if(style & WS_OVERLAPPEDWINDOW) {
+    MONITORINFO monitorInfo = {sizeof(monitorInfo)};
+    if(GetWindowPlacement(gui->win, &windowPlacement) &&
+       GetMonitorInfo(MonitorFromWindow(gui->win, MONITOR_DEFAULTTOPRIMARY), &monitorInfo)) {
+      SetWindowLong(gui->win, GWL_STYLE, style & ~WS_OVERLAPPED);
+      SetWindowPos(gui->win, HWND_TOP,
+		   monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top,
+		   monitorInfo.rcMonitor.right -  monitorInfo.rcMonitor.left,
+		   monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+		   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+  } else {
+    SetWindowLong(gui->win, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+    SetWindowPlacement(gui->win, &windowPlacement);
+    SetWindowPos(gui->win, 0, 0, 0, 0, 0,
+		 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+		 SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  }
+}
+
+GUI_DEF bool gui_get_window_size(Gui *gui, int *width, int *height) {
+  bool result = GetClientRect(gui->win, &gui->rect);
+  if(result) {
+    *width = (gui->rect.right - gui->rect.left);
+    *height = (gui->rect.bottom - gui->rect.top);
+  }
+  return result;  
+}
+
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
   bool result = GetClientRect(gui->win, &gui->rect);
   if(result) {
@@ -357,15 +424,78 @@ GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
 
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   MSG *msg = &event->msg;
-  bool result = PeekMessage(msg, gui->win, 0, 0, PM_REMOVE);
-  if(result > 0) {
-    TranslateMessage(msg);
-    DispatchMessage(msg);
+  event->type = 0;
+  
+  unsigned int old_mousex = event->mousex;
+  unsigned int old_mousey = event->mousey;
+  if(GetCursorPos(&event->cursor) && ScreenToClient(gui->win, &event->cursor)) {
+    event->mousex = event->cursor.x;
+    event->mousey = event->cursor.y;
+    if(gui->canvas) {
+      event->mousey = gui->canvas->height - event->mousey;
+      if(event->mousey < 0) event->mousey = 0;
+      if(event->mousey >= (int) gui->canvas->height) event->mousey = (int) gui->canvas->height-1;
+      if(event->mousex < 0) event->mousex = 0;
+      if(event->mousex >= (int) gui->canvas->width) event->mousex = (int) gui->canvas->width-1;
+    }
+    
+    if(old_mousex != event->mousex ||
+       old_mousey != event->mousey) {
+      event->type = GUI_EVENT_MOUSEMOTION;
+    }
   }
+
+  if(event->type) {
+    return true;
+  }
+  
+  bool result = PeekMessage(msg, gui->win, 0, 0, PM_REMOVE);
+  if(!result) {
+    return result;
+  }
+
+  TranslateMessage(msg);
+  DispatchMessage(msg);
+
+  switch(msg->message) {
+  case WM_SYSKEYDOWN:
+  case WM_SYSKEYUP:
+  case WM_KEYDOWN:
+  case WM_KEYUP: {
+    bool wasDown = ((msg->lParam & (1 << 30)) != 0);
+    bool isDown = ((msg->lParam & (1 << 31)) == 0);
+
+    if(wasDown != isDown) {
+      event->key = msg->wParam;
+      if(wasDown) {
+	event->type = GUI_EVENT_KEYRELEASE;
+      } else {
+	event->type = GUI_EVENT_KEYPRESS;
+      }
+    }
+  } break;
+  default: {     
+  } break;
+  }
+  
   return result;
 }
 
+GUI_DEF void gui_time_capture(Gui_Time *time) {
+  QueryPerformanceCounter(&time->counter);
+}
+
+GUI_DEF unsigned long gui_time_measure(Gui_Time *reference) {
+  LARGE_INTEGER endCounter;
+  QueryPerformanceCounter(&endCounter);
+
+  long elapsed = endCounter.QuadPart - reference->counter.QuadPart;
+  reference->counter = endCounter;
+  return (unsigned long) ((1000 * elapsed) / guiWin32PerfCountFrequency.QuadPart);
+}
+
 GUI_DEF bool gui_init_opengl(Gui *gui) {
+#ifdef GUI_OPENGL
   HDC windowDC = GetDC(gui->win);
 
   PIXELFORMATDESCRIPTOR desiredFormat = {0};
@@ -387,7 +517,7 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
   ReleaseDC(gui->win, windowDC);
   
   win32_opengl_init();
-  
+#endif //GUI_OPENGL
   return true;
 }
 

@@ -17,8 +17,10 @@ typedef struct{
 }Arr;
 
 ARRAY_DEF Arr *arr_init(size_t msize);
-ARRAY_DEF void arr_push(Arr *arr, void *ptr);
+ARRAY_DEF Arr *arr_init2(size_t n, size_t msize);
+ARRAY_DEF void *arr_push(Arr *arr, void *ptr);
 ARRAY_DEF void *arr_get(const Arr *arr, size_t p);
+ARRAY_DEF int arr_contains(const Arr *arr, void *src);
 ARRAY_DEF void arr_free(Arr *arr);
 
 #ifdef ARRAY_IMPLEMENTATION
@@ -38,6 +40,10 @@ ARRAY_DEF void arr_free(Arr *arr);
 #endif 
 
 ARRAY_DEF Arr *arr_init(size_t msize) {
+  return arr_init2(8, msize);
+}
+
+ARRAY_DEF Arr *arr_init2(size_t n, size_t msize) {
   Arr *arr = (Arr *) malloc(sizeof(Arr));
   if(!arr) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: arr_init\n");
@@ -45,7 +51,7 @@ ARRAY_DEF Arr *arr_init(size_t msize) {
   }
   
   arr->msize = msize;
-  arr->size = 8;
+  arr->size = n;
   arr->count = 0;
 
   arr->data = malloc(arr->msize * arr->size);
@@ -55,7 +61,7 @@ ARRAY_DEF Arr *arr_init(size_t msize) {
     exit(1);
   }
 
-  return arr;
+  return arr;  
 }
 
 ARRAY_DEF void arr_realloc(Arr *arr) {
@@ -68,14 +74,16 @@ ARRAY_DEF void arr_realloc(Arr *arr) {
   }
 }
 
-ARRAY_DEF void arr_push(Arr *arr, void *ptr) {
+ARRAY_DEF void *arr_push(Arr *arr, void *ptr) {
   ARRAY_CHECK_NOTNULL(arr);
   if(arr->count>=arr->size) {
     arr_realloc(arr);
   }
-
-  memcpy((char *) arr->data + arr->msize*arr->count, ptr, arr->msize);
+  
+  void *dest = (char *) arr->data + arr->msize*arr->count;
+  memcpy(dest, ptr, arr->msize);
   arr->count++;
+  return dest;
 }
 
 ARRAY_DEF void *arr_get(const Arr *arr, size_t p) {
@@ -91,6 +99,19 @@ ARRAY_DEF void *arr_get(const Arr *arr, size_t p) {
   }
 
   return (char *) arr->data + arr->msize*p;
+}
+
+ARRAY_DEF int arr_contains(const Arr *arr, void *src) {
+  ARRAY_CHECK_NOTNULL(arr);
+  void *data = arr->data;
+
+  for(size_t i=0;i<arr->count;i++) {
+    if(memcmp(data, src, arr->msize) == 0) {
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 ARRAY_DEF void *arr_pop(Arr *arr) {

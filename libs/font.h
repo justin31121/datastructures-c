@@ -126,7 +126,7 @@ FONT_DEF bool font_init(Font *font, const char* font_path, int font_height) {
     
     int w, h, x ,y;
     u8 *bitmap =
-	stbtt_GetCodepointSDF(&font_info, scale, c, 0, 128, 256.0, &w, &h, &x, &y);
+	stbtt_GetCodepointSDF(&font_info, scale, c, 0, 64, 128.0, &w, &h, &x, &y);
 	//stbtt_GetCodepointBitmap(&font_info, 0, scale, c, &w, &h, &x, &y);
 
     font->xs[c - 32] = x;

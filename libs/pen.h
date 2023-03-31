@@ -4,6 +4,7 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
+typedef int s32;
 
 #ifndef PEN_DEF
 #define PEN_DEF static inline
@@ -19,7 +20,18 @@ PEN_DEF void triangle(u32* src, u32 width, u32 height, int x1, int y1, int x2, i
 PEN_DEF void project(u32* src, int width, int height, int x0, int y0, int w, int h, int f(int), int px0, int px1, int py0, int py1, u32 color);
 PEN_DEF u32 rgba_mix(u32 color, u32 base);
 
+PEN_DEF void abgr_to_argb(u32 *src, u32 width, u32 height);
+
 #ifdef PEN_IMPLEMENTATION
+
+PEN_DEF void abgr_to_argb(u32 *src, u32 width, u32 height) {
+  for(u32 i=0;i<width*height;i++) {
+    src[i] = src[i]
+      & 0xff00ff00
+      | (0xff & src[i]) << 16
+      | (0xff0000 & src[i]) >> 16;
+  }
+}
 
 PEN_DEF u32 rgba_mix(u32 color, u32 base) {
 
@@ -62,21 +74,25 @@ PEN_DEF void copy(u32* src, u32 width, u32 height,
   }
 }
 
-PEN_DEF void copy2(u32* src, u32 width, u32 height,
-	  u32* src2, u32 width2, u32 height2,
-	  int x0, int y0, int w, int h) {
-  for(int dy = 0; dy<h; ++dy) {
-    for(int dx = 0; dx<w; ++dx) {
+
+PEN_DEF void copy2(u32* src, u32 _width, u32 _height,
+		   u32* src2, u32 width2, u32 height2,
+		   int x0, int y0, int w, int h) {
+  s32 width = (s32) _width;
+  s32 height = (s32) _height;
+  
+  for(u32 dy=0;dy<h;dy++) {
+    for(u32 dx=0;dx<w;dx++) {
       int x = x0 + dx;
       int y = y0 + dy;
       int nx = dx*width2/w;
-      int ny = dy*height2/h;
+      int ny = height2 - dy*height2/h - 1;
 
 
-      if(x<0 || x>=(int) width || y<0 || y>=(int) height) {
+      if(x<0 || x>=width || y<0 || y>=height) {
 	continue;
       }      
-      src[(height - y - 1)*width+x] = rgba_mix(src2[ny*width2+nx], src[(height - y - 1)*width+x]);
+      src[y*width+x] = rgba_mix(src2[ny*width2+nx], src[y*width+x]);
     }
   }
 }
@@ -182,16 +198,20 @@ PEN_DEF void rect(u32* src, u32 width, u32 height,
   } 
 }
 
-PEN_DEF void circle(u32* src, u32 width, u32 height,
+PEN_DEF void circle(u32* src, u32 _width, u32 _height,
 	    int cx, int cy, int _r, int color) {
+
+  s32 width = (s32) _width;
+  s32 height = (s32) _height;
+  
   int r = (int) _r;
   for(int dx = -r; dx < r; ++dx) {
     for(int dy = -r; dy < r; ++dy) {
       int x = cx + dx;
       int y = cy + dy;
       if(dx*dx+dy*dy>=r*r) continue;
-      if(0<=x && x<(int) width && 0<=y && y<(int) height) {
-	src[y*width+x] = color;
+      if(0<=x && x<width && 0<=y && y<height) {
+	src[y*width+x] = rgba_mix(color, src[y*width+x]);
       }
     }
   }
