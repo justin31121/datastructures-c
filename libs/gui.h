@@ -166,6 +166,11 @@ void glGetUniformiv(GLuint program, GLint location, GLsizei bufSize, GLint *para
   _glGetUniformiv(program, location, bufSize, params);
 }
 
+PROC _wglSwapIntervalEXT = NULL;
+int wglSwapIntervalEXT(GLint interval) {
+    return _wglSwapIntervalEXT(interval);
+}
+
 #endif //_WIN32
 
 #include <stdbool.h>
@@ -229,6 +234,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event);
 GUI_DEF bool gui_free(Gui *gui);
 
 GUI_DEF bool gui_init_opengl(Gui *gui); //-lgdi32 -lopengl32
+GUI_DEF bool gui_use_vsync(int use);
 GUI_DEF void gui_swap_buffers(Gui *gui);
 
 #ifdef GUI_IMPLEMENTATION
@@ -369,6 +375,7 @@ GUI_DEF void win32_opengl_init() {
   _glUniform1fv= wglGetProcAddress("glUniform1fv");
   _glUniform2fv= wglGetProcAddress("glUniform2fv");
   _glGetUniformiv= wglGetProcAddress("glGetUniformiv");
+  _wglSwapIntervalEXT = wglGetProcAddress("wglSwapIntervalEXT");
 }
 
 GUI_DEF void gui_render_canvas(Gui *gui) {
@@ -523,6 +530,10 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
   (void) gui;
 #endif //GUI_OPENGL
   return true;
+}
+
+GUI_DEF bool gui_use_vsync(int use) {
+    return wglSwapIntervalEXT(use);
 }
 
 GUI_DEF bool gui_free(Gui *gui) {
