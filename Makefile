@@ -2,17 +2,10 @@ MAKEFLAGS += --no-print-directory
 
 GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 
-ifeq ($(OS),Windows_NT)
-	PREFIX = CL
-	CLEAN_UP = && del *.obj
-	CL_EXISTS = where cl 2> NUL
-else	
-	PREFIX = GCC
-endif
+PREFIX = GCC
 
-ifndef CL_EXISTS
-	PREFIX = CL
-	undefine CLEAN_UP
+ifeq ($(PREFIX),CL)
+	CLEAN_UP = && del *.obj
 endif
 
 #==========================================================================

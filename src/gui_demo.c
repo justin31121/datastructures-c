@@ -21,6 +21,9 @@
 #include "../libs/renderer.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    (void) hPrevInstance;
+    (void) lpCmdLine;
+    
   Gui gui;
   if(!gui_init(&gui, NULL, hInstance, nCmdShow, "gui_demo")) {
     return -1;
@@ -58,7 +61,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     u64 msPerFrame = gui_time_measure(&timer);
     char stateBuffer[1024];
-    if(snprintf(stateBuffer, 1024, "%dms", msPerFrame) >= 1024) {
+    if(snprintf(stateBuffer, 1024, "%lums", msPerFrame) >= 1024) {
       panic("buffer overflow");
     }
 	

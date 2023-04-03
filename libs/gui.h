@@ -233,7 +233,7 @@ GUI_DEF void gui_swap_buffers(Gui *gui);
 
 #ifdef GUI_IMPLEMENTATION
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #  pragma comment(lib,"gdi32.lib")
 #  pragma comment(lib,"user32.lib")
 #  ifdef GUI_OPENGL
@@ -381,11 +381,13 @@ GUI_DEF void gui_render_canvas(Gui *gui) {
 }
 
 GUI_DEF void gui_toggle_fullscreen(Gui *gui) {
-  static WINDOWPLACEMENT windowPlacement = {sizeof(windowPlacement)};
-  DWORD style = GetWindowLong(gui->win, GWL_STYLE);
+    static WINDOWPLACEMENT windowPlacement = {0};
+    windowPlacement.length = sizeof(windowPlacement);
+    DWORD style = GetWindowLong(gui->win, GWL_STYLE);
 
   if(style & WS_OVERLAPPEDWINDOW) {
-    MONITORINFO monitorInfo = {sizeof(monitorInfo)};
+      MONITORINFO monitorInfo = {0};
+      monitorInfo.cbSize = sizeof(monitorInfo);
     if(GetWindowPlacement(gui->win, &windowPlacement) &&
        GetMonitorInfo(MonitorFromWindow(gui->win, MONITOR_DEFAULTTOPRIMARY), &monitorInfo)) {
       SetWindowLong(gui->win, GWL_STYLE, style & ~WS_OVERLAPPED);
@@ -426,8 +428,8 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   MSG *msg = &event->msg;
   event->type = 0;
   
-  unsigned int old_mousex = event->mousex;
-  unsigned int old_mousey = event->mousey;
+  int old_mousex = event->mousex;
+  int old_mousey = event->mousey;
   if(GetCursorPos(&event->cursor) && ScreenToClient(gui->win, &event->cursor)) {
     event->mousex = event->cursor.x;
     event->mousey = event->cursor.y;
@@ -517,6 +519,8 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
   ReleaseDC(gui->win, windowDC);
   
   win32_opengl_init();
+#else
+  (void) gui;
 #endif //GUI_OPENGL
   return true;
 }

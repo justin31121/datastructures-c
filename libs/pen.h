@@ -14,7 +14,7 @@ PEN_DEF void circle(u32* src, u32 width, u32 height, int cx, int cy, int _r, int
 PEN_DEF void rect(u32* src, u32 width, u32 height, int x0, int y0, int w, int h, int color);
 PEN_DEF void line(u32 *src, u32 width, u32 height, int x1, int y1, int x2, int y2, u32 color);
 PEN_DEF void copy(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, int x0, int y0, int w, int h);
-PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, int x0, int y0, int w, int h);
+PEN_DEF void copy2(u32* src, u32 width, u32 height, u32* src2, u32 width2, u32 height2, u32 x0, u32 y0, u32 w, u32 h);
 PEN_DEF void fill(u32* src, u32 width, u32 height, u32 color);
 PEN_DEF void triangle(u32* src, u32 width, u32 height, int x1, int y1, int x2, int y2, int x3, int y3, int color);
 PEN_DEF void project(u32* src, int width, int height, int x0, int y0, int w, int h, int f(int), int px0, int px1, int py0, int py1, u32 color);
@@ -26,10 +26,10 @@ PEN_DEF void abgr_to_argb(u32 *src, u32 width, u32 height);
 
 PEN_DEF void abgr_to_argb(u32 *src, u32 width, u32 height) {
   for(u32 i=0;i<width*height;i++) {
-    src[i] = src[i]
-      & 0xff00ff00
-      | (0xff & src[i]) << 16
-      | (0xff0000 & src[i]) >> 16;
+      src[i] = (src[i]
+		& 0xff00ff00)
+	  | ((0xff & src[i]) << 16)
+	  | ((0xff0000 & src[i]) >> 16);
   }
 }
 
@@ -77,7 +77,7 @@ PEN_DEF void copy(u32* src, u32 width, u32 height,
 
 PEN_DEF void copy2(u32* src, u32 _width, u32 _height,
 		   u32* src2, u32 width2, u32 height2,
-		   int x0, int y0, int w, int h) {
+		   u32 x0, u32 y0, u32 w, u32 h) {
   s32 width = (s32) _width;
   s32 height = (s32) _height;
   
