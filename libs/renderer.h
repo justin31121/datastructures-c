@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdbool.h>
 #include "vec.h"
 
 #ifndef RENDER_DEF
@@ -68,7 +69,7 @@ RENDER_DEF void renderer_solid_triangle(Renderer *renderer,
 RENDER_DEF void renderer_solid_triangle3(Renderer *renderer,
 					 Vec2f p1, Vec2f p2, Vec2f p3, Vec4f c1, Vec4f c2, Vec4f c3);
 RENDER_DEF void renderer_solid_rect(Renderer *renderer, Vec2f pos, Vec2f size, Vec4f color);
-RENDER_DEF void renderer_image_rect(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs);
+RENDER_DEF void renderer_image_rect(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f usvs);
 RENDER_DEF unsigned int renderer_push_texture(Renderer *renderer, Renderer_Texture texture);
 RENDER_DEF void renderer_text(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, Vec4f c);
 RENDER_DEF void renderer_set_shader(Renderer *renderer, Renderer_Shader shader);

@@ -2,11 +2,19 @@ MAKEFLAGS += --no-print-directory
 
 GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 
-PREFIX = GCC
+PREFIX = CL
 
 ifeq ($(PREFIX),CL)
 	CLEAN_UP = && del *.obj
 endif
+
+#==========================================================================
+
+player_demo: ./src/player_demo.c ./libs/player.h
+	make $(PREFIX)-player_demo $(CLEAN_UP)
+
+CL-player_demo:
+	cl ./src/player_demo.c /Fe:player.exe
 
 #==========================================================================
 

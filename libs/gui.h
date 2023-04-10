@@ -320,20 +320,22 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCm
   memcpy(&lptr, &gui, sizeof(gui));  
   SetWindowLongPtr(gui->win, 0, lptr);
 
-  if(canvas != NULL)  {
+  if(canvas != NULL && canvas->data != NULL)  {
     gui->info = (BITMAPINFO) {0};
     gui->info.bmiHeader.biSize = sizeof(gui->info.bmiHeader);
     gui->info.bmiHeader.biWidth = canvas->width;
     gui->info.bmiHeader.biHeight = canvas->height;
     gui->info.bmiHeader.biBitCount = 32;
-    gui->info.bmiHeader.biPlanes = 1;
+    gui->info.bmiHeader.biPlanes = 1;    
     gui->info.bmiHeader.biCompression = BI_RGB;
+
+    gui->canvas = canvas;
   } else {
     if(!gui_init_opengl(gui)) {
       return false;
     }
   }
-  gui->canvas = canvas;
+
   gui->running = true;
 
   ShowWindow(gui->win, nCmdShow);
