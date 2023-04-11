@@ -286,7 +286,7 @@ PLAYER_DEF bool player_get_timestamp(Player *player, float *timestamp) {
     return false;
   }
 
-  *timestamp = (float) player->decoder.pts / (float) player->den;
+  *timestamp = (float) player->decoder.pts / (float) player->den / 100.f;
 
   return true;
 }

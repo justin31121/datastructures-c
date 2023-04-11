@@ -70,7 +70,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     Font font;
-    if(!font_init(&font, "C:\\Windows\\Fonts\\arial.ttf", 32)) {
+    if(!font_init(&font, "C:\\Windows\\Fonts\\arial.ttf", 48)) {
 	return -1;
     }
 
@@ -81,28 +81,42 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) {
 	panic("player_init");
     }
-    if(!player_open_file(&player, ".\\rsc\\tint.m4a")) {
+    if(!player_open_file(&player, ".\\rsc\\doctor.m4a")) {
 	panic("player_open_file");
     }
     if(!player_play(&player)) {
 	panic("player_play");
     }
     player_set_volume(&player, 0.05f);
+
+    float button_width = 32.f;
     
     Vec2f border;
     Gui_Event event;
     while(gui.running) {
+	bool click = false;
 	while(gui_peek(&gui, &event)) {
-	    if(event.type == GUI_EVENT_KEYPRESS &&
-	       event.key == 'Q') {
-		gui.running = false;
+	    if(event.type == GUI_EVENT_KEYPRESS) {
+		switch(event.key) {
+		case 'Q': {
+		    gui.running = false;		    
+		} break;
+		case 'P': {
+		    player_toggle(&player);
+		} break;
+		}
+
+	    } else if(event.type == GUI_EVENT_MOUSEPRESS) {
+		if(event.key == 'L') {
+		    click = true;
+		}
 	    }
 	}
 
 	gui_get_window_sizef(&gui, &border.x, &border.y);    
 	renderer.resolution = border;
 
-	float bar_width = border.x * 0.9f;
+	float bar_width = border.x * 0.75f;
 	float cursor_base_x = border.x/2.f - bar_width / 2.f;
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -110,34 +124,72 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	glClearColor(BACKGROUND);
 	glClear(GL_COLOR_BUFFER_BIT);
 
+
 	renderer.image = font_tex;
 	renderer_set_shader(&renderer, SHADER_FOR_TEXT);
-	render_line(&renderer, 0, 0, &font, "Justin");
+	
+	float time;
+	char buffer[1024];
+	
+	player_get_duration(&player, &time);
+	if(snprintf(buffer, 1023, "%.2f", time) >= 1023) {
+	    panic("buffer overflow");
+	}	
+	render_line(&renderer,
+		    0,
+		    border.y - (float) font.height * 2.f,
+		    &font, buffer);
+
+	player_get_timestamp(&player, &time);
+	if(snprintf(buffer, 1023, "%.2f", time) >= 1023) {
+	    panic("buffer overflow");
+	}
+	render_line(&renderer,
+		    border.x - (float) font_estimate_width(&font, buffer),
+		    border.y - (float) font.height * 2.f,
+		    &font, buffer);	
+	
 	renderer_flush(&renderer);
 
 	renderer_set_shader(&renderer, SHADER_FOR_COLOR);
+	//PLAY N PAUSE
+	Vec2f pos = vec2f(border.x*.5f - button_width*.5f, 4 + button_width*.5f);
+	renderer_solid_rect(&renderer,
+			    pos,
+			    vec2f(button_width, button_width),
+			    FOREGROUND);
+	float mousex = (float) event.mousex;
+	float mousey = (float) event.mousey;
+	if(click &&
+	   mousex > pos.x &&
+	   mousey > pos.y &&
+	   mousex - pos.x < button_width &&
+	   mousey - pos.y < button_width) {
+	    player_toggle(&player);
+	}
+	
 	//BAR
 	renderer_solid_rect(&renderer,
-			    vec2f(cursor_base_x, 36),
+			    vec2f(cursor_base_x, 68),
 			    vec2f(bar_width, 8),
 			    WHITE);
 
 	//CURSOR
 	float cursor_pos = (float) cursor_base_x;
-	if(player.playing) {
+	if(player.decoder_used) {
 	    float timestamp, duration;
 	    player_get_timestamp_secs(&player, &timestamp);
 	    player_get_duration_secs(&player, &duration);
 
 	    cursor_pos += (float) bar_width * timestamp / duration;
 	}
-	renderer_solid_rect(&renderer, vec2f(cursor_pos, 32), vec2f(16, 16), FOREGROUND);
+	renderer_solid_rect(&renderer, vec2f(cursor_pos, 64), vec2f(16, 16), FOREGROUND);
 	renderer_flush(&renderer);
 
 	gui_swap_buffers(&gui);
     }
 
-    gui_free(&gui);
+    //gui_free(&gui);
 
     return 0;
 }

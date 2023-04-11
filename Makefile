@@ -16,6 +16,9 @@ player_demo: ./src/player_demo.c ./libs/player.h
 CL-player_demo:
 	cl ./src/player_demo.c /Fe:player.exe
 
+GCC-player_demo:
+	gcc ./src/player_demo.c $(GCC-FLAGS) -o player -lgdi32 -lopengl32 -lavutil -lavcodec -lavformat -lswresample -lxaudio2_8 -lole32
+
 #==========================================================================
 
 get_demo: ./src/get_demo.c ./libs/http.h

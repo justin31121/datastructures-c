@@ -183,6 +183,8 @@ typedef enum{
   GUI_EVENT_NONE = 0,
   GUI_EVENT_KEYRELEASE,
   GUI_EVENT_KEYPRESS,
+  GUI_EVENT_MOUSEPRESS,
+  GUI_EVENT_MOUSERELEASE,
   GUI_EVENT_MOUSEMOTION,
   GUI_EVENT_COUNT,
 }Gui_Event_Type;
@@ -327,13 +329,15 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCm
     gui->info.bmiHeader.biHeight = canvas->height;
     gui->info.bmiHeader.biBitCount = 32;
     gui->info.bmiHeader.biPlanes = 1;    
-    gui->info.bmiHeader.biCompression = BI_RGB;
-
-    gui->canvas = canvas;
+    gui->info.bmiHeader.biCompression = BI_RGB;    
   } else {
     if(!gui_init_opengl(gui)) {
       return false;
     }
+  }
+
+  if(canvas != NULL) {
+      gui->canvas = canvas;
   }
 
   gui->running = true;
@@ -469,6 +473,22 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   DispatchMessage(msg);
 
   switch(msg->message) {
+  case WM_RBUTTONUP: 
+  case WM_RBUTTONDOWN: {
+      event->type = GUI_EVENT_MOUSERELEASE;
+      if(msg->message == WM_LBUTTONUP) {
+	  event->type = GUI_EVENT_MOUSEPRESS;	  
+      }
+      event->key = 'R';
+  } break;
+  case WM_LBUTTONUP: 
+  case WM_LBUTTONDOWN: {
+      event->type = GUI_EVENT_MOUSERELEASE;
+      if(msg->message == WM_LBUTTONUP) {
+	  event->type = GUI_EVENT_MOUSEPRESS;	  
+      }
+      event->key = 'L';
+  } break;
   case WM_SYSKEYDOWN:
   case WM_SYSKEYUP:
   case WM_KEYDOWN:
