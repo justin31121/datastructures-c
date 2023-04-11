@@ -52,8 +52,8 @@ int xaudio_init(const WAVEFORMATEX *pSourceFormat) {
     return 0;
   }
 
-
-  comResult = IXAudio2_CreateMasteringVoice(xaudio,
+  comResult = xaudio->lpVtbl->CreateMasteringVoice(xaudio,
+  //comResult = IXAudio2_CreateMasteringVoice(xaudio,
 					    &xaudioMasterVoice,
 					    pSourceFormat->nChannels,
 					    pSourceFormat->nSamplesPerSec,
@@ -67,7 +67,8 @@ int xaudio_init(const WAVEFORMATEX *pSourceFormat) {
   }
 
 
-  comResult = IXAudio2_CreateSourceVoice(xaudio,
+  comResult = xaudio->lpVtbl->CreateSourceVoice(xaudio,
+  //comResult = IXAudio2_CreateSourceVoice(xaudio,
 					 &xaudioSourceVoice,
 					 pSourceFormat,
 					 0,
@@ -80,7 +81,8 @@ int xaudio_init(const WAVEFORMATEX *pSourceFormat) {
     return 0;
   }
 
-  IXAudio2SourceVoice_Start(xaudioSourceVoice, 0, XAUDIO2_COMMIT_NOW);
+  xaudioSourceVoice->lpVtbl->Start(xaudioSourceVoice, 0, XAUDIO2_COMMIT_NOW);
+  //IXAudio2SourceVoice_Start(xaudioSourceVoice, 0, XAUDIO2_COMMIT_NOW);
 
   hSemaphore = CreateSemaphore(NULL, 0, 1, NULL);
   ReleaseSemaphore(hSemaphore, 1, NULL);
@@ -100,7 +102,8 @@ void xaudio_play(BYTE* data, UINT32 size) {
   xaudioBuffer.pAudioData = data;
   //xaudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
 
-  IXAudio2SourceVoice_SubmitSourceBuffer(xaudioSourceVoice, &xaudioBuffer, NULL);
+  xaudioSourceVoice->lpVtbl->SubmitSourceBuffer(xaudioSourceVoice, &xaudioBuffer, NULL);
+  //IXAudio2SourceVoice_SubmitSourceBuffer(xaudioSourceVoice, &xaudioBuffer, NULL);
   WaitForSingleObject(hSemaphore, INFINITE);
 }
 

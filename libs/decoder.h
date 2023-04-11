@@ -110,7 +110,9 @@ DECODER_DEF const char *decoder_fmt_to_cstr(Decoder_Fmt fmt) {
   switch(fmt) {
   case DECODER_FMT_S16:
     return "DECODER_FMT_S16";
-  default: 
+  case DECODER_FMT_NONE:
+      return "DECODER_FMT_NONE";
+  default:
     return "Unknown Decoder_Fmt!";
   }
 }
@@ -264,14 +266,18 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     return decoder_init_fail("avcodec_parameters_to_context");
   }
 
+  /*
   if(decoder->av_codec_context->channel_layout == 0) {
     decoder->av_codec_context->channel_layout = AV_CH_LAYOUT_STEREO;
   }
+  */
 
   if(avcodec_open2(decoder->av_codec_context, av_codec, NULL) < 0) { 
     return decoder_init_fail("avcodec_open2");
   }
-
+  
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   int channel_layout;
   if(channels == 1) {
     channel_layout = AV_CH_LAYOUT_MONO;
@@ -291,6 +297,8 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 					       0, NULL))) {
     return decoder_init_fail("swr_alloc_set_opts");
   }
+#pragma GCC diagnostic pop
+  
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
   swr_init(decoder->swr_context);
   

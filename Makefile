@@ -2,7 +2,7 @@ MAKEFLAGS += --no-print-directory
 
 GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 
-PREFIX = CL
+PREFIX = GCC
 
 ifeq ($(PREFIX),CL)
 	CLEAN_UP = && del *.obj

@@ -77,7 +77,7 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
 			 channels,
 			 sample_rate);  
   if(!xaudio_init(&waveFormat)) {
-    return -1;
+    return false;
   }
   
   if(!decoder_buffer_init(&player->buffer, PLAYER_N, PLAYER_BUFFER_SIZE)) {

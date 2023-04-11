@@ -1,8 +1,9 @@
 #ifndef THREAD_H_H
 #define THREAD_H_H
 
-#ifdef _MSC_VER ////////////////////////////////////////////
+#ifdef _WIN32 ////////////////////////////////////////////
 #include <windows.h>
+#include <process.h>
 typedef HANDLE Thread;
 typedef HANDLE Mutex;
 //TODO implement for gcc
@@ -21,7 +22,7 @@ void mutex_release(Mutex mutex);
 
 #ifdef THREAD_IMPLEMENTATION
 
-#ifdef _MSC_VER ////////////////////////////////////////////
+#ifdef _WIN32 ////////////////////////////////////////////
 
 int thread_create(Thread *id, void *function, void *arg) {
   int ret =
@@ -38,6 +39,7 @@ int thread_create(Thread *id, void *function, void *arg) {
 
 void thread_join(Thread id) {
   WaitForSingleObject(id, INFINITE);
+  CloseHandle(id);
 }
 
 void thread_sleep(int ms) {
