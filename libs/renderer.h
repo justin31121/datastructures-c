@@ -349,6 +349,8 @@ static GLenum renderer_index_to_texture(unsigned int index) {
 
 RENDER_DEF unsigned int renderer_push_texture(Renderer *r, int width, int height, char *data, bool grey) {
   glActiveTexture(renderer_index_to_texture(r->images_count));
+
+  
   glGenTextures(1, &r->textures);
   glBindTexture(GL_TEXTURE_2D, r->textures);
 

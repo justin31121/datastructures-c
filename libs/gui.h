@@ -3,6 +3,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <winuser.h>
 #include <GL/GL.h> //link with -opengl32 -lgdi32
                    //or        opengl32.lib gdi32.lib user32.lib
 #define GL_TEXTURE0 0x84C0
@@ -22,6 +23,8 @@
 #define GL_LINK_STATUS 0x8B82
 #define GL_CLAMP_TO_EDGE 0x812F
 #define GL_UNSIGNED_INT_8_8_8_8_REV 0x8367
+
+#define GL_BGRA 0x80E1
 
 typedef ptrdiff_t GLsizeiptr;
 typedef ptrdiff_t GLintptr;
@@ -331,6 +334,9 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
     return false;
   }
 
+#ifndef GUI_CONSOLE
+  FreeConsole();
+#endif //GUI_CONSOLE
   gui->dc = GetDC(gui->win);
 
   LONG_PTR lptr = {0};
@@ -341,10 +347,14 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
     gui->info = (BITMAPINFO) {0};
     gui->info.bmiHeader.biSize = sizeof(gui->info.bmiHeader);
     gui->info.bmiHeader.biWidth = canvas->width;
+#ifdef GUI_UPSIDEDOWN
+    gui->info.bmiHeader.biHeight = -canvas->height;
+#else
     gui->info.bmiHeader.biHeight = canvas->height;
+#endif //GUI_UPSIDEDOWN
     gui->info.bmiHeader.biBitCount = 32;
     gui->info.bmiHeader.biPlanes = 1;    
-    gui->info.bmiHeader.biCompression = BI_RGB;    
+    gui->info.bmiHeader.biCompression = BI_RGB;
   } else {
     if(!gui_init_opengl(gui)) {
       return false;

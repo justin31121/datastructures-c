@@ -90,9 +90,21 @@ int xaudio_init(const WAVEFORMATEX *pSourceFormat) {
   return 1;
 }
 
-void xaudio_player_wrapper(void *arg) {
-  XAUDIO2_BUFFER *xaudioBuffer = arg;
-  
+int xaudio_init_source_voice(const WAVEFORMATEX *pSourceFormat, IXAudio2SourceVoice* sourceVoice) {
+  if(FAILED(xaudio->lpVtbl->CreateSourceVoice(xaudio,
+					      //comResult = IXAudio2_CreateSourceVoice(xaudio,
+					      &sourceVoice,
+					      pSourceFormat,
+					      0,
+					      1.0f,
+					      &xaudio_xAudioCallbacks,
+					      NULL,
+					      NULL
+					      ))) {
+    return 0;
+  }
+
+  return 1;
 }
 
 void xaudio_play(BYTE* data, UINT32 size) {

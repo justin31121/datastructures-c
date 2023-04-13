@@ -41,6 +41,7 @@ typedef struct{
 }Font2;
 
 FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height);
+FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height);
 FONT_DEF unsigned int font_estimate_width2(const Font2 *font, const char *cstr);
 FONT_DEF void font_render2(Font2 *font, const char* data, u32 data_len,
 			  u32 *pixels, u32 width, u32 height,
@@ -203,6 +204,70 @@ FONT_DEF void font_free(Font *font) {
   }
 
   free(font->bitmap);
+}
+
+FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height) {
+  if(!font) {
+    return false;
+  }
+  
+  unsigned int ascii_vals = 127 - 32;
+  unsigned int ascii_width = ascii_vals * font_height;
+  //data: ascii_vals * font_height * font_height * sizeof(u8)
+  //xs, ys, ws: 3 * acsii_vals * sizeof(int)
+
+  u8 *data = malloc(ascii_vals * font_height * font_height * sizeof(u8) + // font->data
+		    3 * ascii_vals * sizeof(unsigned int)); // font->xs, font->ys, font->ws
+  if(!data) {
+    return false;
+  }
+
+  //partition allocated data
+  font->data = data;
+  data += ascii_vals * font_height * font_height * sizeof(u8);
+  font->xs = (int *) data;
+  data += ascii_vals * sizeof(unsigned int);
+  font->ys = (int *) data;
+  data += ascii_vals * sizeof(unsigned int);
+  font->ws = (int *) data;
+
+  //load glyphs
+  stbtt_fontinfo font_info = {0};
+  stbtt_InitFont(&font_info, (u8 *) ttf_buffer, 0);
+  
+  float scale = stbtt_ScaleForPixelHeight(&font_info, font_height);
+  int _font_height = (int) font_height;
+
+  for(int c=32;c<=126;c++) {
+    unsigned int glyph_off = (c-32)*font_height;
+    
+    int w, h, x ,y;
+    u8 *bitmap =
+      stbtt_GetCodepointSDF(&font_info, scale, c, 0, 128, 256.0, &w, &h, &x, &y);
+      //stbtt_GetCodepointBitmap(&font_info, 0, scale, c, &w, &h, &x, &y);
+
+    font->xs[c - 32] = x;
+    font->ys[c - 32] = y;
+    font->ws[c - 32] = w;
+    
+    for (int j=0; j< _font_height; ++j) {
+      for (int i=0; i < _font_height; ++i) {
+	if(bitmap && i<w && j<h) {
+	    font->data[j*ascii_width+glyph_off+i] = bitmap[j*w+i];
+	} else {
+	    font->data[j*ascii_width+glyph_off+i] = 0x00;
+	}
+      }
+    }
+    
+    if(bitmap) stbtt_FreeBitmap(bitmap, font_info.userdata);
+  }
+
+  font->height = font_height;
+  font->width = ascii_width;
+  
+  return true;
+  
 }
 
 FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {

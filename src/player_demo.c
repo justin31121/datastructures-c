@@ -7,9 +7,6 @@
 #define RENDERER_IMPLEMENTATION
 #include "../libs/renderer.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "../thirdparty/stb_truetype.h"
-
 #define FONT_IMPLEMENTATION
 #include "../libs/font.h"
 
@@ -21,6 +18,7 @@
 
 #include "../rsc/atlas.h"
 #include "../rsc/musik.h"
+#include "../rsc/segoeui.h"
 
 #define BACKGROUND 0.09412, 0.09412, 0.09412, 1.0
 #define FOREGROUND vec4f(0.451, 0.6392, 0.8 , 1) //0xFFCCA37e
@@ -76,11 +74,7 @@ int main() {
 	return -1;
     }
 
-    Font2 font;
-    if(!font_init2(&font, "C:\\Windows\\Fonts\\segoeui.ttf", 22)) {
-	return -1;
-    }
-
+    Font2 font = font2_segoeui_22;
     u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
     u32 atlas_tex = renderer_push_texture(&renderer, atlas_width, atlas_height, (char *) atlas_data, false);
     u32 musik_tex = renderer_push_texture(&renderer, musik_width, musik_height, (char *) musik_data, false);
@@ -89,7 +83,7 @@ int main() {
     if(!player_init(&player, DECODER_FMT_S16, 2, 48000)) { // for now the best setup
 	panic("player_init");
     }
-    if(!player_open_file(&player, ".\\rsc\\2019.mp3")) {
+    if(!player_open_file(&player, ".\\rsc\\doctor1.m4a")) {
 	panic("player_open_file");
     }
     
