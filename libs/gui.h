@@ -223,7 +223,7 @@ typedef struct{
 }Gui;
 
 #ifdef _WIN32
-GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCmdShow, const char *name);
+GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name);
 GUI_DEF void win32_opengl_init();
 #endif //_WIN32
 GUI_DEF void gui_render_canvas(Gui *gui);
@@ -235,6 +235,9 @@ GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event);
 GUI_DEF bool gui_free(Gui *gui);
 
+GUI_DEF void gui_mouse_to_screen(int width, int height, int *mousex, int *mousey);
+GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, float *mousey);
+  
 GUI_DEF bool gui_init_opengl(Gui *gui); //-lgdi32 -lopengl32
 GUI_DEF bool gui_use_vsync(int use);
 GUI_DEF void gui_swap_buffers(Gui *gui);
@@ -248,6 +251,10 @@ GUI_DEF void gui_swap_buffers(Gui *gui);
 #    pragma comment(lib,"opengl32.lib")
 #  endif //GUI_OPENGL
 #endif //_WIN32
+
+#ifdef _WIN32
+static LARGE_INTEGER guiWin32PerfCountFrequency;
+static HCURSOR guiDefaultCursor;
 
 LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   if(message == WM_CLOSE) {
@@ -278,18 +285,26 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
       return 0;
     }
     return DefWindowProc(hWnd, message, wParam, lParam);
+  } else if(message == WM_SETCURSOR) {
+    SetCursor(guiDefaultCursor);
+    return DefWindowProc(hWnd, message, wParam, lParam);
   } else {
     return DefWindowProc(hWnd, message, wParam, lParam);
   }
 }
 
-#ifdef _WIN32
-static LARGE_INTEGER guiWin32PerfCountFrequency;
-
-GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCmdShow, const char *name) {
+GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   if(!guiWin32PerfCountFrequency.QuadPart) {
     QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
   }
+  
+  guiDefaultCursor = LoadCursor(0, IDC_ARROW);
+
+  HMODULE hInstance = GetModuleHandle(NULL);
+
+  STARTUPINFO startupInfo;
+  GetStartupInfo(&startupInfo);
+  DWORD nCmdShow = startupInfo.wShowWindow;
   
   WNDCLASS wc = {0};
   wc.lpfnWndProc = Gui_Implementation_WndProc;
@@ -300,7 +315,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, HINSTANCE hInstance, int nCm
 
   if(!RegisterClass(&wc)) {
     return false;
-  }  
+  }
 
   if(!(gui->win = CreateWindowEx(0,
 				 wc.lpszClassName,
@@ -425,7 +440,7 @@ GUI_DEF bool gui_get_window_size(Gui *gui, int *width, int *height) {
     *width = (gui->rect.right - gui->rect.left);
     *height = (gui->rect.bottom - gui->rect.top);
   }
-  return result;  
+  return result;
 }
 
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
@@ -437,6 +452,22 @@ GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
   return result;
 }
 
+GUI_DEF void gui_mouse_to_screen(int width, int height, int *mousex, int *mousey) {
+  *mousey = height - *mousey;
+  if(*mousey < 0) *mousey = 0;
+  if(*mousey >= height) *mousey = height - 1;
+  if(*mousex < 0) *mousex = 0;
+  if(*mousex >= width) *mousex = width - 1;
+}
+
+GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, float *mousey) {
+  *mousey = height - *mousey;
+  if(*mousey < 0) *mousey = 0;
+  if(*mousey >= height) *mousey = height - 1;
+  if(*mousex < 0) *mousex = 0;
+  if(*mousex >= width) *mousex = width - 1;
+}
+
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   MSG *msg = &event->msg;
   event->type = 0;
@@ -446,13 +477,6 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   if(GetCursorPos(&event->cursor) && ScreenToClient(gui->win, &event->cursor)) {
     event->mousex = event->cursor.x;
     event->mousey = event->cursor.y;
-    if(gui->canvas) {
-      event->mousey = gui->canvas->height - event->mousey;
-      if(event->mousey < 0) event->mousey = 0;
-      if(event->mousey >= (int) gui->canvas->height) event->mousey = (int) gui->canvas->height-1;
-      if(event->mousex < 0) event->mousex = 0;
-      if(event->mousex >= (int) gui->canvas->width) event->mousex = (int) gui->canvas->width-1;
-    }
     
     if(old_mousex != event->mousex ||
        old_mousey != event->mousey) {
@@ -475,17 +499,17 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   switch(msg->message) {
   case WM_RBUTTONUP: 
   case WM_RBUTTONDOWN: {
-      event->type = GUI_EVENT_MOUSERELEASE;
-      if(msg->message == WM_LBUTTONUP) {
-	  event->type = GUI_EVENT_MOUSEPRESS;	  
+      event->type = GUI_EVENT_MOUSEPRESS;
+      if(msg->message == WM_RBUTTONUP) {
+	  event->type = GUI_EVENT_MOUSERELEASE;	  
       }
       event->key = 'R';
   } break;
   case WM_LBUTTONUP: 
   case WM_LBUTTONDOWN: {
-      event->type = GUI_EVENT_MOUSERELEASE;
+      event->type = GUI_EVENT_MOUSEPRESS;
       if(msg->message == WM_LBUTTONUP) {
-	  event->type = GUI_EVENT_MOUSEPRESS;	  
+	  event->type = GUI_EVENT_MOUSERELEASE;	  
       }
       event->key = 'L';
   } break;

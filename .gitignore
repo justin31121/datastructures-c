@@ -66,3 +66,5 @@ sdl_curl_json_demo
 encode
 google
 *.m4a
+*.mp3
+*.png

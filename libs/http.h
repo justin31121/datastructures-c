@@ -19,12 +19,10 @@
 
 #define SHA1_IMPLEMENTATION
 #define BASE64_IMPLEMENTATION
-#define UTIL_IMPLEMENTATION
 #define STRING_IMPLEMENTATION
 
 #endif //HTTP_IMPLEMENTATION
 
-#include "./util.h"
 #include "./string.h"
 #include "./base64.h"
 #include "./sha1.h"

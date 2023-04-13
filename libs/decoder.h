@@ -15,8 +15,9 @@
 #endif //DECODER_DEF
 
 #ifdef _WIN32
-#define DECODER_XAUDIO2_SAMPLES 1024
+#define DECODER_XAUDIO2_SAMPLES 64
 #include <windows.h>
+#include <mmreg.h>
 #endif
 
 #ifdef DECODER_IMPLEMENTATION
@@ -49,10 +50,14 @@ typedef struct{
   int fill_step;
   int play_step;
   int last_size;
+
+  int extra_size;
   
   int n;
   int buffer_size;
   char *buffers;
+
+  int *buffers_size;
 
   Decoder *decoder;
 }Decoder_Buffer;
@@ -108,10 +113,14 @@ DECODER_DEF void decoder_get_waveformat(WAVEFORMATEX *waveFormat,
 
 DECODER_DEF const char *decoder_fmt_to_cstr(Decoder_Fmt fmt) {
   switch(fmt) {
+  case DECODER_FMT_NONE:
+    return "DECODER_FMT_NONE";
   case DECODER_FMT_S16:
     return "DECODER_FMT_S16";
-  case DECODER_FMT_NONE:
-      return "DECODER_FMT_NONE";
+  case DECODER_FMT_S32:
+    return "DECODER_FMT_S32";
+  case DECODER_FMT_FLT:
+    return "DECODER_FMT_FLT";
   default:
     return "Unknown Decoder_Fmt!";
   }
@@ -121,6 +130,10 @@ DECODER_DEF int decoder_fmt_to_bits_per_sample(Decoder_Fmt fmt) {
   switch(fmt) {
   case DECODER_FMT_S16:
     return 16;
+  case DECODER_FMT_S32:
+    return 32;
+  case DECODER_FMT_FLT:
+    return 32;
   default: {
     fprintf(stderr, "ERROR: decoder_fmt_to_bits_per_channel: nimplemented Fmt: '%s'\n",
 	    decoder_fmt_to_cstr(fmt));
@@ -133,6 +146,10 @@ DECODER_DEF enum AVSampleFormat decoder_fmt_to_libav_fmt(Decoder_Fmt fmt) {
   switch(fmt) {
   case DECODER_FMT_S16:
     return AV_SAMPLE_FMT_S16;
+  case DECODER_FMT_S32:
+    return AV_SAMPLE_FMT_S32;
+  case DECODER_FMT_FLT:
+    return AV_SAMPLE_FMT_FLT;
   default: {
     fprintf(stderr, "ERROR: decoder_fmt_to_libav_fmt: nimplemented Fmt: '%s'\n",
 	    decoder_fmt_to_cstr(fmt));
@@ -143,7 +160,7 @@ DECODER_DEF enum AVSampleFormat decoder_fmt_to_libav_fmt(Decoder_Fmt fmt) {
 
 DECODER_DEF bool decoder_buffer_init(Decoder_Buffer *buffer, int n, int buffer_size) {
   
-  buffer->buffers = (char *) malloc(sizeof(char) * n * buffer_size);
+  buffer->buffers = (char *) malloc(sizeof(char) * (n+1) * buffer_size);
   if(!buffer->buffers) {
     fprintf(stderr, "ERROR: decoder_buffer_init: Can not allocate enough memory\n");
     return false;
@@ -154,6 +171,7 @@ DECODER_DEF bool decoder_buffer_init(Decoder_Buffer *buffer, int n, int buffer_s
   buffer->fill_step = 0;
   buffer->play_step = 0;
   buffer->last_size = 0;
+  buffer->extra_size = 0;
 
   return true;
 }
@@ -162,32 +180,56 @@ DECODER_DEF void decoder_buffer_reset(Decoder_Buffer *buffer) {
   buffer->fill_step = 0;
   buffer->play_step = 0;
   buffer->last_size = 0;
+  buffer->extra_size = 0;
 }
 
 DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, int index) {
   int data_size = 0;
   int out_samples;
 
+  if(buffer->extra_size > 0) {
+    memcpy(buffer->buffers + index * buffer->buffer_size,
+	   buffer->buffers + buffer->n * buffer->buffer_size,
+	   buffer->extra_size);
+    buffer->extra_size = 0;
+    data_size += buffer->extra_size;
+  }
 
-  while(decoder_decode(decoder, &out_samples)) {
+  while(data_size < buffer->buffer_size && decoder_decode(decoder, &out_samples)) {
     int out_samples_size = out_samples * decoder->sample_size;
     
-    assert(out_samples == 0 || out_samples == decoder->samples);
-    assert(data_size + out_samples_size <= buffer->buffer_size);
+    if(data_size + out_samples_size > buffer->buffer_size) {
 
-    memcpy(buffer->buffers +
-	   index * buffer->buffer_size +
-	   data_size,
-	   decoder->buffer, out_samples_size);
-    data_size += out_samples_size;
+      //copy portion that fits
+      int expected_sample_size = buffer->buffer_size - data_size;
+      assert(expected_sample_size % decoder->sample_size == 0);
+      memcpy(buffer->buffers + index * buffer->buffer_size +
+	     data_size,
+	     decoder->buffer,
+	     expected_sample_size);
+      data_size += expected_sample_size;
 
-    if(data_size >= buffer->buffer_size) {
-      break;
+      //move portion that overflows to last/special buffer
+      int unexpected_sample_size = out_samples_size - expected_sample_size;
+      assert(buffer->extra_size == 0);
+      assert(unexpected_sample_size <= buffer->buffer_size);
+      memcpy(buffer->buffers + buffer->n * buffer->buffer_size,
+	     decoder->buffer + expected_sample_size,
+	     unexpected_sample_size);
+      buffer->extra_size = unexpected_sample_size;
+      
+    } else {          
+      memcpy(buffer->buffers +
+	     index * buffer->buffer_size +
+	     data_size,
+	     decoder->buffer, out_samples_size);
+      data_size += out_samples_size;
     }
+
   }
 
   if(data_size != buffer->buffer_size) {
-    buffer->last_size = data_size;
+    //buffer->last_size = data_size;
   }
 
   return true;
@@ -240,6 +282,8 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   }
 
   if(avformat_find_stream_info(decoder->av_format_context, NULL) < 0) {
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("avformat_find_stream_info");
   }
 
@@ -249,35 +293,57 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   AVCodecParameters *av_codec_parameters = NULL;
   for(size_t i=0;i<decoder->av_format_context->nb_streams;i++) {
     av_codec_parameters = decoder->av_format_context->streams[i]->codecpar;
-    if(av_codec_parameters->codec_type == av_sample_format) {
+    //const char *av_codec_cstr = av_get_media_type_string(av_codec_parameters->codec_type);
+    //fprintf(stderr, "INFO: av_codec_parameters->codec_type: %s\n", av_codec_cstr ? av_codec_cstr : "not found");
+    
+    if(av_codec_parameters->codec_type == AVMEDIA_TYPE_AUDIO) { //av_codec_parameters->codec_type // AVMEDIA_TYPE_AUDIO
       decoder->stream_index = (int) i;
       if(!(av_codec = avcodec_find_decoder(av_codec_parameters->codec_id))) {
-	return decoder_init_fail("cannot find codec"); 
+	avformat_close_input(&decoder->av_format_context);
+	decoder->av_format_context = NULL;
+	return decoder_init_fail("cannot find codec");
       }
       break;
     }
   }
+  if(av_codec == NULL) {
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
+    return decoder_init_fail("can not find av_codec");
+  }
 
   if(!(decoder->av_codec_context = avcodec_alloc_context3(av_codec))) {
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("avcodec_alloc_context3");
   }
 
   if(avcodec_parameters_to_context(decoder->av_codec_context, av_codec_parameters) < 0) {
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("avcodec_parameters_to_context");
   }
 
-  /*
   if(decoder->av_codec_context->channel_layout == 0) {
     decoder->av_codec_context->channel_layout = AV_CH_LAYOUT_STEREO;
   }
-  */
 
-  if(avcodec_open2(decoder->av_codec_context, av_codec, NULL) < 0) { 
+  if(avcodec_open2(decoder->av_codec_context, av_codec, NULL) < 0) {
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("avcodec_open2");
   }
-  
+
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif //__GNUC__
   int channel_layout;
   if(channels == 1) {
     channel_layout = AV_CH_LAYOUT_MONO;
@@ -289,18 +355,37 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   }
 
   if(!(decoder->swr_context = swr_alloc_set_opts(NULL, channel_layout,
-					       av_sample_format,
-					       sample_rate,
-					       decoder->av_codec_context->channel_layout,
-					       decoder->av_codec_context->sample_fmt,
-					       decoder->av_codec_context->sample_rate,
-					       0, NULL))) {
+						 av_sample_format,
+						 sample_rate,
+						 decoder->av_codec_context->channel_layout,
+						 decoder->av_codec_context->sample_fmt,
+						 decoder->av_codec_context->sample_rate,
+						 0, NULL))) {
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("swr_alloc_set_opts");
   }
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif //__GNUC__
   
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
-  swr_init(decoder->swr_context);
+  
+  if(swr_init(decoder->swr_context) < 0) {
+    swr_free(&decoder->swr_context);
+    decoder->swr_context = NULL;
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
+    return decoder_init_fail("swr_init");
+  }
+  //swr_set_quality(decoder->swr_context, 7);
+  //swr_set_resample_mode(decoder->swr_context, SWR_FILTER_TYPE_CUBIC);
   
   //Should need a buffer size of 4096. Although max_buffer_size returns 8192.
   //Wouldn't it be better to allocate just 4096, since I am only requesting 1024
@@ -309,26 +394,47 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   //  samples = 1024
   //  sample_size = 4
   /*
-  int max_buffer_size = av_samples_get_buffer_size(NULL, decoder->av_codec_context->channels,
-						   samples,
-						   decoder->av_codec_context->sample_fmt, 1);
+    int max_buffer_size = av_samples_get_buffer_size(NULL, decoder->av_codec_context->channels,
+    samples,
+    decoder->av_codec_context->sample_fmt, 1);
   */
   
   int max_buffer_size = decoder->samples * decoder->sample_size;
   
   decoder->buffer = (unsigned char*) malloc(max_buffer_size);
   if(!(decoder->buffer)) {
+    swr_free(&decoder->swr_context);
+    decoder->swr_context = NULL;
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;    
     return decoder_init_fail("Can not allocate enough memory");
   }
 
   if(!(decoder->packet = av_packet_alloc())) {
+    swr_free(&decoder->swr_context);
+    decoder->swr_context = NULL;
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("av_packet_alloc");
   }
   if(!(decoder->frame = av_frame_alloc())) {
+    av_packet_free(&decoder->packet);
+    decoder->packet = NULL;
+    swr_free(&decoder->swr_context);
+    decoder->swr_context = NULL;
+    avcodec_close(decoder->av_codec_context);
+    avcodec_free_context(&decoder->av_codec_context);
+    decoder->av_codec_context = NULL;
+    avformat_close_input(&decoder->av_format_context);
+    decoder->av_format_context = NULL;
     return decoder_init_fail("av_frame_alloc");
   }
-
-
   
   return true;
 }
@@ -343,6 +449,13 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
 	decoder->continue_convert = false;
 	return false;
       }
+      if(decoder->packet->stream_index != decoder->stream_index) {
+	decoder->continue_receive = false;
+	decoder->continue_convert = false;
+
+	av_packet_unref(decoder->packet);
+	return true;
+      }
     
       decoder->continue_receive = true;
 
@@ -353,6 +466,7 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
     }  
 
     if(avcodec_receive_frame(decoder->av_codec_context, decoder->frame) >= 0) {
+
       *out_samples = swr_convert(decoder->swr_context, &decoder->buffer, decoder->samples,
 				 (const unsigned char **) (decoder->frame->data),
 				 decoder->frame->nb_samples);
@@ -377,8 +491,9 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
 
     return true;
   }
-
+      
   *out_samples = swr_convert(decoder->swr_context, &decoder->buffer, decoder->samples, NULL, 0);
+
   if(*out_samples > 0) {
     decoder->continue_convert = true;
   } else {
@@ -389,6 +504,7 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
   return true;
 }
 
+
 //TODO: reduce this "distance > buffer->n" condition
 DECODER_DEF void decoder_start_decoding_function(void *arg) {
   
@@ -398,8 +514,9 @@ DECODER_DEF void decoder_start_decoding_function(void *arg) {
   while(buffer->last_size == 0) {
 
     int distance = buffer->n - (buffer->fill_step - buffer->play_step);
-    if(distance > buffer->n) {
-      for(int i=0;i<buffer->n-1;i++) {
+    //if(buffer->play_step > buffer->fill_step) {
+    if(distance > buffer->n ) {
+      for(int i=0;i<buffer->n - 1;i++) {
 	decoder_buffer_fill(buffer, decoder, (buffer->fill_step++) % buffer->n);	  
       }
     }
@@ -453,8 +570,12 @@ DECODER_DEF void decoder_get_waveformat(WAVEFORMATEX *waveFormat,
 					int channels,
 					int sample_rate) {
   switch(fmt) {
+  case DECODER_FMT_S32:
   case DECODER_FMT_S16: {
     waveFormat->wFormatTag = WAVE_FORMAT_PCM;
+  } break;
+  case DECODER_FMT_FLT: {
+    waveFormat->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
   } break;
   default: {
     fprintf(stderr, "ERROR: decoder_get_waveformat: unimplemented Fmt: '%s'\n",

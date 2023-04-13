@@ -3,11 +3,9 @@
 
 #ifdef TOKENIZER_IMPLEMENTATION
 #define STRING_IMPLEMENTATION
-#define UTIL_IMPLEMENTATION
 #endif //TOKENIZER_IMPLEMENTATION
 
 #include "string.h"
-#include "util.h"
 
 typedef enum{
 	     TOKENTYPE_ANGLE_OPEN,
