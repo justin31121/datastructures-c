@@ -83,14 +83,14 @@ int main() {
     if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) { // for now the best setup
 	panic("player_init");
     }
-    if(!player_open_file(&player, "./rsc/doctor1.m4a")) {
+    if(!player_open_file(&player, "./rsc/2019.m4a")) {
 	panic("player_open_file");
     }
     
     if(!player_play(&player)) {
 	panic("player_play");
     }
-    player_set_volume(&player, 0.6f);
+    player_set_volume(&player, 0.2f);
 
     float button_width = 24.f;
     float bar_height = 60.f;
@@ -126,7 +126,7 @@ int main() {
 
 	    } else if(event.type == GUI_EVENT_MOUSEPRESS) {
 		if(event.key == 'L') {
-		  click = true;		  
+		  click = true;
 		}
 	    } else if(event.type == GUI_EVENT_MOUSERELEASE) {
 

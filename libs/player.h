@@ -15,8 +15,8 @@
 #define PLAYER_DEF static inline
 #endif //PLAYER_DEF
 
-#define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 4
+#define PLAYER_BUFFER_SIZE 8192
+#define PLAYER_N 5
 #define PLAYER_VOLUME 0.1f
 
 #ifdef linux
@@ -94,12 +94,13 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   player->samples = DECODER_XAUDIO2_SAMPLES;
 #elif linux
 
+  player->pcm = NULL;
   if(snd_pcm_open(&player->pcm, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
     return false;
   }
   if(snd_pcm_set_params(player->pcm, SND_PCM_FORMAT_S16_LE, //TODO unhardcode everything
 			SND_PCM_ACCESS_RW_INTERLEAVED, channels,
-			sample_rate, 0, player->sample_rate / 4) < 0) {
+			sample_rate, 0, sample_rate / 4) < 0) {
     return false;
   }
   snd_pcm_uframes_t buffer_size = 0;
@@ -135,7 +136,7 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 		   player->channels,
 		   player->sample_rate,
 		   PLAYER_VOLUME,
-		   player->samples)) { //TODO: fix this
+		   player->samples)) {
     return false;
   }
   player->decoder_used = true;
@@ -199,13 +200,15 @@ PLAYER_DEF void *player_play_thread(void *arg) {
 #ifdef _WIN32
       xaudio_play(data, data_size);
 #elif linux
-      int ret = snd_pcm_writei(player->pcm, data, data_size / player->decoder.sample_size);
+      int out_samples = data_size / player->decoder.sample_size;
+      int ret = snd_pcm_writei(player->pcm, data, out_samples);
 	  
       if(ret < 0) {
 	if((ret == snd_pcm_recover(player->pcm, ret, 1)) == 0) {
 	  //log something ??
 	}
       }
+      
 #endif //_WIN32
     } else {
       thread_sleep(player->buffer.buffer_size * 1000 / player->sample_rate / player->decoder.sample_size);

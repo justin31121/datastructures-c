@@ -65,6 +65,8 @@ json_parse_demo
 sdl_curl_json_demo
 encode
 google
+player
+gui
 *.m4a
 *.mp3
 *.png

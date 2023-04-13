@@ -4,6 +4,7 @@
 #ifdef linux
 #include <time.h>
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <X11/Xutil.h>
 #include <GL/gl.h>
 #include <GL/glx.h>
@@ -284,7 +285,6 @@ typedef struct{
   fd_set in_fds;
   struct timeval tv;
   int wmDeleteMessage;
-  int width, height;
 #endif //linux
   
 #ifdef _WIN32  
@@ -415,7 +415,11 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   gui->wmDeleteMessage = (int) wmDeleteMessage;
   XSetWMProtocols(gui->display, gui->win, &wmDeleteMessage, 1);
   XStoreName(gui->display, gui->win, name);
-  XSelectInput(gui->display, gui->win, ExposureMask | KeyPressMask | StructureNotifyMask | StructureNotifyMask);
+  XSelectInput(gui->display, gui->win,
+	       ButtonPressMask | ButtonReleaseMask |
+	       //ExposureMask |
+	       PointerMotionMask |
+	       KeyPressMask | StructureNotifyMask);
   XMapWindow(gui->display, gui->win);
   XFlush(gui->display);
 
@@ -429,10 +433,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
 
   gui->fd = -1; //ConnectionNumber(gui->display);  
   gui->tv.tv_usec = 0;
-  gui->tv.tv_sec = 1;
-  gui->width = width;
-  gui->height = height;
-  
+  gui->tv.tv_sec = 1;  
   return true;
 }
 
@@ -464,11 +465,29 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       if(e->xclient.data.l[0] == gui->wmDeleteMessage) {
 	gui->running = 0;
       }
-    } else if(e->type == ConfigureNotify) {
-      gui->width = e->xconfigure.width;
-      gui->height = e->xconfigure.height;
-    }
-    
+    } else if(e->type == ButtonPress ||
+	      e->type == ButtonRelease) {
+      event->type = e->type == ButtonPress ?
+	GUI_EVENT_MOUSEPRESS : GUI_EVENT_MOUSERELEASE;
+      if(e->xbutton.button == Button1) {
+	event->key = 'L';
+      } else if(e->xbutton.button == Button2) {
+	event->key = 'M';
+      } else if(e->xbutton.button == Button3) {
+	event->key = 'R';
+      } 
+    } else if(e->type == MotionNotify) {
+      event->type = GUI_EVENT_MOUSEMOTION;
+      event->mousex = e->xmotion.x;
+      event->mousey = e->xmotion.y;
+    } else if(e->type == KeyPress ||
+	      e->type == KeyRelease) {
+      event->type = GUI_EVENT_KEYPRESS;
+      if(e->type == KeyRelease) {
+	event->type = GUI_EVENT_KEYPRESS;
+      }
+      event->key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
+    } 
     return true;
   }
   
@@ -476,14 +495,25 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 }
 
 GUI_DEF bool gui_get_window_size(Gui *gui, int *width, int *height) {
-  *width = gui->width;
-  *height = gui->height;  
+
+  Window root;
+  int x, y;
+  unsigned int w, h, bw, depth;
+  XGetGeometry(gui->display, gui->win, &root, &x, &y, (unsigned int *)&w, (unsigned int *)&h, &bw, &depth);
+  
+  *width = (int) w;
+  *height = (int) h;  
   return false;  
 }
 
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
-  *width = (float) gui->width;
-  *height = (float) gui->height;  
+  Window root;
+  int x, y;
+  unsigned int w, h, bw, depth;
+  XGetGeometry(gui->display, gui->win, &root, &x, &y, &w, &h, &bw, &depth);
+  
+  *width = (float) w;
+  *height = (float) h;
   return true;
 }
 

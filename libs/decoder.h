@@ -397,9 +397,9 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   //  samples = 1024
   //  sample_size = 4
   /*
-    int max_buffer_size = av_samples_get_buffer_size(NULL, decoder->av_codec_context->channels,
-    samples,
-    decoder->av_codec_context->sample_fmt, 1);
+  int max_buffer_size = av_samples_get_buffer_size(NULL, decoder->av_codec_context->channels,
+						   samples,
+						   decoder->av_codec_context->sample_fmt, 1);
   */
   
   int max_buffer_size = decoder->samples * decoder->sample_size;
@@ -516,12 +516,9 @@ DECODER_DEF void *decoder_start_decoding_function(void *arg) {
   
   while(buffer->last_size == 0) {
 
-    int distance = buffer->n - (buffer->fill_step - buffer->play_step);
-    //if(buffer->play_step > buffer->fill_step) {
-    if(distance > buffer->n ) {
-      for(int i=0;i<buffer->n - 1;i++) {
-	decoder_buffer_fill(buffer, decoder, (buffer->fill_step++) % buffer->n);	  
-      }
+    while(buffer->play_step + 2 >= buffer->fill_step &&
+	  (buffer->fill_step % buffer->n) != (buffer->play_step & buffer->n)) {
+      decoder_buffer_fill(buffer, decoder, (buffer->fill_step++) % buffer->n);	
     }
 
     thread_sleep(10);
