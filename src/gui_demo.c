@@ -13,19 +13,17 @@
 
 #ifdef OPENGL
 
-#define GUI_OPENGL
 #define GUI_IMPLEMENTATION
+#define GUI_OPENGL
 #include "../libs/gui.h"
 
 #define RENDERER_IMPLEMENTATION
 #include "../libs/renderer.h"
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    (void) hPrevInstance;
-    (void) lpCmdLine;
+int main() {
     
     Gui gui;
-    if(!gui_init(&gui, NULL, hInstance, nCmdShow, "gui_demo")) {
+    if(!gui_init(&gui, NULL, "gui_demo")) {
 	return -1;
     }
     gui_use_vsync(1);
@@ -35,19 +33,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return -1;
     }
 
-    Font font;
-    if(!font_init(&font, "C:\\Windows\\Fonts\\arial.ttf", 32)) {
+    Font2 font;
+    if(!font_init2(&font, "C:\\Windows\\Fonts\\arial.ttf", 32)) {
 	return -1;
     }
 
-    Renderer_Texture font_texture = {font.width, font.height, (char *) font.data, true};
-    u32 font_tex = renderer_push_texture(&renderer, font_texture);
+    u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
 
-    Renderer_Texture background_texture = {0};
-    background_texture.data = (s8 *) stbi_load("./img.jpg", &background_texture.width,
-					       &background_texture.height, 0, 4);
-    u32 background = renderer_push_texture(&renderer, background_texture);
-    stbi_image_free(background_texture.data);
+    s32 background_width, background_height;
+    s8 *background_data = (s8 *) stbi_load("./img.jpg", &background_width,
+					       &background_height, 0, 4);
+    u32 background = renderer_push_texture(&renderer, background_width, background_height, background_data, false);
+    stbi_image_free(background_data);
 
     Gui_Time timer;
     gui_time_capture(&timer);
@@ -67,9 +64,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	while(gui_peek(&gui, &event)) {
-	    if(event.msg.message == WM_KEYDOWN) {
-		gui_toggle_fullscreen(&gui);
-	    }
 	}
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -82,47 +76,45 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	renderer.resolution = border;
 	acc_time += msPerFrame;
 	renderer.time = (float) acc_time * 0.75f / 1000.f;
-
+	
 	renderer.image = background;
-	renderer_set_shader(&renderer, SHADER_FOR_RIPPLE);
-	renderer_image_rect(&renderer, vec2f(0, 0), border, vec2f(0, 0), vec2f(1, 1));
+	renderer_set_shader(&renderer, SHADER_FOR_IMAGE);
+	renderer_image_rect(&renderer,
+			    vec2f(0, 0),
+			    border,
+			    vec2f(0, 0),
+			    vec2f(1, 1));
 	renderer_flush(&renderer);
 
+	/*
 	renderer.image = font_tex;
 	renderer_set_shader(&renderer, SHADER_FOR_TEXT);
-
 	const char *word = stateBuffer;
-	float word_x = 0;
-	float word_y = border.y - font.height*2;
+
+	stbtt_aligned_quad q;
+	float x0= 0;
+	float y0= border.y - (float) font.height;
     
 	s32 k = 0;
 	while(word[k]) {
 	    char c = word[k++];
-	    if(c == ' ') {
-		word_x += font.height / 3;
-		continue;
+
+	    if(c >= 32 && c < 128) {
+	      stbtt_GetBakedQuad((stbtt_bakedchar *) font.cdata, 512, 512, c-32, &x0, &y0, &q, 1);
+
+	      renderer_text(&renderer,
+			    vec2f(q.x0, 2*y0 - q.y1),
+			    vec2f(q.x1 - q.x0, q.y1 - q.y0),
+			    vec2f(q.s0, 1 - q.t1),
+			    vec2f(q.s1 - q.s0, q.t1 - q.t0),
+			    
+			    vec4f(1, 1, 1, 1));
 	    }
-	
-	    float char_width = (float) font.ws[c - 32] / (float) font.width;
-	    float char_off = (float) (c - 32) * (float) font.height / (float) font.width;
-
-	    Vec2f char_size = vec2f(font.ws[c - 32], font.height);
-	    word_x += font.xs[c -32];
-
-	    renderer_text(&renderer,
-			  vec2f(word_x, word_y - font.ys[c - 32]),
-			  char_size,
-			  vec2f(char_off, 0),
-			  vec2f(char_width, 1),
-			  vec4f(1, 1, 1, 1));
-	    word_x += char_size.x;
 	}
-	renderer_flush(&renderer);    
-
-	renderer_set_shader(&renderer, SHADER_FOR_COLOR);
-	renderer_solid_rect(&renderer, vec2f(0, 0), vec2f(100, 100), vec4f(0, 1, 0, 1));
 	renderer_flush(&renderer);
-	//END RENDERER
+	*/
+	
+	//END RENDERER	
 
 	gui_swap_buffers(&gui);
     }
@@ -147,12 +139,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 static unsigned int pixels[WIDTH * HEIGHT];
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    (void) hPrevInstance;
-    (void) lpCmdLine;
-
-    Font font;
-    if(!font_init(&font, "C:\\Windows\\Fonts\\arial.ttf", 24)) {
+int main() {
+    Font2 font;
+    if(!font_init2(&font, "C:\\Windows\\Fonts\\arial.ttf", 24)) {
 	return -1;
     }
 
@@ -165,7 +154,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     char *word = "The quick brown fox jumps over the lazy dog!?.";
     u8 n = 20;
     for(u8 i=1;i<n+1;i++) {
-	font_render(&font, word, strlen(word),
+	font_render2(&font, word, strlen(word),
 		    pixels, WIDTH, HEIGHT,
 		    0, HEIGHT - i*font.height, ((0xff * (i-1) / n) << 24) | 0x00ffffff);
     }
@@ -178,7 +167,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     Gui gui;
     Gui_Canvas canvas = {WIDTH, HEIGHT, pixels};
-    if(!gui_init(&gui, &canvas, hInstance, nCmdShow, "gui_demo")) {
+    if(!gui_init(&gui, &canvas, "gui_demo")) {
 	return -1;
     }
 
@@ -193,7 +182,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     gui_free(&gui);
     stbi_image_free(img);
-    font_free(&font);
+    font_free2(&font);
 
     return 0;
 }

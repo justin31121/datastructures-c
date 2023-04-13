@@ -9,6 +9,12 @@
 #include <limits.h>
 #include <stdlib.h>
 
+#ifdef STRING_IMPLEMENTATION
+#define UTIL_IMPLEMENTATION
+#endif //STRING_IMPLEMENTATION
+
+#include "util.h"
+
 typedef struct {
   size_t len;
   const char* data;
@@ -17,12 +23,7 @@ typedef struct {
 #define STRING_STATIC(cstr_lit) {.len=sizeof(cstr_lit), .data=cstr_lit}
 #define STRING(cstr_lit) string_from(cstr_lit, sizeof(cstr_lit) -1)
 #define String_Fmt "%.*s"
-#ifdef _WIN32
 #define String_Arg(s) ((int) (s).len), (s).data
-#endif //_WIN32
-#ifdef linux
-#define String_Arg(s) ((int) (s).len), (s).data
-#endif //linux
 
 string string_from(const char* data, size_t count);
 string string_from_cstr(const char* data);
@@ -66,6 +67,8 @@ bool string_buffer_reserve(String_Buffer *sb, size_t data_size);
 size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata);
 
 void string_buffer_free(String_Buffer *sb);
+
+const char *tprintf(String_Buffer *sb, const char *format, ...);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -180,7 +183,7 @@ bool string_chop_hex(string *s, uint64_t *n) {
 string string_from(const char* data, size_t len) {
   string s;
   s.len = len;
-  s.data=data;
+  s.data = data;
   return s;
 }
 
@@ -320,6 +323,11 @@ size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *
   return string_buffer_append((String_Buffer *) userdata, data, size*memb) ? size : 0;
 }
 
+bool string_buffer_send_callback(const char *data, size_t data_size, void *_sb) {
+  String_Buffer *sb = (String_Buffer *) _sb;
+  return string_buffer_append(sb, data, data_size);
+}
+
 bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size) {
   if(!sb) {
     return false;
@@ -381,6 +389,23 @@ void string_buffer_clear(String_Buffer *sb) {
 void string_buffer_free(String_Buffer *sb) {
   if(sb) free(sb->data);
   string_buffer_clear(sb);	
+}
+
+#define TPRINTF_BUFFER_SIZE 4096
+
+const char *tprintf(String_Buffer *sb, const char *format, ...) {
+  
+  va_list args;
+  va_start(args, format);
+  va_list two = args;
+  size_t len = vsnprintf(NULL, 0, format, args) + 1;
+  va_end(args);
+
+  string_buffer_reserve(sb, sb->len + len);
+  vsnprintf(sb->data + sb->len, len, format, two);
+  sb->len += len;
+
+  return sb->data + sb->len - len;
 }
 
 #endif //STRING_IMPLEMENTATION

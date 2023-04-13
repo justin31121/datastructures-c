@@ -15,9 +15,9 @@
 #define PLAYER_DEF static inline
 #endif //PLAYER_DEF
 
-#define PLAYER_BUFFER_SIZE 4096
+#define PLAYER_BUFFER_SIZE 8192
 #define PLAYER_N 2
-#define PLAYER_VOLUME 0.2f
+#define PLAYER_VOLUME 0.1f
 
 #include "decoder.h"
 #include "xaudio.h"
@@ -29,8 +29,8 @@ typedef struct{
   int sample_rate;
 
   float volume;
-  float duration;
-  float duration_secs;
+  float duration; //fancy
+  float duration_abs;
   int den;
 
   bool decoder_used;
@@ -61,11 +61,11 @@ PLAYER_DEF void player_play_thread(void *arg);
 
 PLAYER_DEF bool player_get_volume(Player *player, float *volume);
 PLAYER_DEF bool player_set_volume(Player *player, float volume);
-PLAYER_DEF bool player_get_duration_secs(Player *player, float *duration);
-PLAYER_DEF bool player_get_timestamp_secs(Player *player, float *timestamp);
+PLAYER_DEF bool player_get_duration_abs(Player *player, float *duration);
+PLAYER_DEF bool player_get_timestamp_abs(Player *player, float *timestamp);
 PLAYER_DEF bool player_get_duration(Player *player, float *duration);
 PLAYER_DEF bool player_get_timestamp(Player *player, float *timestamp);
-PLAYER_DEF bool player_seek(Player *player, int secs);
+PLAYER_DEF bool player_seek(Player *player, float secs);
 
 #ifdef PLAYER_IMPLEMENTATION
 
@@ -117,8 +117,8 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
   float secs = floorf(total);
   float comma = (total - secs) * 60.0f / 100.0f;
 
-  player->duration = total * 60.f;
-  player->duration_secs = secs + comma;
+  player->duration = secs + comma;
+  player->duration_abs = total * 60.f;
 
   AVRational rational = player
     ->decoder
@@ -150,6 +150,7 @@ PLAYER_DEF void player_play_thread(void *arg) {
   player->buffer.play_step = 0;
   player->buffer.fill_step = 0;
   player->buffer.last_size = 0;
+  player->buffer.extra_size = 0;
 
   //asynchronisly fill buffer
   if(!decoder_start_decoding(&player->decoder, &player->buffer, &player->decoding_thread)) {
@@ -249,17 +250,37 @@ PLAYER_DEF bool player_set_volume(Player *player, float volume) {
   return true;
 }
 
-PLAYER_DEF bool player_get_duration_secs(Player *player, float *duration) {
+PLAYER_DEF bool player_get_duration_abs(Player *player, float *duration) {
   if(!player->decoder_used) {
     return false;
   }
 
-  *duration = player->duration_secs;
+  *duration = player->duration_abs;
 
   return true;
 }
 
-PLAYER_DEF bool player_get_timestamp_secs(Player *player, float *timestamp) {
+PLAYER_DEF bool player_get_timestamp_abs(Player *player, float *timestamp) {
+  if(!player->decoder_used) {
+    return false;
+  }
+
+  *timestamp = (float) player->decoder.pts / (float) player->den;
+
+  return true;
+}
+
+PLAYER_DEF bool player_get_duration(Player *player, float *duration) {
+  if(!player->decoder_used) {
+    return false;
+  }
+
+  *duration = player->duration;
+
+  return true;
+}
+
+PLAYER_DEF bool player_get_timestamp(Player *player, float *timestamp) {
   if(!player->decoder_used) {
     return false;
   }
@@ -271,35 +292,16 @@ PLAYER_DEF bool player_get_timestamp_secs(Player *player, float *timestamp) {
   return true;
 }
 
-PLAYER_DEF bool player_get_duration(Player *player, float *duration) {
-  if(!player->decoder_used) {
-    return false;
-  }
-
-  *duration = player->duration_secs;
-
-  return true;
-}
-
-PLAYER_DEF bool player_get_timestamp(Player *player, float *timestamp) {
-  if(!player->decoder_used) {
-    return false;
-  }
-
-  *timestamp = (float) player->decoder.pts / (float) player->den / 100.f;
-
-  return true;
-}
-
-PLAYER_DEF bool player_seek(Player *player, int secs) {
+PLAYER_DEF bool player_seek(Player *player, float secs) {
   if(!player->decoder_used) {
     return false;
   }
   
   bool stopped = player_stop(player);
 
-  int64_t seek = player->decoder.pts + player->den*secs;
+  int64_t seek = player->den * (int) secs; //player->decoder.pts + player->den*secs
   av_seek_frame(player->decoder.av_format_context, player->decoder.stream_index, seek, 0);
+  player->decoder.pts = seek;
 
   if(stopped && !player_play(player)) {
     return false;

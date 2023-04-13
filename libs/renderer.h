@@ -35,11 +35,13 @@ typedef enum{
 	     COUNT_SHADERS
 }Renderer_Shader;
 
+/*
 typedef struct{
   int width, height;
   char *data;
   bool grey;
 }Renderer_Texture;
+*/
 
 #define RENDERER_VERTEX_CAP (1024 * 10)
 
@@ -70,7 +72,7 @@ RENDER_DEF void renderer_solid_triangle3(Renderer *renderer,
 					 Vec2f p1, Vec2f p2, Vec2f p3, Vec4f c1, Vec4f c2, Vec4f c3);
 RENDER_DEF void renderer_solid_rect(Renderer *renderer, Vec2f pos, Vec2f size, Vec4f color);
 RENDER_DEF void renderer_image_rect(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f usvs);
-RENDER_DEF unsigned int renderer_push_texture(Renderer *renderer, Renderer_Texture texture);
+RENDER_DEF unsigned int renderer_push_texture(Renderer *renderer, int width, int height, char *data, bool grey);
 RENDER_DEF void renderer_text(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, Vec4f c);
 RENDER_DEF void renderer_set_shader(Renderer *renderer, Renderer_Shader shader);
 RENDER_DEF void renderer_flush(Renderer *renderer);
@@ -140,7 +142,7 @@ static const char *renderer_frag_shader_sources[] = {
     "  float cLength = length(cPos);\n"
     "  vec2 img_uv = out_uv + (cPos/cLength)*mix(cos(cLength*12-time*4)*0.03, 0, cLength / 0.25);\n"
     "\n"
-    "gl_FragColor = texture(image, 1 - img_uv);\n"
+    "gl_FragColor = texture(image, vec2(img_uv.x, 1 - img_uv.y));\n"
     "}\n",
     [SHADER_FOR_TEXT] =
     "#version 330 core\n"
@@ -345,7 +347,7 @@ static GLenum renderer_index_to_texture(unsigned int index) {
   exit(1);
 }
 
-RENDER_DEF unsigned int renderer_push_texture(Renderer *r, Renderer_Texture texture) {
+RENDER_DEF unsigned int renderer_push_texture(Renderer *r, int width, int height, char *data, bool grey) {
   glActiveTexture(renderer_index_to_texture(r->images_count));
   glGenTextures(1, &r->textures);
   glBindTexture(GL_TEXTURE_2D, r->textures);
@@ -357,26 +359,26 @@ RENDER_DEF unsigned int renderer_push_texture(Renderer *r, Renderer_Texture text
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-  if(texture.grey) {
+  if(grey) {
     glTexImage2D(GL_TEXTURE_2D,
 		 0,
 		 GL_RED,
-		 texture.width,
-		 texture.height,
+		 width,
+		 height,
 		 0,
 		 GL_RED,
 		 GL_UNSIGNED_BYTE,
-		 texture.data);
+		 data);
   } else {
     glTexImage2D(GL_TEXTURE_2D,
 		 0,
 		 GL_RGBA,
-		 texture.width,
-		 texture.height,
+		 width,
+		 height,
 		 0,
 		 GL_RGBA,
 		 GL_UNSIGNED_INT_8_8_8_8_REV,
-		 texture.data);
+		 data);
   }
 
 
