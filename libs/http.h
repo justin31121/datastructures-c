@@ -751,7 +751,7 @@ HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_req
   if(pthread_create(&server->threads[0].id, NULL, http_server_listen_function, server) != 0)  {
     free(server->threads);
     return false;
-  }  
+  }
 #endif
 
   server->running = true;

@@ -11,9 +11,14 @@ endif
 ifeq ($(OS),Windows_NT)
 	GUI = -lgdi32
 	OPENGL = -lopengl32
+	AUDIO = -lxaudio2_8 -lole32
 else
 	GUI = -lX11
 	OPENGL = -lGLX -lGL
+
+	LIBS = alsa
+	LDFLAGS = `pkg-config --libs $(LIBS)`
+	LDLIBS = `pkg-config --cflags $(LIBS)`
 endif
 
 
@@ -26,7 +31,7 @@ CL-player_demo:
 	cl ./src/player_demo.c /Fe:player.exe
 
 GCC-player_demo:
-	gcc ./src/player_demo.c $(GCC-FLAGS) -o player -lgdi32 -lopengl32 -lavutil -lavcodec -lavformat -lswresample -lxaudio2_8 -lole32
+	gcc ./src/player_demo.c $(GCC-FLAGS) -o player $(GUI) $(OPENGL) -lavutil -lavcodec -lavformat -lswresample $(AUDIO) -lm -lpthread $(LDFLAGS) $(LDLIBS)
 
 #==========================================================================
 

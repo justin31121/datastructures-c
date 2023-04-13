@@ -1,6 +1,7 @@
 #ifndef XAUDIO_H_H_
 #define XAUDIO_H_H_
 
+#ifdef _WIN32
 #include <windows.h>
 #include <xaudio2.h>
 
@@ -125,4 +126,5 @@ void xaudio_wait() {
 
 #endif //XAUDIO_IMPLEMENTATION
 
+#endif //_WIN32
 #endif //XAUDIO_H_H_

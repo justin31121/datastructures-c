@@ -8,11 +8,14 @@ typedef HANDLE Thread;
 typedef HANDLE Mutex;
 //TODO implement for gcc
 #elif __GNUC__ ////////////////////////////////////////////
+#include <pthread.h>
+typedef pthread_t Thread;
+typedef pthread_mutex_t Mutex;
 #endif
 
 #include <stdint.h> // for uintptr_t
 
-int thread_create(Thread *id, void *function, void *arg);
+int thread_create(Thread *id, void* (*function)(void *), void *arg);
 void thread_join(Thread id);
 void thread_sleep(int ms);
 
@@ -24,7 +27,7 @@ void mutex_release(Mutex mutex);
 
 #ifdef _WIN32 ////////////////////////////////////////////
 
-int thread_create(Thread *id, void *function, void *arg) {
+int thread_create(Thread *id, (void*) (*function)(void *), void *arg) {
   int ret =
     //CreateThread(NULL, 0, function, arg, 0, NULL);
       _beginthread((_beginthread_proc_type) function, 0, arg);
@@ -61,6 +64,29 @@ void mutex_release(Mutex mutex) {
 
 //TODO implement for gcc
 #elif __GNUC__ ////////////////////////////////////////////
+
+int thread_create(Thread *id, void* (*function)(void *), void *arg) {
+  return pthread_create(id, NULL, function, arg) == 0;
+}
+
+void thread_join(Thread id) {
+  pthread_join(id, NULL);
+}
+
+void thread_sleep(int ms) {
+  //TOOD: proper sleep_time if ms is longer than a second
+  struct timespec sleep_time;
+  if(ms < 1000) {
+    sleep_time.tv_sec = 0;
+    sleep_time.tv_nsec = ms * 1000000;    
+  } else {
+    sleep_time.tv_sec = ms / 1000;
+    sleep_time.tv_nsec = 0;
+  }
+  if(nanosleep(&sleep_time, NULL) == -1) {
+    return;
+  }
+}
 
 #endif //__GNUC__
 

@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+#define STRING_IMPLEMENTATION
+#include "../libs/string.h"
+
 #define GUI_IMPLEMENTATION
 #define GUI_OPENGL
 #include "../libs/gui.h"
@@ -12,9 +15,6 @@
 
 #define PLAYER_IMPLEMENTATION
 #include "../libs/player.h"
-
-#define STRING_IMPLEMENTATION
-#include "../libs/string.h"
 
 #include "../rsc/atlas.h"
 #include "../rsc/musik.h"
@@ -80,10 +80,10 @@ int main() {
     u32 musik_tex = renderer_push_texture(&renderer, musik_width, musik_height, (char *) musik_data, false);
 
     Player player;
-    if(!player_init(&player, DECODER_FMT_S16, 2, 48000)) { // for now the best setup
+    if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) { // for now the best setup
 	panic("player_init");
     }
-    if(!player_open_file(&player, ".\\rsc\\doctor1.m4a")) {
+    if(!player_open_file(&player, "./rsc/doctor1.m4a")) {
 	panic("player_open_file");
     }
     
@@ -108,7 +108,6 @@ int main() {
     Gui_Event event;
     while(gui.running) {
 	bool click = false;
-	bool release = false;
 	sb.len = 0;
 
 	u32 ms = (u32) gui_time_measure(&time);
@@ -140,9 +139,9 @@ int main() {
 		  x = cursor_base_x + bar_width - 16;
 		}
 
-		float time = (x - cursor_base_x) * player.duration_abs / (bar_width - 8.f);
+		float _time = (x - cursor_base_x) * player.duration_abs / (bar_width - 8.f);
 		
-		player_seek(&player, time);
+		player_seek(&player, _time);
 		drag = false;
 		if(!was_paused) {
 		  player_play(&player); 
@@ -169,7 +168,7 @@ int main() {
 	renderer.image = font_tex;
 	renderer_set_shader(&renderer, SHADER_FOR_TEXT);
 	
-	float time;
+	float _time;
 	if(drag) {
 	  float x = (float) event.mousex - 8.f;
 	  if(x < cursor_base_x) {
@@ -180,19 +179,19 @@ int main() {
 	  }
 	    
 	  float secs = (x - cursor_base_x) * player.duration_abs / (bar_width - 8.f);
-	  time = floorf(secs / 60.f);
-	  time += (float) ((int) secs % 60) / 100;
+	  _time = floorf(secs / 60.f);
+	  _time += (float) ((int) secs % 60) / 100;
 	} else {
-	  player_get_timestamp(&player, &time);
+	  player_get_timestamp(&player, &_time);
 	}
 
-	const char *text = tprintf(&sb, "%.2f", time);
+	const char *text = tprintf(&sb, "%.2f", _time);
 	render_line(&renderer,
 		    cursor_base_x*.5f - .5f * (float) font_estimate_width2(&font, text), bar_height,
 		    &font, text);
 
-	player_get_duration(&player, &time);
-	text = tprintf(&sb, "%.2f", time);
+	player_get_duration(&player, &_time);
+	text = tprintf(&sb, "%.2f", _time);
 	render_line(&renderer,
 		    border.x - 
 		    cursor_base_x*.5f -
@@ -249,9 +248,9 @@ int main() {
 	    x = cursor_base_x + bar_width - 16;
 	  }
 
-	  float time = (x - cursor_base_x) * player.duration_abs / (bar_width - 8.f);
+	  float time_ = (x - cursor_base_x) * player.duration_abs / (bar_width - 8.f);
 		
-	  player_seek(&player, time);
+	  player_seek(&player, time_);
 	}
 	renderer_solid_rect(&renderer,
 			    vec2f(cursor_base_x, bar_height),

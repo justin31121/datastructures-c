@@ -14,8 +14,9 @@
 #define DECODER_DEF static inline
 #endif //DECODER_DEF
 
+#define DECODER_XAUDIO2_SAMPLES 64 //TODO: fix this
+
 #ifdef _WIN32
-#define DECODER_XAUDIO2_SAMPLES 64
 #include <windows.h>
 #include <mmreg.h>
 #endif
@@ -93,7 +94,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 			      float volume,
 			      int samples);
 DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples);
-DECODER_DEF void decoder_start_decoding_function(void *arg);
+DECODER_DEF void *decoder_start_decoding_function(void *arg);
 DECODER_DEF bool decoder_start_decoding(Decoder *decoder, Decoder_Buffer *buffer, Thread *id);
 DECODER_DEF void decoder_free(Decoder *decoder);
 
@@ -106,10 +107,12 @@ DECODER_DEF void decoder_get_waveformat(WAVEFORMATEX *waveFormat,
 
 #ifdef DECODER_IMPLEMENTATION
 
+#ifdef _WIN32
 #pragma comment(lib, "avcodec.lib")
 #pragma comment(lib, "avformat.lib")
 #pragma comment(lib, "avutil.lib")
 #pragma comment(lib, "swresample.lib")
+#endif //_WIN32
 
 DECODER_DEF const char *decoder_fmt_to_cstr(Decoder_Fmt fmt) {
   switch(fmt) {
@@ -506,7 +509,7 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
 
 
 //TODO: reduce this "distance > buffer->n" condition
-DECODER_DEF void decoder_start_decoding_function(void *arg) {
+DECODER_DEF void *decoder_start_decoding_function(void *arg) {
   
   Decoder_Buffer *buffer = (Decoder_Buffer *) arg;
   Decoder *decoder = buffer->decoder;
@@ -521,9 +524,10 @@ DECODER_DEF void decoder_start_decoding_function(void *arg) {
       }
     }
 
-    Sleep(10);
+    thread_sleep(10);
   }
 
+  return NULL;
 }
 
 DECODER_DEF bool decoder_start_decoding(Decoder *decoder, Decoder_Buffer *buffer, Thread *id) {

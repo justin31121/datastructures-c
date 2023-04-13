@@ -15,9 +15,13 @@
 #define PLAYER_DEF static inline
 #endif //PLAYER_DEF
 
-#define PLAYER_BUFFER_SIZE 8192
-#define PLAYER_N 2
+#define PLAYER_BUFFER_SIZE 4096
+#define PLAYER_N 4
 #define PLAYER_VOLUME 0.1f
+
+#ifdef linux
+#include <alsa/asoundlib.h>
+#endif //linux
 
 #include "decoder.h"
 #include "xaudio.h"
@@ -40,6 +44,11 @@ typedef struct{
   Decoder decoder;
   Thread audio_thread;
   Thread decoding_thread;
+
+#ifdef linux
+  snd_pcm_t *pcm;
+  int samples;
+#endif //linux
 }Player;
 
 //Player also initializes xaudio. Thats maybe not ideal
@@ -53,7 +62,7 @@ PLAYER_DEF bool player_play(Player *player);
 PLAYER_DEF bool player_stop(Player *player);
 PLAYER_DEF bool player_toggle(Player *player);
 
-PLAYER_DEF void player_play_thread(void *arg);
+PLAYER_DEF void *player_play_thread(void *arg);
 
 ////////////////////////////////////////////////////
 //TODO: right now i am stopping the play_thread for changing the volume etc.
@@ -71,6 +80,7 @@ PLAYER_DEF bool player_seek(Player *player, float secs);
 
 PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int sample_rate) {
 
+#ifdef _WIN32
   WAVEFORMATEX waveFormat;
   decoder_get_waveformat(&waveFormat,
 			 fmt,
@@ -79,6 +89,29 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   if(!xaudio_init(&waveFormat)) {
     return false;
   }
+  player->audio_thread = NULL;
+  player->decoding_thread = NULL;
+  player->samples = DECODER_XAUDIO2_SAMPLES;
+#elif linux
+
+  if(snd_pcm_open(&player->pcm, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+    return false;
+  }
+  if(snd_pcm_set_params(player->pcm, SND_PCM_FORMAT_S16_LE, //TODO unhardcode everything
+			SND_PCM_ACCESS_RW_INTERLEAVED, channels,
+			sample_rate, 0, player->sample_rate / 4) < 0) {
+    return false;
+  }
+  snd_pcm_uframes_t buffer_size = 0;
+  snd_pcm_uframes_t period_size = 0;
+  if(snd_pcm_get_params(player->pcm, &buffer_size, &period_size) < 0) {
+    return false;
+  }
+  
+  player->audio_thread = 0;  
+  player->decoding_thread = 0;
+  player->samples = period_size;
+#endif //_WIN32
   
   if(!decoder_buffer_init(&player->buffer, PLAYER_N, PLAYER_BUFFER_SIZE)) {
     return false;
@@ -88,9 +121,7 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   player->channels = channels;
   player->sample_rate = sample_rate;
 
-  player->audio_thread = NULL;
-  player->decoding_thread = NULL;
-  
+
   player->decoder_used = false;
   player->playing = false;
 
@@ -104,7 +135,7 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 		   player->channels,
 		   player->sample_rate,
 		   PLAYER_VOLUME,
-		   DECODER_XAUDIO2_SAMPLES)) { //TODO: fix this
+		   player->samples)) { //TODO: fix this
     return false;
   }
   player->decoder_used = true;
@@ -143,7 +174,7 @@ PLAYER_DEF bool player_close_file(Player *player) {
   return true;
 }
 
-PLAYER_DEF void player_play_thread(void *arg) {
+PLAYER_DEF void *player_play_thread(void *arg) {
   Player *player = (Player *) arg;
 
   //reset buffer
@@ -155,7 +186,7 @@ PLAYER_DEF void player_play_thread(void *arg) {
   //asynchronisly fill buffer
   if(!decoder_start_decoding(&player->decoder, &player->buffer, &player->decoding_thread)) {
     fprintf(stderr, "ERROR: player_play_thread could not start decoding_thread!\n");
-    return;
+    return NULL;
   }
 
   //play buffer
@@ -165,12 +196,24 @@ PLAYER_DEF void player_play_thread(void *arg) {
 	decoder_buffer_next(&player->buffer, &data, &data_size)) {
     
     if(player->volume > 0.0f) {
-      xaudio_play(data, data_size); 
+#ifdef _WIN32
+      xaudio_play(data, data_size);
+#elif linux
+      int ret = snd_pcm_writei(player->pcm, data, data_size / player->decoder.sample_size);
+	  
+      if(ret < 0) {
+	if((ret == snd_pcm_recover(player->pcm, ret, 1)) == 0) {
+	  //log something ??
+	}
+      }
+#endif //_WIN32
     } else {
-      Sleep(player->buffer.buffer_size * 1000 / player->sample_rate / player->decoder.sample_size);
+      thread_sleep(player->buffer.buffer_size * 1000 / player->sample_rate / player->decoder.sample_size);
     }
     
   }
+
+  return NULL;
 }
 
 PLAYER_DEF bool player_play(Player *player) {
@@ -198,8 +241,13 @@ PLAYER_DEF bool player_stop(Player *player) {
   player->buffer.last_size = -2;
   thread_join(player->decoding_thread);
 
+#ifdef _WIN32
   player->audio_thread = NULL;
   player->decoding_thread = NULL;
+#elif __GNUC__
+  player->audio_thread = 0;
+  player->decoding_thread = 0;
+#endif //_WIN32
   
   return true;
 }
