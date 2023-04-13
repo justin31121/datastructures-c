@@ -20,6 +20,8 @@ typedef struct {
    float xoff,yoff,xadvance;
 } font_stbtt_bakedchar;
 
+#if 0
+
 typedef struct{
   unsigned char *bitmap;
   font_stbtt_bakedchar *cdata;
@@ -33,6 +35,8 @@ FONT_DEF void font_render(Font *font, const char* data, u32 data_len,
 			  u32 x, u32 y,
 			  u32 color);
 FONT_DEF void font_free(Font *font);
+
+#endif
 
 typedef struct{
   u8 *data;          //data of glyphs
@@ -103,6 +107,8 @@ FONT_DEF char *font_slurp_file(const char* file_path, size_t *size) {
   return res;
 }
 
+#if 0
+
 //TODO: unhardcode 512x512 bitmap
 FONT_DEF bool font_init(Font *font, const char* font_path, int font_height) {
   if(!font) {
@@ -121,10 +127,10 @@ FONT_DEF bool font_init(Font *font, const char* font_path, int font_height) {
   }
   
   font->height = font_height;
-  font->bitmap = memory;
+  font->bitmap = (unsigned char * ) memory;
   font->cdata = (font_stbtt_bakedchar *) (memory + 512 * 512);
   
-  int ret = stbtt_BakeFontBitmap(content, 0, (float) font_height, font->bitmap, 512, 512, 32, 96,
+  int ret = stbtt_BakeFontBitmap((unsigned char *) content, 0, (float) font_height, font->bitmap, 512, 512, 32, 96,
 				 (stbtt_bakedchar *) font->cdata);
   if(ret <= 0) {
     free(content);
@@ -153,7 +159,7 @@ FONT_DEF void font_render(Font *font, const char* data, u32 data_len,
 
     char c = data[i];
     
-    if(c >= 32 && c < 128) {
+    if(c >= 32 && c < 128) { 
       stbtt_GetBakedQuad((stbtt_bakedchar *) font->cdata, 512, 512, c-32, &x0, &y0, &q, 1);//1=opengl & d3d10+,0=d3d9
       s32 q_x0 = (s32) q.x0;
       s32 q_y0 = (s32) q.y0;
@@ -161,9 +167,9 @@ FONT_DEF void font_render(Font *font, const char* data, u32 data_len,
       s32 width = (s32) (q.s1 * 512 - q.s0 * 512);
       s32 height = (s32) (q.t1 * 512 - q.t0 * 512);
   
-      u8 *data = &font->bitmap[(s32) (q.t0 * 512 * 512 + q.s0 * 512)];
+      u8 *font_data = &font->bitmap[(s32) (q.t0 * 512 * 512 + q.s0 * 512)];
       for(s32 y=0;y<height;y++) {
-	u8 *pixel = data;
+	u8 *pixel = font_data;
 	for(s32 x=0;x<width;x++) {
 	  u8 d = *pixel++;
 	  
@@ -177,7 +183,7 @@ FONT_DEF void font_render(Font *font, const char* data, u32 data_len,
 	  u32 new_color = rgba_mix( ((d << 24) | color), old_color) & 0x00ffffff;
 	  pixels[ny*width2+nx] = rgba_mix( (alpha | new_color), old_color);
 	}
-	data += 512;
+	font_data += 512;
       }
     }
   }
@@ -205,6 +211,8 @@ FONT_DEF void font_free(Font *font) {
 
   free(font->bitmap);
 }
+
+#endif
 
 FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height) {
   if(!font) {

@@ -8,6 +8,7 @@
 #include "../libs/font.h"
 
 #include "../libs/util.h"
+//#include "../rsc/segoeui.h"
 
 #define OPENGL
 
@@ -19,6 +20,9 @@
 
 #define RENDERER_IMPLEMENTATION
 #include "../libs/renderer.h"
+
+#define STRING_IMPLEMENTATION
+#include "../libs/string.h"
 
 int main() {
     
@@ -33,12 +37,9 @@ int main() {
 	return -1;
     }
 
-    Font2 font;
-    if(!font_init2(&font, "C:\\Windows\\Fonts\\arial.ttf", 32)) {
-	return -1;
-    }
-
-    u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
+    //Font2 font = font2_segoeui_22;
+    //u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
+    //(void) font_tex;
 
     s32 background_width, background_height;
     s8 *background_data = (s8 *) stbi_load("./img.jpg", &background_width,
@@ -53,18 +54,18 @@ int main() {
 
     Vec2f border;
     Gui_Event event;
+    String_Buffer sb = {0};
     while(gui.running) {
-    
+      sb.len = 0;
+      
+	while(gui_peek(&gui, &event)) {
+	}
+
 	gui_get_window_sizef(&gui, &border.x, &border.y);
 
 	u64 msPerFrame = gui_time_measure(&timer);
-	char stateBuffer[1024];
-	if(snprintf(stateBuffer, 1024, "%lums", msPerFrame) >= 1024) {
-	    panic("buffer overflow");
-	}
-	
-	while(gui_peek(&gui, &event)) {
-	}
+	const char *state = tprintf(&sb, "%lums", msPerFrame);
+	printf("%s\n", state);
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);

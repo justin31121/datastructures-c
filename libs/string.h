@@ -397,7 +397,12 @@ const char *tprintf(String_Buffer *sb, const char *format, ...) {
   
   va_list args;
   va_start(args, format);
+#ifdef _MSC_VER
   va_list two = args;
+#elif __GNUC__
+  va_list two;
+  va_copy(two, args);
+#endif
   size_t len = vsnprintf(NULL, 0, format, args) + 1;
   va_end(args);
 

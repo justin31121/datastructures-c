@@ -2,11 +2,20 @@ MAKEFLAGS += --no-print-directory
 
 GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 
-PREFIX = CL
+PREFIX = GCC
 
 ifeq ($(PREFIX),CL)
 	CLEAN_UP = && del *.obj
 endif
+
+ifeq ($(OS),Windows_NT)
+	GUI = -lgdi32
+	OPENGL = -lopengl32
+else
+	GUI = -lX11
+	OPENGL = -lGLX -lGL
+endif
+
 
 #==========================================================================
 
@@ -49,7 +58,7 @@ gui: ./src/gui_demo.c ./libs/gui.h ./libs/font.h
 	make $(PREFIX)-gui $(CLEAN_UP)
 
 GCC-gui:
-	gcc ./src/gui_demo.c $(GCC-FLAGS) -o gui -lopengl32 -lgdi32
+	gcc ./src/gui_demo.c $(GCC-FLAGS) -o gui $(GUI) $(OPENGL) -lm
 
 CL-gui:
 	cl ./src/gui_demo.c /Fe:gui.exe
