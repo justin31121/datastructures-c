@@ -330,9 +330,16 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     return decoder_init_fail("avcodec_parameters_to_context");
   }
 
-  if(decoder->av_codec_context->channel_layout == 0) {
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif //__GNUC__
+  if(decoder->av_codec_context->channel_layout) {
     decoder->av_codec_context->channel_layout = AV_CH_LAYOUT_STEREO;
   }
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif //__GNUC__  
 
   if(avcodec_open2(decoder->av_codec_context, av_codec, NULL) < 0) {
     avcodec_close(decoder->av_codec_context);
@@ -347,6 +354,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif //__GNUC__
+
   int channel_layout;
   if(channels == 1) {
     channel_layout = AV_CH_LAYOUT_MONO;
@@ -373,7 +381,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
-#endif //__GNUC__
+#endif //__GNUC__  
   
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
   

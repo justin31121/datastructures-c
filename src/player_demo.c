@@ -16,6 +16,9 @@
 #define PLAYER_IMPLEMENTATION
 #include "../libs/player.h"
 
+#define IO_IMPLEMENTATION
+#include "../libs/io.h"
+
 #include "../rsc/atlas.h"
 #include "../rsc/musik.h"
 #include "../rsc/segoeui.h"
@@ -55,12 +58,40 @@ void render_line(Renderer *renderer,
 		  vec4f(1, 1, 1, 1));
     word_x += char_size.x;
   }
+}
 
+String_Buffer sbuffer = {0};
+
+int main() {
+
+  Io_Dir dir;
+  if(!io_dir_open(&dir, "./rsc/")) {
+    panic("io_dir_open");
+  }
+
+  Io_File file;
+  while(io_dir_next(&dir, &file)) {
+    if(file.is_dir) continue;
+    string_buffer_append(&sbuffer,
+			 file.abs_name, strlen(file.abs_name)+1);    
+  }
+
+  io_dir_close(&dir);
+
+  //////////////////////////////////////
+  size_t n = 0;
+  while(n < sbuffer.len) {
+    char *name = sbuffer.data + n;
+    printf("%s\n", name);
+    n += strlen(name)+1;
+  }
+  
+  return 0;
 }
 
 String_Buffer sb = {0};
 
-int main() {
+int main1() {
     
     Gui gui;
     Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
@@ -83,7 +114,7 @@ int main() {
     if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) { // for now the best setup
 	panic("player_init");
     }
-    if(!player_open_file(&player, "./rsc/2020.mp3")) {
+    if(!player_open_file(&player, "./rsc/doctor.m4a")) {
 	panic("player_open_file");
     }
     
@@ -150,7 +181,7 @@ int main() {
 	    }
 	}
 	
-	gui_get_window_sizef(&gui, &border.x, &border.y);	
+	gui_get_window_sizef(&gui, &border.x, &border.y);
 	bar_width = border.x * 0.55f;
 	cursor_base_x = border.x/2.f - bar_width / 2.f;
 
