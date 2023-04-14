@@ -44,10 +44,10 @@ typedef struct{
   Decoder decoder;
   Thread audio_thread;
   Thread decoding_thread;
+  int samples;
 
 #ifdef linux
   snd_pcm_t *pcm;
-  int samples;
 #endif //linux
 }Player;
 

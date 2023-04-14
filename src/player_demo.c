@@ -83,7 +83,7 @@ int main() {
     if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) { // for now the best setup
 	panic("player_init");
     }
-    if(!player_open_file(&player, "./rsc/2019.m4a")) {
+    if(!player_open_file(&player, "./rsc/2020.mp3")) {
 	panic("player_open_file");
     }
     

@@ -27,7 +27,7 @@ void mutex_release(Mutex mutex);
 
 #ifdef _WIN32 ////////////////////////////////////////////
 
-int thread_create(Thread *id, (void*) (*function)(void *), void *arg) {
+int thread_create(Thread *id, void* (*function)(void *), void *arg) {
   int ret =
     //CreateThread(NULL, 0, function, arg, 0, NULL);
       _beginthread((_beginthread_proc_type) function, 0, arg);
