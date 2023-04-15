@@ -199,12 +199,13 @@ DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, i
   }
 
   while(data_size < buffer->buffer_size && decoder_decode(decoder, &out_samples)) {
+    if(out_samples < 0) continue;
     int out_samples_size = out_samples * decoder->sample_size;
     
     if(data_size + out_samples_size > buffer->buffer_size) {
 
       //copy portion that fits
-      int expected_sample_size = buffer->buffer_size - data_size;
+      int expected_sample_size = buffer->buffer_size - data_size;      
       assert(expected_sample_size % decoder->sample_size == 0);
       memcpy(buffer->buffers + index * buffer->buffer_size +
 	     data_size,
@@ -232,7 +233,7 @@ DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, i
   }
 
   if(data_size != buffer->buffer_size) {
-    //buffer->last_size = data_size;
+    buffer->last_size = data_size;
   }
 
   return true;
@@ -329,6 +330,13 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_format_context = NULL;
     return decoder_init_fail("avcodec_parameters_to_context");
   }
+
+  //if sample_rate does not match target sample_rate exit, for now
+  if(decoder->av_codec_context->sample_rate != sample_rate) {
+    return false;
+  }
+  //decoder->av_codec_context->sample_rate = sample_rate;
+
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push

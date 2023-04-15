@@ -49,6 +49,9 @@ google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h
 GCC-google:
 	gcc ./src/google.c $(GCC-FLAGS) -o google -lssl -lcrypto -lws2_32
 
+CL-google:
+	cl ./src/google.c /Fe:google.exe
+
 #==========================================================================
 
 httpserver: ./libs/http.h ./src/httpserver.c
