@@ -563,7 +563,6 @@ GUI_DEF bool gui_free(Gui *gui) {
   return true;
 }
 
-//TODO
 GUI_DEF bool gui_init_opengl(Gui *gui) {
   (void) gui;
   if(glCreateShader != NULL) {
@@ -707,11 +706,14 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
     return false;
   }
 
+  int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+  int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
   if(!(gui->win = CreateWindowEx(0,
 				 wc.lpszClassName,
 				 wc.lpszClassName,
 				 WS_OVERLAPPEDWINDOW,
-				 CW_USEDEFAULT, CW_USEDEFAULT,
+				 canvas != NULL ? (screenWidth / 2 - canvas->width/2) : CW_USEDEFAULT, canvas != NULL ? (screenHeight / 2 - (canvas->height + 39)/2) : CW_USEDEFAULT,
 				 canvas != NULL ? canvas->width : CW_USEDEFAULT,
 				 canvas != NULL ? canvas->height + 39 : CW_USEDEFAULT,
 				 NULL,

@@ -27,8 +27,8 @@
 #define FOREGROUND vec4f(0.451, 0.6392, 0.8 , 1) //0xFFCCA37e
 #define WHITE vec4f(0.8667, 0.8667, 0.8667, 1)
 
-#define WIDTH 340
-#define HEIGHT 340
+#define WIDTH 800
+#define HEIGHT 600
 
 void render_line(Renderer *renderer,
 		 float x, float y,
@@ -60,38 +60,31 @@ void render_line(Renderer *renderer,
   }
 }
 
-String_Buffer sbuffer = {0};
-
-int main() {
+void load_files(const char *dir_path, Player *player, String_Buffer *buffer) {
 
   Io_Dir dir;
-  if(!io_dir_open(&dir, "./rsc/")) {
+  if(!io_dir_open(&dir, dir_path)) {
     panic("io_dir_open");
   }
 
   Io_File file;
   while(io_dir_next(&dir, &file)) {
     if(file.is_dir) continue;
-    string_buffer_append(&sbuffer,
-			 file.abs_name, strlen(file.abs_name)+1);    
+    if(!player_open_file(player, file.abs_name)) {
+      continue;
+    }
+    string_buffer_append(buffer,
+			 file.abs_name, strlen(file.abs_name)+1);
+    player_close_file(player);
   }
 
-  io_dir_close(&dir);
-
-  //////////////////////////////////////
-  size_t n = 0;
-  while(n < sbuffer.len) {
-    char *name = sbuffer.data + n;
-    printf("%s\n", name);
-    n += strlen(name)+1;
-  }
-  
-  return 0;
+  io_dir_close(&dir);  
 }
 
-String_Buffer sb = {0};
+String_Buffer temp = {0};
+String_Buffer sbuffer = {0};
 
-int main1() {
+int main() {
     
     Gui gui;
     Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
@@ -114,14 +107,24 @@ int main1() {
     if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) { // for now the best setup
 	panic("player_init");
     }
-    if(!player_open_file(&player, "./rsc/doctor.m4a")) {
+
+    const char *dir_path = "./rsc/";
+    int dir_path_len = strlen(dir_path);
+
+    load_files(dir_path, &player, &sbuffer);
+    if(sbuffer.len == 0) { //no files found
+      panic("load_files");
+    }
+    int sbuffer_pos = 0;
+
+    if(!player_open_file(&player, sbuffer.data)) {
 	panic("player_open_file");
     }
     
     if(!player_play(&player)) {
 	panic("player_play");
     }
-    player_set_volume(&player, 0.2f);
+    player_set_volume(&player, 0.01);
 
     float button_width = 24.f;
     float bar_height = 60.f;
@@ -139,7 +142,7 @@ int main1() {
     Gui_Event event;
     while(gui.running) {
 	bool click = false;
-	sb.len = 0;
+	temp.len = 0;
 
 	u32 ms = (u32) gui_time_measure(&time);
 	if(player.playing) acc += ms;
@@ -150,7 +153,7 @@ int main1() {
 		case 'Q': {
 		    gui.running = false;		    
 		} break;
-		case 'P': {
+		case 'P': {		  
 		    player_toggle(&player);
 		} break;
 		}
@@ -182,7 +185,7 @@ int main1() {
 	}
 	
 	gui_get_window_sizef(&gui, &border.x, &border.y);
-	bar_width = border.x * 0.55f;
+	bar_width = border.x * 0.8f;
 	cursor_base_x = border.x/2.f - bar_width / 2.f;
 
 	float mousex = (float) event.mousex;
@@ -198,7 +201,14 @@ int main1() {
 
 	renderer.image = font_tex;
 	renderer_set_shader(&renderer, SHADER_FOR_TEXT);
-	
+
+	//TITLE
+	const char *text = tprintf(&temp, "%s", sbuffer.data + sbuffer_pos + dir_path_len);
+	render_line(&renderer,
+		    0, border.y - (float) font.height,
+		    &font, text);
+
+	//TIME
 	float _time;
 	if(drag) {
 	  float x = (float) event.mousex - 8.f;
@@ -216,13 +226,13 @@ int main1() {
 	  player_get_timestamp(&player, &_time);
 	}
 
-	const char *text = tprintf(&sb, "%.2f", _time);
+	text = tprintf(&temp, "%.2f", _time);
 	render_line(&renderer,
 		    cursor_base_x*.5f - .5f * (float) font_estimate_width2(&font, text), bar_height,
 		    &font, text);
 
 	player_get_duration(&player, &_time);
-	text = tprintf(&sb, "%.2f", _time);
+	text = tprintf(&temp, "%.2f", _time);
 	render_line(&renderer,
 		    border.x - 
 		    cursor_base_x*.5f -
@@ -235,7 +245,7 @@ int main1() {
 	renderer_set_shader(&renderer, SHADER_FOR_IMAGE);
 
 	//PLAY N PAUSE
-	Vec2f pos = vec2f(border.x*.5f - button_width*.5f, 4 + button_width*.5f);
+	Vec2f pos = vec2f(button_width * 4, 4 + button_width*.5f);
 	if(click &&
 	   mousex > pos.x &&
 	   mousey > pos.y &&
@@ -249,17 +259,63 @@ int main1() {
 			    vec2f(player.playing ? .25 : 0, 0), vec2f(.25, 1));
 
 	//PREV
-	renderer_image_rect(&renderer, vec2f_sub(pos, vec2f(2*button_width, 0)), vec2f(button_width,  button_width), vec2f(.5, 0), vec2f(.25, 1));
+	Vec2f _pos = vec2f_sub(pos, vec2f(2*button_width, 0));
+	if(click &&
+	   mousex > _pos.x &&
+	   mousey > _pos.y &&
+	   mousex - _pos.x < button_width &&
+	   mousey - _pos.y < button_width) {
+
+	  sbuffer_pos -= 2;
+	  if(sbuffer_pos < 0) {
+	    sbuffer_pos = sbuffer.len - 1;
+	  }
+	  while(sbuffer_pos > 0 &&
+		sbuffer.data[sbuffer_pos - 1] != 0) {
+	    sbuffer_pos--;
+	  }
+	  
+	  player_close_file(&player);
+	  if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
+	    panic("player_open_file");
+	  }
+	  if(!player_play(&player)) {
+	    panic("player_play");
+	  }
+	  
+	}	
+	renderer_image_rect(&renderer, _pos, vec2f(button_width,  button_width), vec2f(.5, 0), vec2f(.25, 1));
 
 	//NEXT
-	renderer_image_rect(&renderer, vec2f_add(pos, vec2f(2*button_width, 0)), vec2f(button_width,  button_width), vec2f(.75, 0), vec2f(.25, 1));
+	_pos = vec2f_add(pos, vec2f(2*button_width, 0));
+	if(click &&
+	   mousex > _pos.x &&
+	   mousey > _pos.y &&
+	   mousex - _pos.x < button_width &&
+	   mousey - _pos.y < button_width) {
+
+	  	  
+	  sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
+	  if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
+	  
+	  player_close_file(&player);
+	  if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
+	    panic("player_open_file");
+	  }
+	  if(!player_play(&player)) {
+	    panic("player_play");
+	  }
+
+	}	
+	renderer_image_rect(&renderer, _pos, vec2f(button_width,  button_width), vec2f(.75, 0), vec2f(.25, 1));
 	
 	renderer_flush(&renderer);
 
 	renderer.image = musik_tex;
 	renderer_set_shader(&renderer, SHADER_FOR_RIPPLE);
+	//LOGO - MUSIK
 	renderer_image_rect(&renderer,
-			    vec2f(border.x*.5f - .5f * (float) musik_width, (border.y)*.5f - .5 * (float) musik_height),
+			    vec2f(pos.x + button_width / 2 - musik_width / 2, bar_height + 1.5 * button_width),
 			    vec2f(musik_width, musik_height), vec2f(0, 0), vec2f(1, 1));
 	renderer_flush(&renderer);
 	
@@ -288,8 +344,7 @@ int main1() {
 			    vec2f(bar_width, 8),
 			    WHITE);
 
-	//CURSOR
-	
+	//CURSOR	
 	float cursor_pos = cursor_base_x;
 
 	if(player.decoder_used) {

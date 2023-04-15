@@ -258,7 +258,7 @@ DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer) {
 }
 
 DECODER_DEF bool decoder_init_fail(const char *function) {
-  fprintf(stderr, "ERROR: Can not initialize decoder: '%s' failed\n", function);
+  //fprintf(stderr, "ERROR: Can not initialize decoder: '%s' failed\n", function);
   return false;
 }
 
