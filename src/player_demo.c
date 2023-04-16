@@ -26,6 +26,7 @@
 #define BACKGROUND 0.09412, 0.09412, 0.09412, 1.0
 #define FOREGROUND vec4f(0.451, 0.6392, 0.8 , 1) //0xFFCCA37e
 #define WHITE vec4f(0.8667, 0.8667, 0.8667, 1)
+#define WHITE_GREY vec4f(0.8, 0.8, 0.8, 1)
 #define GREY vec4f(0.15, 0.15, 0.15, 1)
 
 #define WIDTH 320
@@ -33,7 +34,7 @@
 
 void render_line(Renderer *renderer,
 		 float x, float y,
-		 Font2 *font, const char *word) {
+		 Font2 *font, const char *word, Vec4f color) {
   float word_x = x;
   float word_y = y;
 
@@ -56,7 +57,7 @@ void render_line(Renderer *renderer,
 		  char_size,
 		  vec2f(char_off, 0),
 		  vec2f(char_width, 1),
-		  vec4f(1, 1, 1, 1));
+		  color);
     word_x += char_size.x;
   }
 }
@@ -95,7 +96,7 @@ int main(int argc, char **argv) {
   int dir_path_len = strlen(dir_path);
   
   Gui gui;
-  Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
+  Gui_Canvas canvas = {WIDTH * 2, HEIGHT, NULL};
   if(!gui_init(&gui, &canvas, "Jlayer")) {
     return -1;
   }
@@ -129,7 +130,7 @@ int main(int argc, char **argv) {
   if(!player_play(&player)) {
     panic("player_play");
   }
-  player_set_volume(&player, 0.2);
+  player_set_volume(&player, 0.05);
 
   float button_width = 24.f;
   float bar_y = 60.f;
@@ -205,12 +206,13 @@ int main(int argc, char **argv) {
     cursor_base_x = border.x/2.f - bar_width / 2.f;
 
     bool draw_files = border.x >= 2 * musik_width;
-    float draw_files_height, draw_files_x, draw_files_y;
+    float draw_files_height, draw_files_x, draw_files_y, draw_files_width;
     
     Vec2f pos = vec2f(WIDTH/2 - button_width/2, 4 + button_width*.5f);
     if(draw_files) {
-      draw_files_height = border.y - bar_y - 2 * bar_margin;
       draw_files_x = pos.x + musik_width/2 + 2 * button_width;
+      draw_files_width = border.x - draw_files_x - bar_margin;
+      draw_files_height = border.y - bar_y - 2 * bar_margin;
       draw_files_y = border.y - draw_files_height;
     }
 
@@ -227,7 +229,7 @@ int main(int argc, char **argv) {
     if(draw_files) {
       renderer_solid_rect(&renderer,
 			  vec2f(draw_files_x, draw_files_y),
-			  vec2f(border.x - draw_files_x - bar_margin, draw_files_height - 1 * bar_margin),
+			  vec2f(draw_files_width, draw_files_height - 1 * bar_margin),
 			  GREY);          
     }
     
@@ -295,7 +297,7 @@ int main(int argc, char **argv) {
     const char *text = tprintf(&temp, "%s", sbuffer.data + sbuffer_pos + dir_path_len);
     render_line(&renderer,
 		0, border.y - (float) font.height,
-		&font, text);
+		&font, text, vec4f(1, 1, 1, 1));
 
     //TIME
     float _time;
@@ -322,7 +324,27 @@ int main(int argc, char **argv) {
       float file_y = draw_files_y + draw_files_height - 1 * bar_margin - (float) font.height;
       size_t off = 0;
       while(off < sbuffer.len) {
-	render_line(&renderer, draw_files_x, file_y, &font, sbuffer.data + dir_path_len + off);
+	float len = font_estimate_width2(&font, sbuffer.data + dir_path_len + off);
+	if(click &&
+	   mousex > draw_files_x &&
+	   mousey > file_y &&
+	   mousex - draw_files_x < len &&
+	   mousey - file_y < (float) font.height) {
+
+	  sbuffer_pos = off;
+	  
+	  player_close_file(&player);
+	  if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
+	    panic("player_open_file");
+	  }
+	  if(!player_play(&player)) {
+	    panic("player_play");
+	  }
+
+	  
+	}
+	
+	render_line(&renderer, draw_files_x, file_y, &font, sbuffer.data + dir_path_len + off, sbuffer_pos == off ? FOREGROUND : WHITE);
 	file_y -= (float) font.height;
 	off += strlen(sbuffer.data + off)+1;
       }
@@ -334,7 +356,7 @@ int main(int argc, char **argv) {
 
     render_line(&renderer,
 		bar_margin - text_width / 2, bar_y + (float) font.height,
-		&font, text);
+		&font, text, vec4f(1, 1, 1, 1));
 
     player_get_duration(&player, &_time);
     text = tprintf(&temp, "%.2f", _time);
@@ -343,7 +365,7 @@ int main(int argc, char **argv) {
     render_line(&renderer,
 		border.x - bar_margin - .5f * text_width,
 		bar_y + (float) font.height,
-		&font, text);
+		&font, text, vec4f(1, 1, 1, 1));
     renderer_flush(&renderer);
 	
 	

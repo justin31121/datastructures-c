@@ -215,6 +215,7 @@ DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, i
 
       //move portion that overflows to last/special buffer
       int unexpected_sample_size = out_samples_size - expected_sample_size;
+      
       assert(buffer->extra_size == 0);
       assert(unexpected_sample_size <= buffer->buffer_size);
       memcpy(buffer->buffers + buffer->n * buffer->buffer_size,
@@ -263,8 +264,14 @@ DECODER_DEF bool decoder_init_fail(const char *function) {
   return false;
 }
 
-//TODO: relase allocated resources, if failure midway
-//Right now failing to init, may leak memory
+wchar_t* char_to_wchar(const char* str)
+{
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
+    wchar_t* wstr = (wchar_t*)malloc(size_needed * sizeof(wchar_t));
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, size_needed);
+    return wstr;
+}
+
 DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 			      Decoder_Fmt fmt,
 			      int channels,
@@ -280,7 +287,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   decoder->sample_size = channels * decoder_fmt_to_bits_per_sample(fmt) / 8;
 
   enum AVSampleFormat av_sample_format = decoder_fmt_to_libav_fmt(fmt);
-  
+
   if(avformat_open_input(&decoder->av_format_context, file_path, NULL, NULL) < 0) {
     return decoder_init_fail("acformat_open_input");
   }
@@ -458,7 +465,6 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   return true;
 }
 
-//TODO: check stream_index
 DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
   if(!decoder->continue_convert) {
     
@@ -524,7 +530,6 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
 }
 
 
-//TODO: reduce this "distance > buffer->n" condition
 DECODER_DEF void *decoder_start_decoding_function(void *arg) {
   
   Decoder_Buffer *buffer = (Decoder_Buffer *) arg;

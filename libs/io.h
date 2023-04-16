@@ -12,7 +12,7 @@
 
 typedef struct{
 #ifdef _WIN32
-  WIN32_FIND_DATA file_data;
+  WIN32_FIND_DATAW file_data;
   HANDLE handle;
   bool stop;
 #endif //_WIN32
@@ -20,33 +20,36 @@ typedef struct{
 }Io_Dir;
 
 typedef struct{
-  const char *name;
   bool is_dir;
   char abs_name[MAX_PATH];
+  char *name;
 }Io_File;
 
-IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path);
+IO_DEF bool io_dir_open(Io_Dir *dir, char *dir_path);
 IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file);
 IO_DEF void io_dir_close(Io_Dir *dir);
 
 #ifdef IO_IMPLEMENTATION
 
 #ifdef _WIN32
-IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
-  char buffer[MAX_PATH+1];
-  int len = strlen(dir_path);
-  memcpy(buffer, dir_path, len);
-  buffer[len] = '*';
-  buffer[len+1] = 0;
-  
-  dir->handle = FindFirstFile(buffer, &dir->file_data);
+IO_DEF bool io_dir_open(Io_Dir *dir, char *dir_path) {
+  int num_wchars = MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, NULL, 0);
+  wchar_t *my_wstring = (wchar_t *)malloc((num_wchars+1) * sizeof(wchar_t));
+  MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, my_wstring, num_wchars);
+  my_wstring[num_wchars-1] = '*';
+  my_wstring[num_wchars] = 0;
+
+  // Use my_wstring as a const wchar_t *
+  dir->handle = FindFirstFileExW(my_wstring, FindExInfoStandard, &dir->file_data, FindExSearchNameMatch, NULL, 0);
   if(dir->handle == INVALID_HANDLE_VALUE) {
+    free(my_wstring);
     return false;
   }
 
   dir->name = dir_path;
   dir->stop = false;
-  
+
+  free(my_wstring);
   return true;
 }
 
@@ -57,17 +60,15 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file) {
   }
 
   file->is_dir = (dir->file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) > 0;
-  file->name = dir->file_data.cFileName;
+  file->name = (char *) dir->file_data.cFileName;
 
-#ifndef IO_FAST
   int len = strlen(dir->name);
   memcpy(file->abs_name, dir->name, len);
-  int len2 = strlen(file->name);
-  memcpy(file->abs_name + len, file->name, len2);
+  int len2 = WideCharToMultiByte(CP_ACP, 0, dir->file_data.cFileName, -1, NULL, 0, NULL, NULL);
+  WideCharToMultiByte(CP_ACP, 0, dir->file_data.cFileName, -1, file->abs_name + len, len2, NULL, NULL);
   file->abs_name[len + len2] = 0;
-#endif //IO_FAST
 
-  if(FindNextFile(dir->handle, &dir->file_data) == 0) {
+  if(FindNextFileW(dir->handle, &dir->file_data) == 0) {
     dir->stop = true;
   }
 
