@@ -30,7 +30,6 @@
 typedef struct{
   Decoder_Fmt fmt;
   int channels;
-  int sample_rate;
 
   float volume;
   float duration; //fancy
@@ -46,17 +45,24 @@ typedef struct{
   Thread decoding_thread;
   int samples;
 
-#ifdef linux
-  snd_pcm_t *pcm;
+  int sample_rate;
+
+#ifdef _WIN32
+  XAudio2Device device;
+#elif linux
+  snd_pcm_t *device;
 #endif //linux
 }Player;
 
 //Player also initializes xaudio. Thats maybe not ideal
-PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int sample_rate);
+PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels);
 PLAYER_DEF void player_free(Player *player);
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath);
 PLAYER_DEF bool player_close_file(Player *player);
+
+PLAYER_DEF bool player_device_init(Player *player, int sample_rate);
+PLAYER_DEF bool player_device_free(Player *player);
 
 PLAYER_DEF bool player_play(Player *player);
 PLAYER_DEF bool player_stop(Player *player);
@@ -78,20 +84,47 @@ PLAYER_DEF bool player_seek(Player *player, float secs);
 
 #ifdef PLAYER_IMPLEMENTATION
 
-PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int sample_rate) {
+PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels) {
 
+  if(!decoder_buffer_init(&player->buffer, PLAYER_N, PLAYER_BUFFER_SIZE)) {
+    return false;
+  }
+
+  player->fmt = fmt;
+  player->channels = channels;
+  player->sample_rate = 0;
+  player->volume = PLAYER_VOLUME;
+
+  player->decoder_used = false;
+  player->playing = false;
+
+  return true;
+}
+
+PLAYER_DEF bool player_device_init(Player *player, int sample_rate) {
+
+  if(player->sample_rate == sample_rate) {
+    return true;
+  }
+
+  player_device_free(player);
+  
 #ifdef _WIN32
   WAVEFORMATEX waveFormat;
   decoder_get_waveformat(&waveFormat,
-			 fmt,
-			 channels,
+			 player->fmt,
+			 player->channels,
 			 sample_rate);  
-  if(!xaudio_init(&waveFormat)) {
+  if(!xaudio_init(&player->device, &waveFormat)) {
     return false;
   }
+  
   player->audio_thread = NULL;
   player->decoding_thread = NULL;
-  player->samples = DECODER_XAUDIO2_SAMPLES;
+  player->samples = DECODER_XAUDIO2_SAMPLES;  
+#endif //_WIN32
+  
+  /*
 #elif linux
 
   player->pcm = NULL;
@@ -113,19 +146,25 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   player->decoding_thread = 0;
   player->samples = period_size;
 #endif //_WIN32
+  */
+
+  player->sample_rate = sample_rate;
   
-  if(!decoder_buffer_init(&player->buffer, PLAYER_N, PLAYER_BUFFER_SIZE)) {
+  return true;
+}
+
+//TODO
+PLAYER_DEF bool player_device_free(Player *player) {
+  if(player->sample_rate == 0) {
     return false;
   }
 
-  player->fmt = fmt;
-  player->channels = channels;
-  player->sample_rate = sample_rate;
+#ifdef _WIN32
+  xaudio_free(&player->device);
+#endif //_WIN32
 
-
-  player->decoder_used = false;
-  player->playing = false;
-
+  player->sample_rate = 0;
+  
   return true;
 }
 
@@ -134,12 +173,16 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
   if(!decoder_init(&player->decoder, filepath,
 		   player->fmt,
 		   player->channels,
-		   player->sample_rate,
-		   PLAYER_VOLUME,
+		   player->volume,
 		   player->samples)) {
     return false;
   }
   player->decoder_used = true;
+
+  if(!player_device_init(player, player->decoder.sample_rate)) {
+    decoder_free(&player->decoder);
+    return false;
+  }
 
   double volume;
   av_opt_get_double(player->decoder.swr_context, "rmvol", 0, &volume);
@@ -198,13 +241,13 @@ PLAYER_DEF void *player_play_thread(void *arg) {
     
     if(player->volume > 0.0f) {
 #ifdef _WIN32
-      xaudio_play(data, data_size);
+      xaudio_play(&player->device, data, data_size);
 #elif linux
       int out_samples = data_size / player->decoder.sample_size;
-      int ret = snd_pcm_writei(player->pcm, data, out_samples);
+      int ret = snd_pcm_writei(player->device, data, out_samples);
 	  
       if(ret < 0) {
-	if((ret == snd_pcm_recover(player->pcm, ret, 1)) == 0) {
+	if((ret == snd_pcm_recover(player->device, ret, 1)) == 0) {
 	  //log something ??
 	}
       }
@@ -216,6 +259,10 @@ PLAYER_DEF void *player_play_thread(void *arg) {
     
   }
 
+  if(player->buffer.last_size == -1) {
+    player_stop(player);
+  }
+  
   return NULL;
 }
 
@@ -364,6 +411,7 @@ PLAYER_DEF bool player_seek(Player *player, float secs) {
 PLAYER_DEF void player_free(Player *player) {
   player_stop(player);
   player_close_file(player);
+  player_device_free(player);
   decoder_buffer_free(&player->buffer);
 }
 

@@ -82,6 +82,7 @@ struct Decoder{
 
   int samples;
   int sample_size;
+  int sample_rate;
 
   bool continue_receive;
   bool continue_convert;
@@ -90,7 +91,6 @@ struct Decoder{
 DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 			      Decoder_Fmt fmt,
 			      int channels,
-			      int sample_rate,
 			      float volume,
 			      int samples);
 DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples);
@@ -245,13 +245,15 @@ DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, char **data, int *d
   *data = buffer->buffers + (buffer->play_step++ % buffer->n) * buffer->buffer_size;
   *data_size = buffer->last_size + buffer->buffer_size * (1 - buffer->last_size);
 
-  int last_size = buffer->last_size;
-    
+  if(buffer->last_size < 0) {
+    return false;
+  }
+
   if(buffer->last_size > 0) {
     buffer->last_size = -1;
   }
 
-  return last_size >= 0;
+  return true;
 }
 
 DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer) {
@@ -275,7 +277,6 @@ wchar_t* char_to_wchar(const char* str)
 DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 			      Decoder_Fmt fmt,
 			      int channels,
-			      int sample_rate,
 			      float volume,
 			      int samples) {
   *decoder = (Decoder) {0};
@@ -339,9 +340,12 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   }
 
   //if sample_rate does not match target sample_rate exit, for now
+  /*
   if(decoder->av_codec_context->sample_rate != sample_rate) {
     return false;
   }
+  */
+  decoder->sample_rate = decoder->av_codec_context->sample_rate;
   //decoder->av_codec_context->sample_rate = sample_rate;
 
 
@@ -382,7 +386,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 
   if(!(decoder->swr_context = swr_alloc_set_opts(NULL, channel_layout,
 						 av_sample_format,
-						 sample_rate,
+						 decoder->av_codec_context->sample_rate,
 						 decoder->av_codec_context->channel_layout,
 						 decoder->av_codec_context->sample_fmt,
 						 decoder->av_codec_context->sample_rate,
@@ -396,7 +400,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
-#endif //__GNUC__  
+#endif //__GNUC__
   
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
   

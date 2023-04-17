@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #define STRING_IMPLEMENTATION
 #include "../libs/string.h"
 
@@ -113,7 +112,7 @@ int main(int argc, char **argv) {
   u32 musik_tex = renderer_push_texture(&renderer, musik_width, musik_height, (char *) musik_data, false);
 
   Player player;
-  if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) { // for now the best setup
+  if(!player_init(&player, DECODER_FMT_S16, 2)) { // for now the best setup
     panic("player_init");
   }
 
@@ -130,13 +129,12 @@ int main(int argc, char **argv) {
   if(!player_play(&player)) {
     panic("player_play");
   }
-  player_set_volume(&player, 0.05);
+  player_set_volume(&player, 0.8);
 
   float button_width = 24.f;
   float bar_y = 60.f;
   bool drag = false;
   bool was_paused = false;
-
     
   float bar_width = 0;
   float cursor_base_x = 0.f;
@@ -194,7 +192,20 @@ int main(int argc, char **argv) {
 		
 	}
       }
-    }    
+    }
+
+    if(player.buffer.last_size > 0) {
+      sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
+      if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
+	  
+      player_close_file(&player);
+      if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
+	panic("player_open_file");
+      }
+      if(!player_play(&player)) {
+	panic("player_play");
+      }
+    }
 	
     gui_get_window_sizef(&gui, &border.x, &border.y);
     bar_width = border.x * 0.8f;

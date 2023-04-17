@@ -25,14 +25,14 @@ typedef struct{
   char *name;
 }Io_File;
 
-IO_DEF bool io_dir_open(Io_Dir *dir, char *dir_path);
+IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path);
 IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file);
 IO_DEF void io_dir_close(Io_Dir *dir);
 
 #ifdef IO_IMPLEMENTATION
 
 #ifdef _WIN32
-IO_DEF bool io_dir_open(Io_Dir *dir, char *dir_path) {
+IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
   int num_wchars = MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, NULL, 0);
   wchar_t *my_wstring = (wchar_t *)malloc((num_wchars+1) * sizeof(wchar_t));
   MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, my_wstring, num_wchars);
