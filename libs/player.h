@@ -54,8 +54,7 @@ typedef struct{
 #endif //linux
 }Player;
 
-//Player also initializes xaudio. Thats maybe not ideal
-PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels);
+PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int sample_rate);
 PLAYER_DEF void player_free(Player *player);
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath);
@@ -84,7 +83,11 @@ PLAYER_DEF bool player_seek(Player *player, float secs);
 
 #ifdef PLAYER_IMPLEMENTATION
 
-PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels) {
+PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int sample_rate) {
+
+  if(!xaudio_init(channels, sample_rate)) {
+    return false;
+  }
 
   if(!decoder_buffer_init(&player->buffer, PLAYER_N, PLAYER_BUFFER_SIZE)) {
     return false;
@@ -115,7 +118,7 @@ PLAYER_DEF bool player_device_init(Player *player, int sample_rate) {
 			 player->fmt,
 			 player->channels,
 			 sample_rate);  
-  if(!xaudio_init(&player->device, &waveFormat)) {
+  if(!xaudio_device_init(&player->device, &waveFormat)) {
     return false;
   }
   
@@ -160,7 +163,7 @@ PLAYER_DEF bool player_device_free(Player *player) {
   }
 
 #ifdef _WIN32
-  xaudio_free(&player->device);
+  xaudio_device_free(&player->device);
 #endif //_WIN32
 
   player->sample_rate = 0;
@@ -170,6 +173,15 @@ PLAYER_DEF bool player_device_free(Player *player) {
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 
+  int sample_rate;
+  if(!decoder_get_sample_rate(filepath, &sample_rate)) {
+    return false;
+  }
+
+  if(!player_device_init(player, player->decoder.sample_rate)) { //this sets player->samples
+    return false;
+  }
+
   if(!decoder_init(&player->decoder, filepath,
 		   player->fmt,
 		   player->channels,
@@ -177,12 +189,8 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 		   player->samples)) {
     return false;
   }
-  player->decoder_used = true;
 
-  if(!player_device_init(player, player->decoder.sample_rate)) {
-    decoder_free(&player->decoder);
-    return false;
-  }
+  player->decoder_used = true;
 
   double volume;
   av_opt_get_double(player->decoder.swr_context, "rmvol", 0, &volume);
@@ -241,7 +249,7 @@ PLAYER_DEF void *player_play_thread(void *arg) {
     
     if(player->volume > 0.0f) {
 #ifdef _WIN32
-      xaudio_play(&player->device, data, data_size);
+      xaudio_device_play(&player->device, data, data_size);
 #elif linux
       int out_samples = data_size / player->decoder.sample_size;
       int ret = snd_pcm_writei(player->device, data, out_samples);
@@ -259,8 +267,11 @@ PLAYER_DEF void *player_play_thread(void *arg) {
     
   }
 
-  if(player->buffer.last_size == -1) {
+  if(player->buffer.last_size > 0) {
+    printf("=========================================\n");
+    fflush(stdout);
     player_stop(player);
+    player->buffer.last_size = -1;
   }
   
   return NULL;
@@ -288,7 +299,7 @@ PLAYER_DEF bool player_stop(Player *player) {
   //stop player
   player->playing = false; //this would be better seperated
   thread_join(player->audio_thread);
-  player->buffer.last_size = -2;
+  if(player->buffer.last_size != -1) player->buffer.last_size = -2;
   thread_join(player->decoding_thread);
 
 #ifdef _WIN32

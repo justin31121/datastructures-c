@@ -44,6 +44,7 @@ typedef enum {
 DECODER_DEF enum AVSampleFormat decoder_fmt_to_libav_fmt(Decoder_Fmt fmt);
 DECODER_DEF const char *decoder_fmt_to_cstr(Decoder_Fmt fmt);
 DECODER_DEF int decoder_fmt_to_bits_per_sample(Decoder_Fmt fmt);
+DECODER_DEF bool decoder_get_sample_rate(const char *filepath, int *sample_rate);
 
 typedef struct Decoder Decoder;
 
@@ -161,6 +162,36 @@ DECODER_DEF enum AVSampleFormat decoder_fmt_to_libav_fmt(Decoder_Fmt fmt) {
   }
 }
 
+DECODER_DEF bool decoder_get_sample_rate(const char *filepath, int *sample_rate) {
+  AVFormatContext *av_format_context = NULL;
+
+  if(avformat_open_input(&av_format_context, filepath, NULL, NULL) < 0) {
+    return false;
+  }
+
+  if(avformat_find_stream_info(av_format_context, NULL) < 0) {
+    avformat_close_input(&av_format_context);
+    return false;
+  }
+
+
+  const AVCodec *av_codec = NULL;
+  AVCodecParameters *av_codec_parameters = NULL;
+  for(size_t i=0;i<av_format_context->nb_streams;i++) {
+    av_codec_parameters = av_format_context->streams[i]->codecpar;
+    if(av_codec_parameters->codec_type == AVMEDIA_TYPE_AUDIO) {
+      if(!avcodec_find_decoder(av_codec_parameters->codec_id)) {
+	avformat_close_input(&av_format_context);
+	return false;
+      }
+      break;
+    }
+  }
+
+  avformat_close_input(&av_format_context);
+  return true;
+}
+
 DECODER_DEF bool decoder_buffer_init(Decoder_Buffer *buffer, int n, int buffer_size) {
   
   buffer->buffers = (char *) malloc(sizeof(char) * (n+1) * buffer_size);
@@ -257,23 +288,10 @@ DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, char **data, int *d
 }
 
 DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer) {
-  free(buffer->buffers);
-  
+  free(buffer->buffers);  
 }
 
-DECODER_DEF bool decoder_init_fail(const char *function) {
-  //fprintf(stderr, "ERROR: Can not initialize decoder: '%s' failed\n", function);
-  return false;
-}
-
-wchar_t* char_to_wchar(const char* str)
-{
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
-    wchar_t* wstr = (wchar_t*)malloc(size_needed * sizeof(wchar_t));
-    MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, size_needed);
-    return wstr;
-}
-
+//this does not initializs the decoder->buffer !!!!!
 DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 			      Decoder_Fmt fmt,
 			      int channels,
@@ -281,22 +299,20 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 			      int samples) {
   *decoder = (Decoder) {0};
 
-  decoder->continue_receive = false;
-  decoder->continue_convert = false;
-
   decoder->samples = samples;
   decoder->sample_size = channels * decoder_fmt_to_bits_per_sample(fmt) / 8;
-
+  
   enum AVSampleFormat av_sample_format = decoder_fmt_to_libav_fmt(fmt);
 
+  decoder->av_format_context = NULL;
   if(avformat_open_input(&decoder->av_format_context, file_path, NULL, NULL) < 0) {
-    return decoder_init_fail("acformat_open_input");
+    return false;
   }
 
   if(avformat_find_stream_info(decoder->av_format_context, NULL) < 0) {
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("avformat_find_stream_info");
+    return false;
   }
 
   decoder->stream_index = -1;
@@ -305,15 +321,13 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   AVCodecParameters *av_codec_parameters = NULL;
   for(size_t i=0;i<decoder->av_format_context->nb_streams;i++) {
     av_codec_parameters = decoder->av_format_context->streams[i]->codecpar;
-    //const char *av_codec_cstr = av_get_media_type_string(av_codec_parameters->codec_type);
-    //fprintf(stderr, "INFO: av_codec_parameters->codec_type: %s\n", av_codec_cstr ? av_codec_cstr : "not found");
-    
-    if(av_codec_parameters->codec_type == AVMEDIA_TYPE_AUDIO) { //av_codec_parameters->codec_type // AVMEDIA_TYPE_AUDIO
+    if(av_codec_parameters->codec_type == AVMEDIA_TYPE_AUDIO) {
       decoder->stream_index = (int) i;
       if(!(av_codec = avcodec_find_decoder(av_codec_parameters->codec_id))) {
 	avformat_close_input(&decoder->av_format_context);
 	decoder->av_format_context = NULL;
-	return decoder_init_fail("cannot find codec");
+	decoder->stream_index = -2;
+	return false;
       }
       break;
     }
@@ -321,13 +335,13 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   if(av_codec == NULL) {
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("can not find av_codec");
+    return false;
   }
 
   if(!(decoder->av_codec_context = avcodec_alloc_context3(av_codec))) {
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("avcodec_alloc_context3");
+    return false;
   }
 
   if(avcodec_parameters_to_context(decoder->av_codec_context, av_codec_parameters) < 0) {
@@ -336,18 +350,10 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("avcodec_parameters_to_context");
-  }
-
-  //if sample_rate does not match target sample_rate exit, for now
-  /*
-  if(decoder->av_codec_context->sample_rate != sample_rate) {
     return false;
   }
-  */
-  decoder->sample_rate = decoder->av_codec_context->sample_rate;
-  //decoder->av_codec_context->sample_rate = sample_rate;
 
+  decoder->sample_rate = decoder->av_codec_context->sample_rate;
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -366,7 +372,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("avcodec_open2");
+    return false;
   }
 
 #ifdef __GNUC__
@@ -380,7 +386,6 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   } else if(channels == 2) {
     channel_layout = AV_CH_LAYOUT_STEREO;
   } else {
-    fprintf(stderr, "ERROR: Only support MONO and STEREO. Channels given: %d\n", channels);
     return false;
   }
 
@@ -396,7 +401,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("swr_alloc_set_opts");
+    return false;
   }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -412,7 +417,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("swr_init");
+    return false;
   }
   //swr_set_quality(decoder->swr_context, 7);
   //swr_set_resample_mode(decoder->swr_context, SWR_FILTER_TYPE_CUBIC);
@@ -428,9 +433,8 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 						   samples,
 						   decoder->av_codec_context->sample_fmt, 1);
   */
-  
-  int max_buffer_size = decoder->samples * decoder->sample_size;
-  
+
+  int max_buffer_size = decoder->samples * decoder->sample_size;  
   decoder->buffer = (unsigned char*) malloc(max_buffer_size);
   if(!(decoder->buffer)) {
     swr_free(&decoder->swr_context);
@@ -440,10 +444,11 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;    
-    return decoder_init_fail("Can not allocate enough memory");
+    return false;
   }
 
   if(!(decoder->packet = av_packet_alloc())) {
+    free(decoder->buffer);
     swr_free(&decoder->swr_context);
     decoder->swr_context = NULL;
     avcodec_close(decoder->av_codec_context);
@@ -451,9 +456,10 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("av_packet_alloc");
+    return false;
   }
   if(!(decoder->frame = av_frame_alloc())) {
+    free(decoder->buffer);
     av_packet_free(&decoder->packet);
     decoder->packet = NULL;
     swr_free(&decoder->swr_context);
@@ -463,7 +469,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
     decoder->av_codec_context = NULL;
     avformat_close_input(&decoder->av_format_context);
     decoder->av_format_context = NULL;
-    return decoder_init_fail("av_frame_alloc");
+    return false;
   }
   
   return true;
@@ -576,8 +582,10 @@ DECODER_DEF void decoder_free(Decoder *decoder) {
   av_packet_free(&decoder->packet);
   decoder->packet = NULL;
 
-  free(decoder->buffer);
-  decoder->buffer = NULL;
+  if(decoder->buffer) {
+    free(decoder->buffer);
+    decoder->buffer = NULL;    
+  }
   
   swr_free(&decoder->swr_context);
   decoder->swr_context = NULL;
