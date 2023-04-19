@@ -9,6 +9,9 @@
 #define RENDERER_IMPLEMENTATION
 #include "../libs/renderer.h"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "../thirdparty/stb_truetype.h"
+
 #define FONT_IMPLEMENTATION
 #include "../libs/font.h"
 
@@ -106,13 +109,17 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  Font2 font = font2_segoeui_22;
+  Font2 font;
+  if(!font_init2(&font, "C:\\Windows\\Fonts\\segoeui.ttf", 24)) {
+    panic("font_init2");
+  }
+  
   u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
   u32 atlas_tex = renderer_push_texture(&renderer, atlas_width, atlas_height, (char *) atlas_data, false);
   u32 musik_tex = renderer_push_texture(&renderer, musik_width, musik_height, (char *) musik_data, false);
 
   Player player;
-  if(!player_init(&player, DECODER_FMT_S16, 2)) {
+  if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) {
     panic("player_init");
   }
 
@@ -129,7 +136,7 @@ int main(int argc, char **argv) {
   if(!player_play(&player)) {
     panic("player_play");
   }
-  player_set_volume(&player, 0.8);
+  player_set_volume(&player, 0.2);
 
   float button_width = 24.f;
   float bar_y = 60.f;
@@ -139,6 +146,8 @@ int main(int argc, char **argv) {
   float bar_width = 0;
   float cursor_base_x = 0.f;
   float bar_margin = 40;
+
+  int last_last_size = 69;
 
   Gui_Time time;
   gui_time_capture(&time);
@@ -194,13 +203,14 @@ int main(int argc, char **argv) {
       }
     }
 
-    if(player.buffer.last_size > 0) {
-	printf("ended\n");
-	fflush(stdout);
-	
+    float d, n;
+    player_get_timestamp(&player, &n);
+    player_get_duration(&player, &d);
+
+    if(d - n < 0.01) {
       sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
       if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
-	  
+
       player_close_file(&player);
       if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
 	panic("player_open_file");
