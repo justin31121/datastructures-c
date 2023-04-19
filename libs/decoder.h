@@ -70,25 +70,33 @@ DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, char **data, int *d
 DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer);
 
 struct Decoder{
-  AVFormatContext *av_format_context;
-  AVCodecContext *av_codec_context;
-  SwrContext *swr_context;
-  int stream_index;
-  unsigned char *buffer;
+    AVIOContext *av_io_context;
+    
+    AVFormatContext *av_format_context;
+    AVCodecContext *av_codec_context;
+    SwrContext *swr_context;
+    int stream_index;
+    unsigned char *buffer;
 
-  AVPacket *packet;
-  AVFrame *frame;
-  int pts;
+    AVPacket *packet;
+    AVFrame *frame;
+    int pts;
 
-  int samples;
-  int sample_size;
-  int sample_rate;
+    int samples;
+    int sample_size;
+    int sample_rate;
 
-  bool continue_receive;
-  bool continue_convert;
+    bool continue_receive;
+    bool continue_convert;
 };
 
 DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
+			      Decoder_Fmt fmt,
+			      int channels,
+			      float volume,
+			      int samples);
+DECODER_DEF bool decoder_init_from_memory(Decoder *decoder,
+			      const char *memory, unsigned long long memory_size,
 			      Decoder_Fmt fmt,
 			      int channels,
 			      float volume,
@@ -428,7 +436,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
 						   samples,
 						   decoder->av_codec_context->sample_fmt, 1);
   */
-  
+
   int max_buffer_size = decoder->samples * decoder->sample_size;
   
   decoder->buffer = (unsigned char*) malloc(max_buffer_size);
@@ -467,6 +475,32 @@ DECODER_DEF bool decoder_init(Decoder *decoder, const char *file_path,
   }
   
   return true;
+}
+
+//TODO: this does not work
+DECODER_DEF bool decoder_init_from_memory(Decoder *decoder,
+					  const char *memory, unsigned long long memory_size,
+					  Decoder_Fmt fmt,
+					  int channels,
+					  float volume,
+					  int samples) {
+
+    *decoder = (Decoder) {0};
+
+    decoder->av_io_context = avio_alloc_context((unsigned char *) memory, memory_size, 0, NULL, NULL, NULL, NULL);
+    decoder->av_format_context = avformat_alloc_context();
+    decoder->av_format_context->pb = decoder->av_io_context;
+
+    if (avformat_open_input(&decoder->av_format_context, NULL, NULL, NULL) != 0) {
+        printf("Error opening input format.\n");
+	fflush(stdout);
+	return false;
+    }
+
+    printf("opened file\n");
+    fflush(stdout);
+    
+    return false;
 }
 
 DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
@@ -588,6 +622,11 @@ DECODER_DEF void decoder_free(Decoder *decoder) {
 
   avformat_close_input(&decoder->av_format_context);
   decoder->av_format_context = NULL;
+
+  if(decoder->av_io_context) {
+      avio_context_free(&decoder->av_io_context);
+      decoder->av_io_context = NULL;
+  }
 }
 
 #ifdef _WIN32

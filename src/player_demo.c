@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
   u32 musik_tex = renderer_push_texture(&renderer, musik_width, musik_height, (char *) musik_data, false);
 
   Player player;
-  if(!player_init(&player, DECODER_FMT_S16, 2)) { // for now the best setup
+  if(!player_init(&player, DECODER_FMT_S16, 2)) {
     panic("player_init");
   }
 
@@ -195,6 +195,9 @@ int main(int argc, char **argv) {
     }
 
     if(player.buffer.last_size > 0) {
+	printf("ended\n");
+	fflush(stdout);
+	
       sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
       if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
 	  

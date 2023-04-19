@@ -59,6 +59,8 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels);
 PLAYER_DEF void player_free(Player *player);
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath);
+PLAYER_DEF bool player_open_file_from_memory(Player *player,
+					     const char *memory, unsigned long long memory_size);
 PLAYER_DEF bool player_close_file(Player *player);
 
 PLAYER_DEF bool player_device_init(Player *player, int sample_rate);
@@ -95,6 +97,8 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels) {
   player->sample_rate = 0;
   player->volume = PLAYER_VOLUME;
 
+  player->samples = DECODER_XAUDIO2_SAMPLES; //TODO: Get the used sample_rate and
+                                             //then set player->samples
   player->decoder_used = false;
   player->playing = false;
 
@@ -121,7 +125,6 @@ PLAYER_DEF bool player_device_init(Player *player, int sample_rate) {
   
   player->audio_thread = NULL;
   player->decoding_thread = NULL;
-  player->samples = DECODER_XAUDIO2_SAMPLES;  
 #endif //_WIN32
   
   /*
@@ -205,6 +208,43 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
   return true;
 }
 
+PLAYER_DEF bool player_open_file_from_memory(Player *player, const char *memory,
+					     unsigned long long memory_size) {
+    if(!decoder_init_from_memory(&player->decoder, memory, memory_size,
+				 player->fmt,
+				 player->channels,
+				 player->volume,
+				 player->samples)) {
+	return false;
+    }
+    player->decoder_used = true;
+
+    if(!player_device_init(player, player->decoder.sample_rate)) {
+	decoder_free(&player->decoder);
+	return false;
+    }
+
+    double volume;
+    av_opt_get_double(player->decoder.swr_context, "rmvol", 0, &volume);
+    player->volume = (float) volume;
+
+    float total = (float) player->decoder.av_format_context->duration / AV_TIME_BASE / 60.0f;
+    float secs = floorf(total);
+    float comma = (total - secs) * 60.0f / 100.0f;
+
+    player->duration = secs + comma;
+    player->duration_abs = total * 60.f;
+
+    AVRational rational = player
+	->decoder
+	.av_format_context
+	->streams[player->decoder.stream_index]
+	->time_base;
+    player->den = rational.den;
+  
+    return true;
+}
+
 PLAYER_DEF bool player_close_file(Player *player) {
   if(!player->decoder_used) {
     return false;
@@ -259,8 +299,8 @@ PLAYER_DEF void *player_play_thread(void *arg) {
     
   }
 
-  if(player->buffer.last_size == -1) {
-    player_stop(player);
+  if(player->buffer.last_size > 0) {
+      player_stop(player);
   }
   
   return NULL;
