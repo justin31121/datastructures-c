@@ -1,9 +1,11 @@
 #include <stdio.h>
+
 #define STRING_IMPLEMENTATION
 #include "../libs/string.h"
 
 #define GUI_IMPLEMENTATION
 #define GUI_OPENGL
+#define GUI_CONSOLE
 #include "../libs/gui.h"
 
 #define RENDERER_IMPLEMENTATION
@@ -73,13 +75,11 @@ void load_files(const char *dir_path, Player *player, String_Buffer *buffer) {
 
   Io_File file;
   while(io_dir_next(&dir, &file)) {
-    if(file.is_dir) continue;
-    fflush(stdout);
-    if(!player_open_file(player, file.abs_name)) {
+    if(file.is_dir) continue;    
+    if(!player_open_file(player, file.abs_name)) {      
       continue;
     }
-    string_buffer_append(buffer,
-			 file.abs_name, strlen(file.abs_name)+1);
+    string_buffer_append(buffer, file.abs_name, strlen(file.abs_name)+1);
     player_close_file(player);
   }
 
@@ -109,10 +109,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  Font2 font;
-  if(!font_init2(&font, "C:\\Windows\\Fonts\\segoeui.ttf", 24)) {
-    panic("font_init2");
-  }
+  Font2 font = font2_segoeui_24;
   
   u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
   u32 atlas_tex = renderer_push_texture(&renderer, atlas_width, atlas_height, (char *) atlas_data, false);
@@ -166,9 +163,9 @@ int main(int argc, char **argv) {
       if(event.type == GUI_EVENT_KEYPRESS) {
 	switch(event.key) {
 	case 'Q': {
-	  gui.running = false;		    
+	  gui.running = false;
 	} break;
-	case 'P': {		  
+	case 'K': {		  
 	  player_toggle(&player);
 	} break;
 	}
@@ -203,21 +200,23 @@ int main(int argc, char **argv) {
       }
     }
 
-    float d, n;
-    player_get_timestamp(&player, &n);
-    player_get_duration(&player, &d);
+    if(player.playing) {
+      float d, n;
+      player_get_timestamp(&player, &n);
+      player_get_duration(&player, &d);
 
-    if(d - n < 0.01) {
-      sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
-      if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
+      if(d - n < 0.01 && n < d) {
+	sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
+	if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
 
-      player_close_file(&player);
-      if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
-	panic("player_open_file");
-      }
-      if(!player_play(&player)) {
-	panic("player_play");
-      }
+	player_close_file(&player);
+	if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
+	  panic("player_open_file");
+	}
+	if(!player_play(&player)) {
+	  panic("player_play");
+	}
+      }      
     }
 	
     gui_get_window_sizef(&gui, &border.x, &border.y);
@@ -444,17 +443,18 @@ int main(int argc, char **argv) {
        mousey > _pos.y &&
        mousex - _pos.x < button_width &&
        mousey - _pos.y < button_width) {
-
 	  	  
       sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
       if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
-	  
-      player_close_file(&player);
-      if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
-	panic("player_open_file");
-      }
-      if(!player_play(&player)) {
-	panic("player_play");
+
+      if(player.decoder_used) {
+	player_close_file(&player);
+	if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
+	  panic("player_open_file");
+	}
+	if(!player_play(&player)) {
+	  panic("player_play");
+	}
       }
 
     }	

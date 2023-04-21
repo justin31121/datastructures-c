@@ -12,27 +12,13 @@
 #include <openssl/conf.h> //or        libsslMT.lib libcryptoMT.lib
 #endif //HTTP_NO_SSL
 
-#include <assert.h>
-#include <stdbool.h>
-
-#ifdef HTTP_IMPLEMENTATION
-
-#define SHA1_IMPLEMENTATION
-#define BASE64_IMPLEMENTATION
-#define STRING_IMPLEMENTATION
-
-#endif //HTTP_IMPLEMENTATION
-
-#include "./string.h"
-#include "./base64.h"
-#include "./sha1.h"
-
 #define HTTP_PORT 80
 #define HTTPS_PORT 443
 #define HTTP_BUFFER_CAP 8192
 
 #ifdef _WIN32
 #  include <winsock2.h>
+#  include <windows.h>
 typedef SSIZE_T ssize_t;
 #  include <malloc.h> // _malloca
 #endif //_WIN32
@@ -40,6 +26,23 @@ typedef SSIZE_T ssize_t;
 #ifdef __GNUC__
 #  include <pthread.h>
 #endif //__GNUC__
+
+#ifdef HTTP_IMPLEMENTATION
+
+#define SHA1_IMPLEMENTATION
+#define BASE64_IMPLEMENTATION
+#define STRING_IMPLEMENTATION
+#define THREAD_IMPLEMENTATION
+
+#endif //HTTP_IMPLEMENTATION
+
+#include <assert.h>
+#include <stdbool.h>
+
+#include "./string.h"
+#include "./base64.h"
+#include "./sha1.h"
+#include "./thread.h"
 
 /* #  include <sys/socket.h> */
 /* #  include <unistd.h> */
@@ -228,8 +231,8 @@ HTTP_DEF size_t _fwrite(const void *data, size_t size, size_t memb, void *userda
 #    pragma comment(lib, "crypt32.lib")
 #    pragma comment(lib, "advapi32.lib")
 #    pragma comment(lib, "user32.lib")
-#    pragma comment(lib, "libsslMT.lib")
-#    pragma comment(lib, "libcryptoMT.lib")
+#    pragma comment(lib, "libsslMD.lib")
+#    pragma comment(lib, "libcryptoMD.lib")
 #  endif //HTTP_NO_SSL
 #endif //_WIN32
 
@@ -282,6 +285,7 @@ HTTP_DEF bool http_init3(Http *http, const char *hostname, size_t hostname_len, 
  if(!http_valid(http->socket)) {
    return false;
  }
+
 
 #ifndef HTTP_NO_SSL
  if(ssl) {
@@ -466,37 +470,38 @@ HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
   if(!hasBody) {
 
     if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
-     "%s %s HTTP/1.1\r\n"
-     "Host: %.*s\r\n"
-     "%s"
-     "\r\n", method, route, http->host_len, http->host, headers_extra == NULL ? "" : headers_extra)) {
+	      "%s %s HTTP/1.1\r\n"
+	      "Host: %.*s\r\n"
+	      "%s"
+	      "\r\n", method, route, http->host_len, http->host, headers_extra == NULL ? "" : headers_extra)) {
       warn("send failed");
-    return false;
+      return false;
+    }
+  } else {
+    if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
+	      "%s %s HTTP/1.1\r\n"
+	      "Host: %.*s\r\n"
+	      "Content-Type: %s\r\n"
+	      "Content-Length: %d\r\n"
+	      "%s"
+	      "\r\n"
+	      "%s", method, route, http->host_len, http->host, content_type, strlen(body), headers_extra == NULL ? "" : headers_extra, body)) {
+      warn("send failed");
+      return false;
+    }    
   }
-} else {
-  if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
-   "%s %s HTTP/1.1\r\n"
-   "Host: %.*s\r\n"
-   "Content-Type: %s\r\n"
-   "Content-Length: %d\r\n"
-   "%s"
-   "\r\n"
-   "%s", method, route, http->host_len, http->host, content_type, strlen(body), headers_extra == NULL ? "" : headers_extra, body)) {
-    warn("send failed");
-  return false;
-}    
-}
 
   //READ
-if(!http_read_body(http, write_callback, userdata, header)) {
-  warn("read failed");
-  return false;
-}
+  if(!http_read_body(http, write_callback, userdata, header)) {
+    warn("read failed");
+    return false;
+  }
 
 return true;
 }
 
 HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,size_t, void *), void *userdata, HttpHeader *header, const char *headers_extra) {
+  
   size_t url_len = strlen(url);
   bool ssl;
   size_t hostname_len;
@@ -517,7 +522,7 @@ HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, s
   if(!http_init2(&http, url + hostname, hostname_len, ssl)) {
     warn("http_init failed");
     return false;
-  }
+  } 
 
   if(!http_request(&http, route, "GET", NULL, NULL, write_callback, userdata, header, headers_extra)) {
     warn("http_request failed");
@@ -741,19 +746,12 @@ HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_req
   }
 
   server->threads[0].used = true;
-#ifdef _MSC_VER
-  int ret = _beginthread(http_server_listen_function, 0, server);
-  if(ret < 0) {
-    return false;
-  }
-  server->threads[0].id = *(HANDLE *) &ret;
-#elif __GNUC__
-  if(pthread_create(&server->threads[0].id, NULL, http_server_listen_function, server) != 0)  {
+
+  if(!thread_create(&server->threads[0].id, http_server_listen_function, server)) {
     free(server->threads);
     return false;
   }
-#endif
-
+  
   server->running = true;
 
   return true;
@@ -774,11 +772,7 @@ HTTP_DEF void http_server_stop(HttpServer *server) {
     }
     http_free(&thread->client);
 
-#ifdef _MSC_VER
-    WaitForSingleObject(thread->id, INFINITE);
-#elif __GNUC__
-    pthread_join(thread->id, NULL);
-#endif //linux
+    thread_join(thread->id);
 
     thread->used = false;
     string_buffer_free(&(thread->buffer));

@@ -3,7 +3,7 @@
 
 #ifdef _WIN32 ////////////////////////////////////////////
 #include <windows.h>
-#include <process.h>
+//#include <process.h>
 typedef HANDLE Thread;
 typedef HANDLE Mutex;
 //TODO implement for gcc
@@ -30,7 +30,7 @@ void mutex_release(Mutex mutex);
 int thread_create(Thread *id, void* (*function)(void *), void *arg) {
   int ret =
     //CreateThread(NULL, 0, function, arg, 0, NULL);
-      _beginthread((_beginthread_proc_type) function, 0, arg);
+    _beginthread(function, 0, arg);
   if(ret == -1) {
     return 0;
   }

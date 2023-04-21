@@ -28,7 +28,7 @@
 #include "thread.h"
 
 typedef struct{
-    FILE *file;
+
     Decoder_Fmt fmt;
     int channels;
 
@@ -46,8 +46,10 @@ typedef struct{
     Thread decoding_thread;
     int samples;
 
-    int sample_rate;
+    FILE *file;
+    Decoder_Memory decoder_memory;
 
+    int sample_rate;
 #ifdef _WIN32
     XAudio2Device device;
 #elif linux
@@ -101,9 +103,14 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
     player->sample_rate = 0;
     player->volume = PLAYER_VOLUME;
     player->file = NULL;
+    player->decoder_memory = (Decoder_Memory) {0};
 
     player->decoder_used = false;
     player->playing = false;
+
+#ifdef _WIN32    
+    player->samples = DECODER_XAUDIO2_SAMPLES;
+#endif //_WIN32
 
     return true;
 }
@@ -128,7 +135,6 @@ PLAYER_DEF bool player_device_init(Player *player, int sample_rate) {
   
     player->audio_thread = NULL;
     player->decoding_thread = NULL;
-    player->samples = DECODER_XAUDIO2_SAMPLES;
 #endif //_WIN32
   
     /*
@@ -177,22 +183,28 @@ PLAYER_DEF bool player_device_free(Player *player) {
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 
-    int sample_rate = 44100;
-    if(!player_device_init(player, sample_rate)) { //this sets player->samples
-	return false;
-    }
-
     player->file = fopen(filepath, "rb");
-
+    if(!player->file) {
+      return false;
+    }
+    
     if(!decoder_init(&player->decoder,
-		     //decoder_init_from_file_read, decoder_init_from_file_seek,
-		     avio_read, avio_seek,
+		     decoder_init_from_file_read, decoder_init_from_file_seek,
 		     player->file,
 		     player->fmt,
 		     player->channels,
 		     player->volume,
 		     player->samples)) {
-	return false;
+      fclose(player->file);
+      player->file = NULL;
+      return false;
+    }
+
+    if(!player_device_init(player, player->decoder.sample_rate)) {
+      decoder_free(&player->decoder);
+      fclose(player->file);
+      player->file = NULL;
+      return false;
     }
     player->decoder_used = true;
 
@@ -224,13 +236,16 @@ PLAYER_DEF bool player_open_file_from_memory(Player *player, const char *memory,
     if(!player_device_init(player, sample_rate)) { //this sets player->samples
 	return false;
     }
-        
-    if(!decoder_init_from_memory(&player->decoder, memory, memory_size,
-				 player->fmt,
-				 player->channels,
-				 player->volume,
-				 player->samples)) {
-	return false;
+
+    player->decoder_memory.memory = memory;
+    player->decoder_memory.size = memory_size;
+    player->decoder_memory.pos = 0;
+    if(!decoder_init(&player->decoder,
+		     decoder_init_from_memory_read,
+		     decoder_init_from_memory_seek, &player->decoder_memory,
+		     player->fmt, player->channels, player->volume, player->samples)) {
+      player->decoder_memory = (Decoder_Memory) {0};
+      return false;
     }
     player->decoder_used = true;
 
@@ -267,6 +282,7 @@ PLAYER_DEF bool player_close_file(Player *player) {
 	fclose(player->file);
 	player->file = NULL;
     }
+    player->decoder_memory = (Decoder_Memory) {0};
     player->decoder_used = false;
 
     return true;
