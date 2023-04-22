@@ -71,12 +71,6 @@ DECODER_DEF void decoder_buffer_reset(Decoder_Buffer *buffer);
 DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, char **data, int *data_size);
 DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer);
 
-typedef struct{
-  const char *memory;
-  long long unsigned int size;
-  long long unsigned int pos;
-}Decoder_Memory;
-
 typedef int (*Decoder_Read_Function)(void *opaque, uint8_t* buffer, int buffer_size);
 typedef int64_t (*Decoder_Seek_Function)(void *opaque, int64_t offset, int whence);
 
@@ -477,81 +471,6 @@ DECODER_DEF bool decoder_init2(Decoder *decoder, const char *file_path,
   return true;
 }
 */
-
-DECODER_DEF int decoder_init_from_file_read(void *opaque, uint8_t *buf, int buf_size) {
-  FILE *f = (FILE *)opaque;
-
-  int bytes_read = fread(buf, 1, buf_size, f);
-
-  if (bytes_read == 0) {
-    if(feof(f)) return AVERROR_EOF;
-    else return AVERROR(errno);
-  }
-  
-  return bytes_read;
-}
-
-DECODER_DEF int decoder_init_from_memory_read(void *opaque, uint8_t *buf, int buf_size) {
-  Decoder_Memory *memory = (Decoder_Memory *) opaque;
-
-  int memory_left = memory->size - memory->pos;
-
-  if (buf_size > memory->size - memory->pos) {
-    buf_size = memory->size - memory->pos;
-  }
-
-  if (buf_size <= 0) {
-    return AVERROR_EOF;
-  }
-
-  memcpy(buf, memory->memory + memory->pos, buf_size);
-  memory->pos += buf_size;
-
-  return buf_size;
-}
-
-DECODER_DEF int64_t decoder_init_from_file_seek(void *opaque, int64_t offset, int whence) {
-  
-  FILE *file = (FILE *)opaque;
-  int pos = ftell(file);
-  
-  if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
-    return AVERROR_INVALIDDATA;
-  }
-
-  if(fseek(file, offset, whence)) {
-    return AVERROR(errno);
-  }
-
-  return ftell(file);
-}
-
-DECODER_DEF int64_t decoder_init_from_memory_seek(void *opaque, int64_t offset, int whence) {
-
-  Decoder_Memory *memory = (Decoder_Memory *) opaque;
-
-  switch (whence) {
-  case SEEK_SET:
-    memory->pos = offset;
-    break;
-  case SEEK_CUR:
-    memory->pos += offset;
-    break;
-  case SEEK_END:
-    memory->pos = memory->size + offset;
-    break;
-  default:
-    return AVERROR_INVALIDDATA;
-  }
-
-  if (memory->pos < 0 || memory->pos > memory->size) {
-    return AVERROR(EIO);
-  }
-    
-  return memory->pos;
-}
-
-
 
 DECODER_DEF bool decoder_init(Decoder *decoder,
 			      Decoder_Read_Function read,

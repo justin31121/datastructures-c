@@ -97,11 +97,7 @@ typedef struct{
   void *arg;
   HttpRequest request;
 
-#ifdef _MSC_VER
-  HANDLE id;
-#elif __GNUC__
-  pthread_t id;
-#endif
+  Thread id;
   
 }HttpServerThread;
 
@@ -144,11 +140,11 @@ HTTP_DEF int http_find_hostname(const char *url, size_t url_len, size_t *hostnam
 HTTP_DEF const char *http_get_route(const char *url);
 HTTP_DEF bool http_sleep_ms(int ms);
 HTTP_DEF bool http_encodeURI(const char *input, size_t input_size,
-  char* output, size_t output_cap,
-  size_t *output_size);
+			     char* output, size_t output_cap,
+			     size_t *output_size);
 HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
-  char* output, size_t output_cap,
-  size_t *output_size);
+			     char* output, size_t output_cap,
+			     size_t *output_size);
 
 HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
 
@@ -273,56 +269,59 @@ HTTP_DEF bool http_init2(Http *http, const char *hostname, size_t hostname_len, 
 
 HTTP_DEF bool http_init3(Http *http, const char *hostname, size_t hostname_len, bool ssl, int port) {
   if(http == NULL) {
-   return false;
- }
- if(hostname == NULL) {
-   return false;
- }
+    return false;
+  }
+  if(hostname == NULL) {
+    return false;
+  }
 
- http_init_external_libs(NULL, NULL);
+  http_init_external_libs(NULL, NULL);
 
- http->socket = http_open();
- if(!http_valid(http->socket)) {
-   return false;
- }
-
+  http->socket = http_open();
+  if(!http_valid(http->socket)) {
+    return false;
+  }
 
 #ifndef HTTP_NO_SSL
- if(ssl) {
-   http->conn = SSL_new(http_global_ssl_client_ctx);
-   if(!http->conn) {
-     return false;
-   }
-   SSL_set_fd(http->conn, http->socket);
- } else {
-   http->conn = NULL;
- }
+  if(ssl) {
+    http->conn = SSL_new(http_global_ssl_client_ctx);
+    if(!http->conn) {
+      return false;
+    }
+    SSL_set_fd(http->conn, http->socket);
+  } else {
+    http->conn = NULL;
+  }
 #else
- if(ssl) {
-   warn("Compile with openssl and remove HTTP_NO_SSL, to request the url");
-   return false;
- }
+  if(ssl) {
+    warn("Compile with openssl and remove HTTP_NO_SSL, to request the url");
+    return false;
+  }
 #endif //HTTP_NO_SSL
 
- if(!http_connect2(http->socket, port, hostname, hostname_len)) {
-   warn("connect failed");
-   return false;
- }
+  if(!http_connect2(http->socket, port, hostname, hostname_len)) {
+    warn("connect failed");
+    return false;
+  }
 
 #ifndef HTTP_NO_SSL
- if(ssl && SSL_connect(http->conn)!=1) {
-   return false;
- }
+  int ret;
+  if(ssl && (ret = SSL_connect(http->conn)) != 1) {
+    if(SSL_get_error(http->conn, ret) == SSL_ERROR_SSL) {
+      warn("This is probapliy happening because of HTTP >= 2!");
+    }
+    return false;
+  }
 #endif //HTTP_NO_SSL
 
- http->host = hostname;
- http->host_len = hostname_len;
+  http->host = hostname;
+  http->host_len = hostname_len;
 
- return true;    
+  return true;    
 }
 
 HTTP_DEF int http_find_hostname(const char *url, size_t url_len,
- size_t *hostname_len, bool *ssl) {
+				size_t *hostname_len, bool *ssl) {
   char *http = "http://";
   size_t http_len = 7;
   char* https = "https://";
@@ -392,8 +391,8 @@ HTTP_DEF bool http_sleep_ms(int ms) {
 }
 
 HTTP_DEF bool http_encodeURI(const char *input, size_t input_size,
-  char* output, size_t output_cap,
-  size_t *output_size) {
+			     char* output, size_t output_cap,
+			     size_t *output_size) {
 
   if(!input || !output || !output_size) {
     return false;
@@ -407,26 +406,26 @@ HTTP_DEF bool http_encodeURI(const char *input, size_t input_size,
   size_t pos = 0;
   for (size_t i = 0; i < input_size; i++) {
     if (('a' <= input[i] && input[i] <= 'z')
-     || ('A' <= input[i] && input[i] <= 'Z')
-     || ('0' <= input[i] && input[i] <= '9')) {
+	|| ('A' <= input[i] && input[i] <= 'Z')
+	|| ('0' <= input[i] && input[i] <= '9')) {
       output[pos++] = input[i];
-  } else if(pos + 3 > output_cap) {
-    return false;
-  } else {
-    output[pos++] = '%';
-    output[pos++] = hex[(input[i] & 0xf0) >> 4];
-    output[pos++] = hex[input[i] & 0xf];
+    } else if(pos + 3 > output_cap) {
+      return false;
+    } else {
+      output[pos++] = '%';
+      output[pos++] = hex[(input[i] & 0xf0) >> 4];
+      output[pos++] = hex[input[i] & 0xf];
+    }
   }
-}
 
-*output_size = pos;
+  *output_size = pos;
 
-return true;  
+  return true;  
 }
 
 HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
-  char* output, size_t output_cap,
-  size_t *output_size) {
+			     char* output, size_t output_cap,
+			     size_t *output_size) {
   if(!input || !output || !output_size) {
     return false;
   }
@@ -440,28 +439,28 @@ HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
     char c = input[i];
     if(c == '%') {
       if(i + 2 >= input_size) {	
-       return false;
-     }
-     char hi = input[i+1];
-     if(hi > 57) hi -= 39;
-     char lo = input[i+2];
-     if(lo > 57) lo -= 39;
-     output[pos++] = (hi << 4) | (lo & 0xf);
-     i+=2;
-   } else {
-    output[pos++] = c;
+	return false;
+      }
+      char hi = input[i+1];
+      if(hi > 57) hi -= 39;
+      char lo = input[i+2];
+      if(lo > 57) lo -= 39;
+      output[pos++] = (hi << 4) | (lo & 0xf);
+      i+=2;
+    } else {
+      output[pos++] = c;
+    }
   }
-}
 
-*output_size = pos;
+  *output_size = pos;
 
-return true;
+  return true;
 }
 
 HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
-  const char* body, const char *content_type,
-  size_t (*write_callback)(const void*, size_t, size_t, void *),
-  void *userdata, HttpHeader *header, const char *headers_extra)
+			   const char* body, const char *content_type,
+			   size_t (*write_callback)(const void*, size_t, size_t, void *),
+			   void *userdata, HttpHeader *header, const char *headers_extra)
 {
   bool hasBody = body != NULL && content_type != NULL;
 
@@ -497,7 +496,7 @@ HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
     return false;
   }
 
-return true;
+  return true;
 }
 
 HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,size_t, void *), void *userdata, HttpHeader *header, const char *headers_extra) {
@@ -586,12 +585,12 @@ HTTP_DEF bool http_header_has(const HttpHeader *_header, string key, string *val
 }
 
 HTTP_DEF int http_header_response_code(const HttpHeader *_header) {
- string header = string_from(_header->data, _header->size);
- string line = string_trim(string_chop_by_delim(&header, '\n'));
- string_chop_left(&line, 9);
- int n;
- string_chop_int(&line, &n);
- return n;
+  string header = string_from(_header->data, _header->size);
+  string line = string_trim(string_chop_by_delim(&header, '\n'));
+  string_chop_left(&line, 9);
+  int n;
+  string_chop_int(&line, &n);
+  return n;
 }
 
 HTTP_DEF bool http_head(const char *url, HttpHeader *header, const char *headers_extra) {
@@ -617,23 +616,23 @@ HTTP_DEF bool http_head(const char *url, HttpHeader *header, const char *headers
 
   char request_buffer[HTTP_BUFFER_CAP];
   if(!sendf(http_send_len2, &http, request_buffer, HTTP_BUFFER_CAP,
-   "HEAD %s HTTP/1.1\r\n"
-   "Host: %.*s\r\n"
-   "%s"
-   "Connection: Close\r\n"
-   "\r\n",
-   route, http.host_len,
-   http.host, headers_extra == NULL ? "" : headers_extra)) {
+	    "HEAD %s HTTP/1.1\r\n"
+	    "Host: %.*s\r\n"
+	    "%s"
+	    "Connection: Close\r\n"
+	    "\r\n",
+	    route, http.host_len,
+	    http.host, headers_extra == NULL ? "" : headers_extra)) {
     return false;
-}
+  }
 
-if(!http_read_body(&http, NULL, NULL, header)) {
-  return false;
-}
+  if(!http_read_body(&http, NULL, NULL, header)) {
+    return false;
+  }
 
-http_free(&http);
+  http_free(&http);
 
-return true;
+  return true;
 }
 
 HTTP_DEF void http_free(Http *http) {
@@ -780,12 +779,7 @@ HTTP_DEF void http_server_stop(HttpServer *server) {
 
   //STOP LISTEN THREAD
   server->threads[0].used = false;
-#ifdef __MSC_VER
-  WaitForSingleObject(server->threads[0].id, INFINITE);
-#elif __GNUC__
-  pthread_join(server->threads[0].id, NULL);
-#endif //linux
-  
+  thread_join(server->threads[0].id);  
 
   //DEALLOCATE THREADS
   if(server->threads_count == 0) {
@@ -830,36 +824,36 @@ HTTP_DEF void *http_server_listen_function(void *arg) {
       http.socket = client;
 #ifndef HTTP_NO_SSL
       if(server->ssl) {
-       http.conn = SSL_new(http_global_ssl_server_ctx);
-       if(!http.conn) {
-         fprintf(stderr, "WARNING: Https failed to generate SSL_connection\n");
-         continue;
-       }
+	http.conn = SSL_new(http_global_ssl_server_ctx);
+	if(!http.conn) {
+	  fprintf(stderr, "WARNING: Https failed to generate SSL_connection\n");
+	  continue;
+	}
 
 	//WTF
 #ifdef _WIN32	
-       unsigned long mode = 0;
-       ioctlsocket(client, FIONBIO, &mode);
+	unsigned long mode = 0;
+	ioctlsocket(client, FIONBIO, &mode);
 #endif //_WIN32
 
-       SSL_set_fd(http.conn, client);
-       int accept_res = SSL_accept(http.conn);
-       if(accept_res <= 0) {
-         ERR_print_errors_fp(stderr);
-         http_free(&http);
-         fprintf(stderr, "WARNING: Https client failed to connect\n");
-         continue;
-       }
-     }
+	SSL_set_fd(http.conn, client);
+	int accept_res = SSL_accept(http.conn);
+	if(accept_res <= 0) {
+	  ERR_print_errors_fp(stderr);
+	  http_free(&http);
+	  fprintf(stderr, "WARNING: Https client failed to connect\n");
+	  continue;
+	}
+      }
 #endif //HTTP_NO_SSL
-     if(!http_server_create_serve_thread(server, http)) {
-       fprintf(stderr, "WARNING: No server thread is avaible\n");
+      if(!http_server_create_serve_thread(server, http)) {
+	fprintf(stderr, "WARNING: No server thread is avaible\n");
 	//TODO: Maybe serve client once on listen thread
-     }
-   }
- }
+      }
+    }
+  }
 
- return NULL;
+  return NULL;
 }
 
 HTTP_DEF bool http_server_create_serve_thread(HttpServer *server, Http client) {  
@@ -868,17 +862,9 @@ HTTP_DEF bool http_server_create_serve_thread(HttpServer *server, Http client) {
     if(thread->used==true) continue;
     thread->client = client;
 
-#ifdef _MSC_VER
-    int ret = _beginthread(http_server_serve_function, 0, thread);
-    if(ret < 0) {
+    if(!thread_create(&thread->id, http_server_serve_function, thread)) {
       return false;
     }
-    thread->id = *(HANDLE *) &ret;
-#elif __GNUC__
-    if(pthread_create(&(thread->id), NULL, http_server_serve_function, thread) != 0) {
-      return false;
-    }
-#endif //linux
 
     thread->used = true;
     return true;
@@ -928,21 +914,21 @@ HTTP_DEF void *http_server_serve_function(void *_arg) {
     string websocket_key;
     if(http_server_fill_http_request(string_from(buffer->data, buffer->len), request, &websocket_key)) {
       if(websocket_key.len > 0 && handle_websocket != NULL) {
-       http_send_websocket_accept(&client, websocket_key);
-     } else {
-       handle_request(request, &client, arg);
-     }
-   } else if(handle_websocket != NULL) {
-    if(!http_websocket_read(&websocket, buffer)) {
-     break;
-   }
- }    
-} 
+	http_send_websocket_accept(&client, websocket_key);
+      } else {
+	handle_request(request, &client, arg);
+      }
+    } else if(handle_websocket != NULL) {
+      if(!http_websocket_read(&websocket, buffer)) {
+	break;
+      }
+    }    
+  } 
 
-http_free(&client);
-*used = false;
+  http_free(&client);
+  *used = false;
 
-return NULL;
+  return NULL;
 }
 
 //TODO: Validate HttpRequest properly, to distinguish between Websocket and httpRequest
@@ -988,12 +974,12 @@ HTTP_DEF bool http_server_fill_http_request(string request_string, HttpRequest *
 
   if(bodyStart != 0) {
     request->body = string_from(request_string_origin.data + bodyStart,
-      request_string_origin.len - bodyStart);
+				request_string_origin.len - bodyStart);
     request->headers = string_trim(string_from(request_string_origin.data + headersStart,
-      bodyStart - headersStart));      
+					       bodyStart - headersStart));      
   } else {    
     request->headers = string_trim(string_from(request_string_origin.data + headersStart,
-     request_string_origin.len));
+					       request_string_origin.len));
   }
 
   if(websocket_key) {
@@ -1035,11 +1021,11 @@ HTTP_DEF bool http_send_not_found(Http *http) {
   }
 
   static const char *not_found_string =
-  "HTTP/1.1 404 Not Found\r\n"
-  "Content-Type: text/plain\r\n"
-  "Content-Length: 15\r\n"
-  "\r\n"
-  "404 - Not Found";
+    "HTTP/1.1 404 Not Found\r\n"
+    "Content-Type: text/plain\r\n"
+    "Content-Length: 15\r\n"
+    "\r\n"
+    "404 - Not Found";
   return http_send_len(not_found_string, strlen(not_found_string), http); 
 }
 
@@ -1061,11 +1047,11 @@ HTTP_DEF bool http_send_websocket_accept(Http *http, string ws_key) {
 
   char request_buffer[HTTP_BUFFER_CAP];
   return sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
-    "HTTP/1.1 101 Switching Protocols\r\n"
-    "Upgrade: websocket\r\n"
-    "Connection: Upgrade\r\n"
-    "Sec-WebSocket-Accept: %.*s\r\n"
-    "\r\n", size, buffer);
+	       "HTTP/1.1 101 Switching Protocols\r\n"
+	       "Upgrade: websocket\r\n"
+	       "Connection: Upgrade\r\n"
+	       "Sec-WebSocket-Accept: %.*s\r\n"
+	       "\r\n", size, buffer);
 }
 
 static const char* HTTP_CONTENT_TYPE_TEXT_PLAIN = "text/plain; charset=utf-8";
@@ -1182,9 +1168,9 @@ HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
   size_t buffer_cap = HTTP_BUFFER_CAP;
 
   size_t buffer_size = snprintf(buffer, HTTP_BUFFER_CAP, "%s%s%s\r\n", "HTTP/1.1 200 OK\r\nContent-Type: ",
-    content_type,
-    "\r\nConnection: keep-alive\r\n"
-    "Transfer-Encoding: chunked\r\n");
+				content_type,
+				"\r\nConnection: keep-alive\r\n"
+				"Transfer-Encoding: chunked\r\n");
 
   if(buffer_size >= HTTP_BUFFER_CAP) {
     panic("The Content-Type is too big, to fit into the HTTP_BUFFER_CAP.");
@@ -1202,52 +1188,52 @@ HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
     size_t nbytes = fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, *f);
     if(nbytes != buffer_cap - 2 - 6) {
       if(ferror(*f)) {
-       fprintf(stderr, "[WARNING]: Can not read file because: %s\n", strerror(errno));
-       return false;
-     }
-     if(feof(*f)) {
-       bbreak = true;
-     }
-   }
-   buffer[buffer_off + 4] = '\r';
-   buffer[buffer_off + 5] = '\n';
-   buffer[buffer_off + 6 + nbytes] = '\r';
-   buffer[buffer_off + 6 + nbytes + 1] = '\n';
+	fprintf(stderr, "[WARNING]: Can not read file because: %s\n", strerror(errno));
+	return false;
+      }
+      if(feof(*f)) {
+	bbreak = true;
+      }
+    }
+    buffer[buffer_off + 4] = '\r';
+    buffer[buffer_off + 5] = '\n';
+    buffer[buffer_off + 6 + nbytes] = '\r';
+    buffer[buffer_off + 6 + nbytes + 1] = '\n';
 
-   if(nbytes > 0) {
+    if(nbytes > 0) {
       //4 := 0x2000 = HTTP_BUFFER_CAP
       //If HTTP_BUFFER_CAP exceeds 4 digits in hexadecimal, adjust 4 to 5, ...
       //CONVERTING nbytes to hex in buffer[0] - buffer[3]
-    size_t n = nbytes;
-    int i = 0;
-    while(n > 0) {
-     size_t m = n % 16;
-     buffer[buffer_off + 4 - i++ - 1] = m<10 ? m + '0' : m + 'W';
-     n /= 16;
-   }
-   while(i < 4) buffer[buffer_off + 4 - i++ - 1] = '0';
+      size_t n = nbytes;
+      int i = 0;
+      while(n > 0) {
+	size_t m = n % 16;
+	buffer[buffer_off + 4 - i++ - 1] = m<10 ? m + '0' : m + 'W';
+	n /= 16;
+      }
+      while(i < 4) buffer[buffer_off + 4 - i++ - 1] = '0';
 
-   if(bbreak && (6 + nbytes + 2 + end_carriage_len < buffer_cap)) {
-     memcpy(buffer + buffer_off + 6 + nbytes + 2, end_carriage, end_carriage_len);
-     nbytes += end_carriage_len;
-   }
-   if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {	
-     return false;
-   }
- }
- if(bbreak) {
-  if(6 + nbytes + 2 + 5 >= buffer_cap) {
-   if(!http_send_len(end_carriage, end_carriage_len, http)) {	  
-     return false;
-   }
- }
- break;
-}
-buffer_cap = HTTP_BUFFER_CAP;
-buffer_off = 0;
-}
+      if(bbreak && (6 + nbytes + 2 + end_carriage_len < buffer_cap)) {
+	memcpy(buffer + buffer_off + 6 + nbytes + 2, end_carriage, end_carriage_len);
+	nbytes += end_carriage_len;
+      }
+      if(!http_send_len(buffer, buffer_off + 6 + nbytes + 2, http)) {	
+	return false;
+      }
+    }
+    if(bbreak) {
+      if(6 + nbytes + 2 + 5 >= buffer_cap) {
+	if(!http_send_len(end_carriage, end_carriage_len, http)) {	  
+	  return false;
+	}
+      }
+      break;
+    }
+    buffer_cap = HTTP_BUFFER_CAP;
+    buffer_off = 0;
+  }
 
-return true;
+  return true;
 }
 
 HTTP_DEF void http_close_file(FILE **f) {
@@ -1502,28 +1488,28 @@ HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_ty
 
   static_assert(COUNT_HTTP_STATUS == 3, "The amount of HttpStatus has changed.");
   switch(status) {
-    case HTTP_STATUS_OK:
+  case HTTP_STATUS_OK:
     prefix = "HTTP/1.1 200 OK";
     break;
-    case HTTP_STATUS_NOT_FOUND:
+  case HTTP_STATUS_NOT_FOUND:
     prefix = "HTTP/1.1 404 Not Found";
     break;
-    case HTTP_STATUS_INTERNAL_ERROR:
+  case HTTP_STATUS_INTERNAL_ERROR:
     prefix = "HTTP/1.1 500 Internal Server Error";
     break;
-    default:
+  default:
     panic("unreachable");
   }
 
   char buffer[HTTP_BUFFER_CAP];
   return sendf(http_send_len2, http, buffer, HTTP_BUFFER_CAP,
-    "%s\r\n"
-    "Connection: keep-alive\r\n"
-    "Content-Type %s\r\n"
-    "Content-Length: %d\r\n"
-    "\r\n"
-    "%.*s",
-    prefix, content_type, body_size_bytes, body_size_bytes, body);
+	       "%s\r\n"
+	       "Connection: keep-alive\r\n"
+	       "Content-Type %s\r\n"
+	       "Content-Length: %d\r\n"
+	       "\r\n"
+	       "%.*s",
+	       prefix, content_type, body_size_bytes, body_size_bytes, body);
 }
 
 HTTP_DEF bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
@@ -1589,36 +1575,34 @@ HTTP_DEF bool http_read(Http *http, size_t (*write_callback)(const void *data, s
     //TODO: check if it should <= 0 OR < 0
     if(nbytes_last < 0) {
       if(errno != EAGAIN && errno !=EWOULDBLOCK) {
-       return false;
-     }
-     return nbytes_total > 0;
-   }
+	return false;
+      }
+      return nbytes_total > 0;
+    }
 #endif //linux
 #ifdef _WIN32
-   if(nbytes_last == SOCKET_ERROR) {
-    if(WSAGetLastError() != WSAEWOULDBLOCK) {
-     return false;
-   }
-   return nbytes_total!=0 && nbytes_total!=SOCKET_ERROR;
- }
+    if(nbytes_last == SOCKET_ERROR) {
+      if(WSAGetLastError() != WSAEWOULDBLOCK) {
+	return false;
+      }
+      return nbytes_total!=0 && nbytes_total!=SOCKET_ERROR;
+    }
 #endif //_WIN32
 
- nbytes_total += nbytes_last;
+    nbytes_total += nbytes_last;
 
- if(nbytes_last>0 && write_callback != NULL && write_callback) {
-  (*write_callback)(buffer, nbytes_last, 1, userdata);
-}
+    if(nbytes_last>0 && write_callback != NULL && write_callback) {
+      (*write_callback)(buffer, nbytes_last, 1, userdata);
+    }
 
     //TODO: test that
-}while(nbytes_last > 0);
+  }while(nbytes_last > 0);
 
-return false;
+  return false;
 }
 
 HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata),
-  void *userdata, HttpHeader *header) {
-  not_null(http);
-
+			     void *userdata, HttpHeader *header) {
   if(!http_valid(http->socket)) {
     return false;
   }
@@ -1655,117 +1639,117 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
     if(!body) {
       string s = string_from(buffer, (size_t) nbytes_total);
       while(s.len) {
-       string line = string_chop_by_delim(&s, '\n');
-       if(line.len && line.data[0]=='\r') {
-         body = true;
-         offset = (size_t) (line.data+2 - buffer);
-         break;
-       }
-       string key = string_trim(string_chop_by_delim(&line, ':'));
-       string value = string_trim(line);
+	string line = string_chop_by_delim(&s, '\n');
+	if(line.len && line.data[0]=='\r') {
+	  body = true;
+	  offset = (size_t) (line.data+2 - buffer);
+	  break;
+	}
+	string key = string_trim(string_chop_by_delim(&line, ':'));
+	string value = string_trim(line);
 #ifdef HTTP_DEBUG
-       printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value));
+	printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value));
 #endif	
-       if(string_eq(key, STRING("Content-Length")) || string_eq(key, STRING("content-length"))) {
-         if(!string_chop_int64_t(&value, &content_length)) {
-           warn("Failed to parse content length");
-           content_length = -1;
-         } 
-       }
-       else if(string_eq(key, STRING("Transfer-Encoding")) &&
-        string_eq(value, STRING("chunked"))) {
-         content_length = -2;
-     }
-   }
+	if(string_eq(key, STRING("Content-Length")) || string_eq(key, STRING("content-length"))) {
+	  if(!string_chop_int64_t(&value, &content_length)) {
+	    warn("Failed to parse content length");
+	    content_length = -1;
+	  } 
+	}
+	else if(string_eq(key, STRING("Transfer-Encoding")) &&
+		string_eq(value, STRING("chunked"))) {
+	  content_length = -2;
+	}
+      }
 
-   if(header) {
-     size_t header_additional_len = offset == 0 ? (size_t) nbytes_total : offset;
-     assert(header->size + header_additional_len < HTTP_BUFFER_CAP);
-     memcpy(header->data + header->size, buffer, header_additional_len);
-     header->size += header_additional_len;
+      if(header) {
+	size_t header_additional_len = offset == 0 ? (size_t) nbytes_total : offset;
+	assert(header->size + header_additional_len < HTTP_BUFFER_CAP);
+	memcpy(header->data + header->size, buffer, header_additional_len);
+	header->size += header_additional_len;
 
-   }
- }
+      }
+    }
 
- if(body) {
-  if(write_callback == NULL) {
-   break;
- }
+    if(body) {
+      if(write_callback == NULL) {
+	break;
+      }
 
       if(content_length > 0) { //CONTENT_LENGTH: 69
       	uint64_t len = (uint64_t) (nbytes_total - (ssize_t) offset);
       	if(content_length != -1 && read + len > (uint64_t) content_length) {
-         len = content_length - read;
-       }
-       if(len > 0) {
-         write_callback(buffer + offset, len, 1, userdata);	  
-       }
-       read += len;
+	  len = content_length - read;
+	}
+	if(len > 0) {
+	  write_callback(buffer + offset, len, 1, userdata);
+	}
+	read += len;
 
-       if(read >= (uint64_t) content_length) {
-         break;
-       }
+	if(read >= (uint64_t) content_length) {
+	  break;
+	}
       } else if(content_length == -2) { //TRANSFER_ENCODING: chunked
-       bool bbreak = false;
-       size_t diff = (size_t) nbytes_total - offset;
-       if(diff==0) {
-         continue;
-       }
-       string s = string_from(buffer + offset, diff);
-       size_t off = 0;
-       size_t i=0;
-       for(;i<diff-1;i++) {
-         if(need == -1 || need == 0) {
-          if(s.data[i]=='\r' && s.data[i+1] == '\n') {
-            size_t size = i - off;
-            size = size > 4 ? 4 : size;
-            string word = string_from(s.data + i - size, size);
-            uint64_t n;
-            if(size > 0) {
-             if(string_chop_hex(&word, &n) && !word.len) {
-               need = (int64_t) n;
-               if(need == 0) {
-                bbreak = true;
-                break;
-              }
-              off = i + 2;
-            } else {
-             printf("'%.*s'\n", (int) size, s.data + i - size);
-             panic("expected hex, but got string");
-           }
-         }
-       }
-     } else {
-       if(s.data[i]=='\r' && s.data[i+1] == '\n') {
-         if(need - (int64_t) (i - off) == 0) {
-          write_callback(s.data + off, i - off, 1, userdata);
-          need -= (int64_t) (i - off);
-          off = i + 2;
-        }
+	bool bbreak = false;
+	size_t diff = (size_t) nbytes_total - offset;
+	if(diff==0) {
+	  continue;
+	}
+	string s = string_from(buffer + offset, diff);
+	size_t off = 0;
+	size_t i=0;
+	for(;i<diff-1;i++) {
+	  if(need == -1 || need == 0) {
+	    if(s.data[i]=='\r' && s.data[i+1] == '\n') {
+	      size_t size = i - off;
+	      size = size > 4 ? 4 : size;
+	      string word = string_from(s.data + i - size, size);
+	      uint64_t n;
+	      if(size > 0) {
+		if(string_chop_hex(&word, &n) && !word.len) {
+		  need = (int64_t) n;
+		  if(need == 0) {
+		    bbreak = true;
+		    break;
+		  }
+		  off = i + 2;
+		} else {
+		  printf("'%.*s'\n", (int) size, s.data + i - size);
+		  panic("expected hex, but got string");
+		}
+	      }
+	    }
+	  } else {
+	    if(s.data[i]=='\r' && s.data[i+1] == '\n') {
+	      if(need - (int64_t) (i - off) == 0) {
+		write_callback(s.data + off, i - off, 1, userdata);
+		need -= (int64_t) (i - off);
+		off = i + 2;
+	      }
+	    }
+	  }
+	}
+	if(need != -1 && need != 0) {
+	  if(!(need - (int64_t) (i + 1 - off) >= 0)) {
+	    //printf("need: %ld, i: %ld, off: %lu\n", need, i, off);
+	    panic("assert");
+	  }
+	  write_callback(s.data + off, i + 1 - off, 1, userdata);
+	  need -= (int64_t) (i + 1 - off);
+	}
+
+	if(bbreak) {
+	  break;
+	}
+      } else {
+	warn("Server does not provide a content-length and does not support Chunked Encoding");
+	break;
       }
+
     }
-  }
-  if(need != -1 && need != 0) {
-   if(!(need - (int64_t) (i + 1 - off) >= 0)) {
-	      //printf("need: %ld, i: %ld, off: %lu\n", need, i, off);
-     panic("assert");
-   }
-   write_callback(s.data + off, i + 1 - off, 1, userdata);
-   need -= (int64_t) (i + 1 - off);
- }
+  }while(nbytes_total > 0);
 
- if(bbreak) {
-   break;
- }
-} else {
- warn("Server does not provide a content-length and does not support Chunked Encoding");
- break;
-}
-
-}
-}while(nbytes_total > 0);
-
-return true;
+  return true;
 }
 
 HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_file) {
@@ -1869,30 +1853,30 @@ HTTP_DEF bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *
     assert(buffer->len >= off + 2);
     for(int n=off-1;n>=0;n--) {
       for(int i=0;i<8;i++) {
-       if((buffer->data[2+n] & (1 << i))) context->payload_len += _m;
-       _m = _m << 1;
-     }
-   }	  
- }
- off += 2;
-
- assert(buffer->len >= off + 4);	
- for(int i=0;i<4;i++) {
-  context->xormask[i] = buffer->data[off+i];
-}
-off += 4;
-
-unsigned long diff = (unsigned long) buffer->len - (unsigned long) off;
-
-if(diff > 0) {
-  for(unsigned long i=0;i<diff;i++) {
-    buffer->data[off + i] = buffer->data[off+i] ^ (context->xormask[i%4]);
+	if((buffer->data[2+n] & (1 << i))) context->payload_len += _m;
+	_m = _m << 1;
+      }
+    }	  
   }
-  context->handle_websocket(buffer->data + off, diff, context->http, context->arg);
-  context->payload_len -= diff;
-}
+  off += 2;
 
-return true;
+  assert(buffer->len >= off + 4);	
+  for(int i=0;i<4;i++) {
+    context->xormask[i] = buffer->data[off+i];
+  }
+  off += 4;
+
+  unsigned long diff = (unsigned long) buffer->len - (unsigned long) off;
+
+  if(diff > 0) {
+    for(unsigned long i=0;i<diff;i++) {
+      buffer->data[off + i] = buffer->data[off+i] ^ (context->xormask[i%4]);
+    }
+    context->handle_websocket(buffer->data + off, diff, context->http, context->arg);
+    context->payload_len -= diff;
+  }
+
+  return true;
 }
 
 HTTP_DEF bool http_websocket_send_len(const char *buffer, size_t buffer_len, Http *client) {
@@ -1910,12 +1894,12 @@ HTTP_DEF bool http_websocket_send_len(const char *buffer, size_t buffer_len, Htt
   if(buffer_len < 126) {    
     char size = buffer_len | 0x80;
     return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%_ws",
-     header, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
+		 header, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
   } else if(buffer_len <= UINT16_MAX) {    
     char indication = (char) (int) ((int) 0xff & (int) ~0x1);
     char size[] = {(char) ((buffer_len & 0xff00) >> 8), (char) (buffer_len & 0x00ff)};    
     return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
-     header, indication, (size_t) 2, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
+		 header, indication, (size_t) 2, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
   } else {
     char indication = -1;
     char size[8];
@@ -1923,7 +1907,7 @@ HTTP_DEF bool http_websocket_send_len(const char *buffer, size_t buffer_len, Htt
       size[8 - 1 - i] = (buffer_len & (0xff << i*8)) >> i*8;
     }
     return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
-     header, indication, (size_t) 8, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
+		 header, indication, (size_t) 8, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
   }
 }
 

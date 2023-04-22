@@ -683,6 +683,11 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 }
 
 GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
+
+#ifndef GUI_CONSOLE
+  FreeConsole();
+#endif //GUI_CONSOLE
+  
   if(!guiWin32PerfCountFrequency.QuadPart) {
     QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
   }
@@ -713,7 +718,12 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
 				 wc.lpszClassName,
 				 wc.lpszClassName,
 				 WS_OVERLAPPEDWINDOW,
-				 canvas != NULL ? (screenWidth / 2 - canvas->width/2) : CW_USEDEFAULT, canvas != NULL ? (screenHeight / 2 - (canvas->height + 39)/2) : CW_USEDEFAULT,
+				 canvas != NULL
+				 ? (screenWidth / 2 - canvas->width/2)
+				 : CW_USEDEFAULT,
+				 canvas != NULL
+				 ? (screenHeight / 2 - (canvas->height + 39)/2)
+				 : CW_USEDEFAULT,
 				 canvas != NULL ? canvas->width : CW_USEDEFAULT,
 				 canvas != NULL ? canvas->height + 39 : CW_USEDEFAULT,
 				 NULL,
@@ -721,11 +731,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
 				 hInstance,
 				 NULL))) {
     return false;
-  }
-
-#ifndef GUI_CONSOLE
-  FreeConsole();
-#endif //GUI_CONSOLE
+  }  
   gui->dc = GetDC(gui->win);
 
   LONG_PTR lptr = {0};
@@ -751,7 +757,9 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   }
 
   if(canvas != NULL) {
-      gui->canvas = canvas;
+    gui->canvas = canvas;
+  } else {
+    gui->canvas = (Gui_Canvas *)(void *) gui;
   }
 
   gui->running = true;

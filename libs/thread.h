@@ -29,8 +29,12 @@ void mutex_release(Mutex mutex);
 
 int thread_create(Thread *id, void* (*function)(void *), void *arg) {
   int ret =
-    //CreateThread(NULL, 0, function, arg, 0, NULL);
+#ifdef _MSC_VER
     _beginthread(function, 0, arg);
+#else
+    _beginthread((_beginthread_proc_type) (void *)function, 0, arg);
+#endif    
+
   if(ret == -1) {
     return 0;
   }
