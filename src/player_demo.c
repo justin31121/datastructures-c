@@ -1,7 +1,7 @@
-#include <stdio.h>
+#define URL "https://rr3---sn-8xgn5uxa-quhz.googlevideo.com/videoplayback?expire=1682267438&ei=zghFZMOsFYXggAeCoriYCg&ip=157.90.242.21&id=o-AJsw5QB8WDApxTkE4jIPDq0A15eBeCFQFK5s_htx29uu&itag=140&source=youtube&requiressl=yes&vprv=1&mime=audio%2Fmp4&ns=szwbVN7g5FCFeyKhj6qOmnEM&gir=yes&clen=2153262&dur=133.003&lmt=1682056603259720&keepalive=yes&fexp=24007246&c=WEB&txp=5532434&n=F0RXg-1Ye9szPxzOY&sparams=expire%2Cei%2Cip%2Cid%2Citag%2Csource%2Crequiressl%2Cvprv%2Cmime%2Cns%2Cgir%2Cclen%2Cdur%2Clmt&ratebypass=yes&sig=AOq0QJ8wRAIgT4bd-pXl91H6InymEqON6zVzzfUl2lnisupVNH_jgiICICTPF_lkoBmB4QNq2FIDTaqFJamUv3wMiDAVCntnkguK&redirect_counter=1&rm=sn-4g5ere7e&req_id=a169d273b6fa3ee&cms_redirect=yes&cmsv=e&ipbypass=yes&mh=YX&mip=2001:16b8:18c1:cc00:65df:45bf:67f0:62f8&mm=31&mn=sn-8xgn5uxa-quhz&ms=au&mt=1682245488&mv=m&mvi=3&pcm2cms=yes&pl=40&lsparams=ipbypass,mh,mip,mm,mn,ms,mv,mvi,pcm2cms,pl&lsig=AG3C_xAwRQIgQkbcpcXdMjEJZFUGXXT_aUoG9cDXPxhVoMKxM3xiTPkCIQDz8EdJ3IATYT0Vrcbp0WAQCNARSsfS3Od5_YZ17yTBlg%3D%3D"
 
-#define STRING_IMPLEMENTATION
-#include "../libs/string.h"
+#define PLAYER_IMPLEMENTATION
+#include "../libs/player.h"
 
 #define GUI_IMPLEMENTATION
 #define GUI_OPENGL
@@ -16,9 +16,6 @@
 
 #define FONT_IMPLEMENTATION
 #include "../libs/font.h"
-
-#define PLAYER_IMPLEMENTATION
-#include "../libs/player.h"
 
 #define IO_IMPLEMENTATION
 #include "../libs/io.h"
@@ -80,7 +77,7 @@ void load_files(const char *dir_path, Player *player, String_Buffer *buffer) {
       continue;
     }
     string_buffer_append(buffer, file.abs_name, strlen(file.abs_name)+1);
-    player_close_file(player);
+    player_close(player);
   }
 
   io_dir_close(&dir);
@@ -126,14 +123,19 @@ int main(int argc, char **argv) {
   }
   int sbuffer_pos = 0;
 
+  /*
   if(!player_open_file(&player, sbuffer.data)) {
     panic("player_open_file");
+  }
+  */
+  if(!player_open_url(&player, URL)) {
+      panic("player_open_url");
   }
     
   if(!player_play(&player)) {
     panic("player_play");
   }
-  player_set_volume(&player, 0.2);
+  player_set_volume(&player, 0.8);
 
   float button_width = 24.f;
   float bar_y = 60.f;
@@ -209,7 +211,7 @@ int main(int argc, char **argv) {
 	sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
 	if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
 
-	player_close_file(&player);
+	player_close(&player);
 	if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
 	  panic("player_open_file");
 	}
@@ -356,7 +358,7 @@ int main(int argc, char **argv) {
 
 	  sbuffer_pos = off;
 	  
-	  player_close_file(&player);
+	  player_close(&player);
 	  if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
 	    panic("player_open_file");
 	  }
@@ -425,7 +427,7 @@ int main(int argc, char **argv) {
 	sbuffer_pos--;
       }
 	  
-      player_close_file(&player);
+      player_close(&player);
       if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
 	panic("player_open_file");
       }
@@ -448,7 +450,7 @@ int main(int argc, char **argv) {
       if(sbuffer_pos >= sbuffer.len) sbuffer_pos = 0;
 
       if(player.decoder_used) {
-	player_close_file(&player);
+	player_close(&player);
 	if(!player_open_file(&player, sbuffer.data + sbuffer_pos)) {
 	  panic("player_open_file");
 	}

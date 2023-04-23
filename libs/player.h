@@ -1,6 +1,10 @@
 #ifndef PLAYER_H_H
 #define PLAYER_H_H
 
+#ifdef PLAYER_NO_SSL
+#define HTTP_NO_SSL
+#endif
+
 #ifdef PLAYER_IMPLEMENTATION
 
 #ifdef _WIN32
@@ -96,6 +100,7 @@ PLAYER_DEF int64_t player_decoder_memory_seek(void *opaque, int64_t offset, int 
 //FROM URL
 PLAYER_DEF bool player_open_url(Player *player, const char *url);
 PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int buf_size);
+PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence);
 
 PLAYER_DEF bool player_close(Player *player);
 
@@ -186,7 +191,17 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
   socket->offset = 00;
 
   do {
-    socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, HTTP_BUFFER_CAP);
+#ifndef HTTP_NO_SSL
+      if(socket->http.conn != NULL) {
+	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, HTTP_BUFFER_CAP);
+      }
+      else {
+	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+      }
+#else
+      socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+#endif //HTTP_NO_SSL
+    
     if(socket->nbytes_total == -1) {
       return false;
     }
@@ -441,7 +456,16 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
       buf_off += len;
       
     } else {
-      socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, HTTP_BUFFER_CAP);
+#ifndef HTTP_NO_SSL
+      if(socket->http.conn != NULL) {
+	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, HTTP_BUFFER_CAP);
+      }
+      else {
+	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+      }
+#else
+      socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+#endif //HTTP_NO_SSL
       
       if(socket->nbytes_total == -1) {
 	return -1; //network ERRROR 
@@ -457,6 +481,30 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 
   
   return _buf_size;
+}
+
+PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence) {
+    /* TODO
+  Player_Socket *socket = (Player_socket *) opaque;
+
+  int pos = socket->pos;
+
+  switch (whence) {
+  case SEEK_SET:
+    pos = offset;
+    break;
+  case SEEK_CUR:
+    pos += offset;
+    break;
+  case SEEK_END:
+    pos = memory->size + offset;
+    break;
+  default:
+    return AVERROR_INVALIDDATA;
+  }
+    
+  return memory->pos;
+    */
 }
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {

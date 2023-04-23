@@ -54,7 +54,7 @@ void (*glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const v
 
 #endif //linux
 
-#ifdef _WIN32
+#ifdef __WIN32__
 #include <windows.h>
 #include <winuser.h>
 #include <GL/GL.h> //link with -opengl32 -lgdi32

@@ -60,6 +60,10 @@ int main() {
 
   printf("%d\n", json_get_int(json, "bazz"));
 
+#ifdef _WIN64
+  printf("WINDOWS\n");
+#endif
+
   json_free(json);
   
   return 0;
