@@ -402,8 +402,6 @@ const char *tprintf(String_Buffer *sb, const char *format, ...) {
 #elif __GNUC__
   va_list two;
   va_copy(two, args);
-#else
-  va_list two = args;
 #endif
   size_t len = vsnprintf(NULL, 0, format, args) + 1;
   va_end(args);

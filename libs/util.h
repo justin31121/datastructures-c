@@ -203,8 +203,8 @@ static size_t sendf_bar(Sendf_Context *context, size_t *buffer_size, const char 
 
 bool sendf(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	   char *buffer, size_t buffer_cap, const char *format, ...) {
-  va_list va;
-  va_start(va, format);
+    va_list va;
+    va_start(va, format);
   bool result = sendf2(send_callback, userdata, buffer, buffer_cap, format, va);
   va_end(va);
   return result;
@@ -227,12 +227,12 @@ bool sendf2(bool (*send_callback)(const char *, size_t , void*), void *userdata,
   size_t format_len = strlen(format);
   size_t format_last = 0;
   for(size_t i=0;i<format_len;i++) {
-    if(format[i]=='%' && i+1 < format_len) {      
+    if(format[i]=='%' && i+1 < format_len) {
       if(!sendf_bar(&context, &buffer_size, format + format_last, i - format_last)) {
 	return false;
       }
       if (format[i+1] == 'c') { // %c	
-        char c = (char) va_arg(va, int);
+	  char c = (char) va_arg(va, int);
         if(!sendf_bar(&context, &buffer_size, &c, 1)) {
 	  return false;
 	}
@@ -240,7 +240,7 @@ bool sendf2(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	format_last = i+2;
 	i++;
       } else if(format[i+1]=='s') { // %	
-	const char *argument_cstr = va_arg(va, char *);
+	  const char *argument_cstr = va_arg(va, char *);
 	if(!sendf_bar(&context, &buffer_size, argument_cstr, strlen(argument_cstr))) {
 	  return false;
 	}
