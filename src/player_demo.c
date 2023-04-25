@@ -1,5 +1,3 @@
-#define URL "https://rr3---sn-4g5edndl.googlevideo.com/videoplayback?expire=1682336829&ei=3BdGZOiXO53B1gKHzL_4BQ&ip=157.90.242.21&id=o-AHc0SEFyNdLPCZ0g84f-O9FLW-n72MxEEYtPk1n_Dwu2&itag=140&source=youtube&requiressl=yes&vprv=1&mime=audio%2Fmp4&ns=YMlSo0o0hyHrjK3HY9h-nCAM&gir=yes&clen=2153262&dur=133.003&lmt=1682056603259720&keepalive=yes&fexp=24007246&c=WEB&txp=5532434&n=-UV046hwa0gfOS8OH&sparams=expire%2Cei%2Cip%2Cid%2Citag%2Csource%2Crequiressl%2Cvprv%2Cmime%2Cns%2Cgir%2Cclen%2Cdur%2Clmt&ratebypass=yes&sig=AOq0QJ8wRQIhAOb67fwaKPgmQFX_4b6Cqxp51WpfLATk581a21ZvXwgmAiAtly1C2TeBKl4c2zBzza-tImX344gEq2scnr8b364Rlg%3D%3D&redirect_counter=1&rm=sn-4g5ers7s&req_id=c55cb8bda9c4a3ee&cms_redirect=yes&cmsv=e&ipbypass=yes&mh=YX&mip=212.211.225.85&mm=31&mn=sn-4g5edndl&ms=au&mt=1682314852&mv=m&mvi=3&pl=27&lsparams=ipbypass,mh,mip,mm,mn,ms,mv,mvi,pl&lsig=AG3C_xAwRAIgBMsXjhJxZGRkQuEL86pYAtLD4UvwkQqeDATDkrDrRQICIH2nGwm8EAT6jb40-qypgdqKEgnnZLjZPIJqR0Q8gmKd"
-
 #define PLAYER_IMPLEMENTATION
 #include "../libs/player.h"
 
@@ -11,14 +9,17 @@
 #define RENDERER_IMPLEMENTATION
 #include "../libs/renderer.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "../thirdparty/stb_truetype.h"
-
 #define FONT_IMPLEMENTATION
 #include "../libs/font.h"
 
 #define IO_IMPLEMENTATION
 #include "../libs/io.h"
+
+#define DOWNLOAD_IMPLEMENTATION
+#include "../libs/download.h"
+
+#define HTML_PARSER_IMPLEMENTATION
+#include "../libs/html_parser.h"
 
 #include "../rsc/atlas.h"
 #include "../rsc/musik.h"
@@ -83,7 +84,41 @@ void load_files(const char *dir_path, Player *player, String_Buffer *buffer) {
     io_dir_close(&dir);
 }
 
+void on_node_attribute(void *_node, string key, string value, void *arg) {
+    if(!string_eq(key, STRING("href"))) return;
+    if(string_index_of(value, "audio%2Fmp4") == -1) return;
+    *((string *) arg) = value;
+}
+void *on_node(string name, void *arg) { return (void *) 69; }
+void on_node_child(void *_node, void *_child, void *arg) {}
+void on_node_content(void *_node, string content, void *arg) {}
+void on_error(const char *message, u64 pos, void *arg) { printf("message: %s\n", message); }
+
 String_Buffer temp = {0};
+
+bool get_url(const char *videoId, String_Buffer *sbuffer, string *url) {
+
+    if(!http_get(tprintf(&temp, "https://ytdl.hamsterlabs.de/?url=https://www.youtube.com/watch?v=%s", videoId),
+		 string_buffer_callback, sbuffer, NULL, NULL)) {
+	return false;
+    }
+    
+    Html_Parse_Events events = {0};
+    events.on_node = on_node;
+    events.on_node_attribute = on_node_attribute;
+    events.on_node_child = on_node_child;
+    events.on_node_content = on_node_content;
+    events.on_error = on_error;
+    events.arg = url;
+  
+    if(!html_parse(sbuffer->data + 15, sbuffer->len - 15, &events)) {
+	return false;
+    }
+
+    return true;
+}
+
+String_Buffer filebuffer = {0};
 String_Buffer sbuffer = {0};
 
 int main(int argc, char **argv) {
@@ -117,20 +152,41 @@ int main(int argc, char **argv) {
 	panic("player_init");
     }
 
+    bool playing_url = false;
+    /*
+    const char *id = "uiqIBZ7Dmv0";
+    string _url;
+    if(!get_url(id, &sbuffer, &_url)) {
+	panic("get_url");
+    }
+
+    const char *url = tprintf(&temp, String_Fmt, String_Arg(_url));
+    printf("url: %s\n", url);
+    exit(0);
+
+    size_t url_file_size;
+    if(!download_get_size(url, &url_file_size)) {
+	panic("download_get_size");
+    }
+    string_buffer_reserve(&filebuffer, url_file_size);
+
+    if(!download(url, filebuffer.data, url_file_size)) {
+	panic("download");
+    }
+
+    if(!player_open_memory(&player, filebuffer.data, url_file_size)) {
+	panic("player_open_url");
+    }
+    */
+
     load_files(dir_path, &player, &sbuffer);
     if(sbuffer.len == 0) { //no files found
 	panic("load_files");
     }
+    
     int sbuffer_pos = 0;
-
-    /*
-      if(!player_open_file(&player, sbuffer.data)) {
-      panic("player_open_file");
-      }
-    */
-    bool playing_url = true;
-    if(!player_open_url(&player, URL)) {
-	panic("player_open_url");
+    if(!player_open_file(&player, sbuffer.data)) {
+	panic("player_open_file");
     }
     
     if(!player_play(&player)) {

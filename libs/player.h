@@ -24,6 +24,8 @@
 #define PLAYER_N 5
 #define PLAYER_VOLUME 0.1f
 
+#define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
+
 #ifdef linux
 #include <alsa/asoundlib.h>
 #endif //linux
@@ -41,8 +43,9 @@ typedef struct{
 
 typedef struct{
   Http http;
+  const char *route;
   
-  char buffer[HTTP_BUFFER_CAP];
+  char buffer[PLAYER_BUFFER_CAP];
   ssize_t nbytes_total;
   int offset;
 
@@ -150,8 +153,8 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
   }
 
   HttpHeader header;
-  char request_buffer[HTTP_BUFFER_CAP];
-  if(!sendf(http_send_len2, &socket->http, request_buffer, HTTP_BUFFER_CAP,
+  char request_buffer[PLAYER_BUFFER_CAP];
+  if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	    "HEAD %s HTTP/1.1\r\n"
 	    "Host: %.*s\r\n"
 	    "Connection: Close\r\n"
@@ -177,7 +180,7 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
     return false;
   }
 
-  if(!sendf(http_send_len2, &socket->http, request_buffer, HTTP_BUFFER_CAP,
+  if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	    "GET %s HTTP/1.1\r\n"
 	    "Host: %.*s\r\n"
 	    "\r\n", route, socket->http.host_len, socket->http.host)) {
@@ -193,13 +196,13 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
   do {
 #ifndef HTTP_NO_SSL
       if(socket->http.conn != NULL) {
-	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, HTTP_BUFFER_CAP);
+	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, PLAYER_BUFFER_CAP);
       }
       else {
-	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
       }
 #else
-      socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+      socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
 #endif //HTTP_NO_SSL
     
     if(socket->nbytes_total == -1) {
@@ -224,6 +227,7 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
 
   } while(socket->nbytes_total > 0);
 
+  socket->route = route;
   return true;
 }
 
@@ -329,7 +333,7 @@ PLAYER_DEF void player_init_stats(Player *player) {
   double volume;
   av_opt_get_double(player->decoder.swr_context, "rmvol", 0, &volume);
   player->volume = (float) volume;
-
+  
   float total = (float) player->decoder.av_format_context->duration / AV_TIME_BASE / 60.0f;
   float secs = floorf(total);
   float comma = (total - secs) * 60.0f / 100.0f;
@@ -405,6 +409,8 @@ PLAYER_DEF int64_t player_decoder_memory_seek(void *opaque, int64_t offset, int 
   case SEEK_END:
     memory->pos = memory->size + offset;
     break;
+  case AVSEEK_SIZE:
+      return (int64_t) memory->size;
   default:
     return AVERROR_INVALIDDATA;
   }
@@ -458,13 +464,13 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
     } else {
 #ifndef HTTP_NO_SSL
       if(socket->http.conn != NULL) {
-	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, HTTP_BUFFER_CAP);
+	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, PLAYER_BUFFER_CAP);
       }
       else {
-	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
       }
 #else
-      socket->nbytes_total = recv(socket->http.socket, socket->buffer, HTTP_BUFFER_CAP, 0);
+      socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
 #endif //HTTP_NO_SSL
       
       if(socket->nbytes_total == -1) {
@@ -484,27 +490,80 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 }
 
 PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence) {
-    /* TODO
-  Player_Socket *socket = (Player_socket *) opaque;
+    Player_Socket *socket = (Player_Socket *) opaque;
 
-  int pos = socket->pos;
+    int pos = socket->pos;
 
-  switch (whence) {
-  case SEEK_SET:
-    pos = offset;
-    break;
-  case SEEK_CUR:
-    pos += offset;
-    break;
-  case SEEK_END:
-    pos = memory->size + offset;
-    break;
-  default:
-    return AVERROR_INVALIDDATA;
-  }
-    
-  return memory->pos;
-    */
+    switch (whence) {
+    case SEEK_SET:
+	pos = offset;
+	break;
+    case SEEK_CUR:
+	pos += offset;
+	break;
+    case SEEK_END:
+	pos = socket->len + offset;
+	break;
+    case AVSEEK_SIZE:
+	return (int64_t) socket->len;
+    default:
+	printf("something different: %d\n", whence); fflush(stdout);
+	return AVERROR_INVALIDDATA;
+    }
+
+    if(pos < socket->pos) return -1;
+    if(pos < 0 || pos > socket->len) return AVERROR_EOF;
+
+    while(socket->pos < pos){
+	if(socket->nbytes_total > 0) {
+
+	    int len = (int) (socket->nbytes_total - (ssize_t) socket->offset);
+	    if(socket->pos + len > socket->len) {
+		len = socket->len - socket->pos;
+	    }
+      
+	    if(len == 0) {
+		socket->nbytes_total -= (ssize_t) socket->offset;
+		socket->offset = 0;
+		continue;
+	    }
+
+	    if(socket->pos + len > pos) {
+		len = pos - socket->pos;
+		socket->offset += len;
+	    } else {
+		socket->nbytes_total = 0;
+		socket->offset = 0;			
+	    }
+
+	    socket->pos += len;
+	    //printf("stepped: %d (%d), goal: %d\n", len, socket->pos, pos); fflush(stdout);
+      
+	} else if(socket->pos < pos) {
+	    int size = PLAYER_BUFFER_CAP;
+#ifndef HTTP_NO_SSL
+	    if(socket->http.conn != NULL) {
+		socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, size);
+	    }
+	    else {
+		socket->nbytes_total = recv(socket->http.socket, socket->buffer, size, 0);
+	    }
+#else
+	    socket->nbytes_total = recv(socket->http.socket, socket->buffer, size, 0);
+#endif //HTTP_NO_SSL
+      
+	    if(socket->nbytes_total == -1) {
+		return -1; //network ERRROR 
+	    }
+	    //printf("queried: %ld\n", socket->nbytes_total); fflush(stdout);
+	}
+	
+	if(socket->pos > socket->len) {
+	    return AVERROR_EOF;
+	}
+    }
+
+    return (int64_t) socket->pos;
 }
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {

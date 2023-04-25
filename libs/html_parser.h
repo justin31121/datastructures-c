@@ -296,7 +296,7 @@ HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *eve
 		  //implement a peek version
 		  if(html_parse_node_open(t, events, &child_closed, NULL, &child_name)) {
 		      if(string_eq(child_name, root_name)) {
-			  t->pos = current_pos;					      
+			  t->pos = current_pos;
 			  return root;
 		      }
 		  }
@@ -384,7 +384,7 @@ HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse
   assert(events->on_node_content);
   
   Tokenizer tokenizer = {cstr, cstr_len, 0, 0};
-  html_parse_expect_doctype_html(&tokenizer, events);
+  //html_parse_expect_doctype_html(&tokenizer, events);
   if(!html_parse_node(&tokenizer, events)) {
     return false;
   }
