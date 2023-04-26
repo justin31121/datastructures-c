@@ -2,17 +2,13 @@ MAKEFLAGS += --no-print-directory
 
 GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 
-PREFIX = CL
-
-ifeq ($(PREFIX),CL)
-	CLEAN_UP = && del *.obj
-endif
-
 ifeq ($(OS),Windows_NT)
+	PREFIX = CL
 	GUI = -lgdi32
 	OPENGL = -lopengl32
 	AUDIO = -lxaudio2_8 -lole32
 else
+	PREFIX = GCC
 	GUI = -lX11
 	OPENGL = -lGLX -lGL
 
@@ -21,6 +17,9 @@ else
 	LDLIBS = `pkg-config --cflags $(LIBS)`
 endif
 
+ifeq ($(PREFIX),CL)
+	CLEAN_UP = && del *.obj
+endif
 
 #==========================================================================
 
@@ -39,7 +38,7 @@ CL-player_demo:
 	cl ./src/player_demo.c /Fe:player.exe
 
 GCC-player_demo:
-	gcc ./src/player_demo.c $(GCC-FLAGS) -o player $(GUI) $(OPENGL) -lavutil -lavcodec -lavformat -lswresample $(AUDIO) -lm -lpthread $(LDFLAGS) $(LDLIBS)
+	gcc ./src/player_demo.c ./thirdparty/duktape.o $(GCC-FLAGS) -o player $(GUI) $(OPENGL) -lavutil -lavcodec -lavformat -lswresample $(AUDIO) -lm -lpthread $(LDFLAGS) $(LDLIBS) -lssl -lcrypto
 
 #==========================================================================
 

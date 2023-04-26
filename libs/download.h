@@ -18,7 +18,7 @@ typedef struct{
   int end;
 }_Thread;
 
-size_t download_thread_callback(const char *data, size_t size, size_t memb, void *userdata);
+size_t download_thread_callback(const void *data, size_t size, size_t memb, void *userdata);
 void *download_thread_function(void *arg);
 bool download_get_size(const char *url, size_t *data_size);
 bool download2(const char *url, u8 *buffer, size_t buffer_size, size_t *data_size);
@@ -26,7 +26,8 @@ bool download(const char *url, u8 *buffer, size_t download_size);
 
 #ifdef DOWNLOAD_IMPLEMENTATION
 
-size_t download_thread_callback(const char *data, size_t size, size_t memb, void *userdata) {
+size_t download_thread_callback(const void *data, size_t size, size_t memb, void *userdata) {
+  (void) memb;
   _Thread *thread = (_Thread *) userdata;
   memcpy(thread->memory + thread->memory_size, data, size);
   thread->memory_size += size;
@@ -61,7 +62,7 @@ bool download_get_size(const char *url, size_t *data_size) {
     return false;
   }
 
-  s64 content_length;
+  int content_length;
   if(!string_chop_int(&value, &content_length)) {
     return false;
   }
@@ -76,7 +77,6 @@ bool download(const char *url, u8 *buffer, size_t download_size) {
 
   _Thread threads[NUMBER_OF_THREADS] = {0};
 
-  char filename_buffer[256];
 
   bool result = true;
   for(s32 i=0;i<number_of_threads;i++) {
@@ -117,7 +117,7 @@ bool download2(const char *url, u8 *buffer, size_t buffer_size, size_t *data_siz
 
   *data_size = content_length;
   
-  return download(buffer, buffer, content_length);
+  return download(url, buffer, content_length);
 }
 
 #endif //DOWNLOAD_IMPLEMENTATION

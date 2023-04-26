@@ -1,10 +1,7 @@
 #ifndef PEN_H_
 #define PEN_H_
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef int s32;
+#include "./util.h"
 
 #ifndef PEN_DEF
 #define PEN_DEF static inline

@@ -201,7 +201,7 @@ HASHTABLE_DEF Ht* ht_init() {
 HASHTABLE_DEF void ht_insert(Ht *ht,
 	       const char *key,
 	       const void *value, size_t value_size) {
-  ht_insert2(ht, key, strlen(key), value, value_size);
+  ht_insert2(ht, key, strlen(key)+1, value, value_size);
 }
 
 HASHTABLE_DEF void ht_insert2(Ht *ht,
@@ -263,8 +263,8 @@ HASHTABLE_DEF bool ht_remove(Ht *ht, const char* key) {
 HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key) {
   HT_CHECK_NOTNULL(ht);
 
-  size_t key_size;
-  int index = (int) hash_function(key, &key_size);
+  size_t key_size = strlen(key) + 1;  
+  int index = (int) hash_function(key, NULL);
   Ht_Item *item = &ht->items[index];
 
   if(item->size==0) return false;
@@ -280,7 +280,7 @@ HASHTABLE_DEF bool ht_has(const Ht *ht, const char *key) {
 }
 
 HASHTABLE_DEF void *ht_get(const Ht *ht, const char* key) {
-  return ht_get2(ht, key, strlen(key));
+  return ht_get2(ht, key, strlen(key)+1);
 }
 
 HASHTABLE_DEF void *ht_get2(const Ht *ht, const char* key, size_t key_len) {

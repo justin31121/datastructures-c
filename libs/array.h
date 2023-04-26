@@ -21,6 +21,7 @@ ARRAY_DEF Arr *arr_init2(size_t n, size_t msize);
 ARRAY_DEF void *arr_push(Arr *arr, void *ptr);
 ARRAY_DEF void *arr_get(const Arr *arr, size_t p);
 ARRAY_DEF int arr_contains(const Arr *arr, void *src);
+ARRAY_DEF int arr_index(const Arr *arr, void *src);
 ARRAY_DEF void arr_free(Arr *arr);
 
 #ifdef ARRAY_IMPLEMENTATION
@@ -102,7 +103,7 @@ ARRAY_DEF void *arr_get(const Arr *arr, size_t p) {
 }
 
 ARRAY_DEF int arr_contains(const Arr *arr, void *src) {
-  ARRAY_CHECK_NOTNULL(arr);
+    ARRAY_CHECK_NOTNULL(arr);
   void *data = arr->data;
 
   for(size_t i=0;i<arr->count;i++) {
@@ -112,6 +113,11 @@ ARRAY_DEF int arr_contains(const Arr *arr, void *src) {
   }
 
   return 0;
+}
+
+ARRAY_DEF int arr_index(const Arr *arr, void *src) {
+    ARRAY_CHECK_NOTNULL(arr);
+    return ((char *) src - (char *) arr->data) / arr->msize;
 }
 
 ARRAY_DEF void *arr_pop(Arr *arr) {

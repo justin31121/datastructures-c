@@ -182,7 +182,6 @@ DECODER_DEF bool decoder_get_sample_rate(const char *filepath, int *sample_rate)
     return false;
   }
 
-  const AVCodec *av_codec = NULL;
   AVCodecParameters *av_codec_parameters = NULL;
   for(size_t i=0;i<av_format_context->nb_streams;i++) {
     av_codec_parameters = av_format_context->streams[i]->codecpar;
@@ -506,7 +505,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
   }
 
   decoder->av_format_context->pb = decoder->av_io_context;
-  decoder->av_format_context->flags = AVIO_FLAG_READ;
+  decoder->av_format_context->flags = AVFMT_FLAG_CUSTOM_IO;
   if (avformat_open_input(&decoder->av_format_context, NULL, NULL, NULL) != 0) {
     decoder_free(decoder);
     return false;
