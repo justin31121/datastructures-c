@@ -23,6 +23,14 @@ endif
 
 #==========================================================================
 
+imgui_demo: ./src/imgui_demo.c
+	make $(PREFIX)-imgui_demo $(CLEAN_UP)
+
+CL-imgui_demo:
+	cl ./src/imgui_demo.c /Fe:imgui.exe
+
+#==========================================================================
+
 player_demo: ./src/player_demo.c ./libs/player.h
 	make $(PREFIX)-player_demo $(CLEAN_UP)
 
@@ -47,6 +55,9 @@ google: ./src/google.c ./libs/http.h ./libs/http.h ./libs/util.h ./libs/string.h
 
 GCC-google:
 	gcc ./src/google.c $(GCC-FLAGS) -o google -lssl -lcrypto -lws2_32
+
+CL-google:
+	cl ./src/google.c /Fe:google.exe
 
 #==========================================================================
 

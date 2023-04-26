@@ -54,7 +54,7 @@ void (*glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const v
 
 #endif //linux
 
-#ifdef _WIN32
+#ifdef __WIN32__
 #include <windows.h>
 #include <winuser.h>
 #include <GL/GL.h> //link with -opengl32 -lgdi32
@@ -563,7 +563,6 @@ GUI_DEF bool gui_free(Gui *gui) {
   return true;
 }
 
-//TODO
 GUI_DEF bool gui_init_opengl(Gui *gui) {
   (void) gui;
   if(glCreateShader != NULL) {
@@ -684,6 +683,11 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 }
 
 GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
+
+#ifndef GUI_CONSOLE
+  FreeConsole();
+#endif //GUI_CONSOLE
+  
   if(!guiWin32PerfCountFrequency.QuadPart) {
     QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
   }
@@ -707,11 +711,19 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
     return false;
   }
 
+  int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+  int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
   if(!(gui->win = CreateWindowEx(0,
 				 wc.lpszClassName,
 				 wc.lpszClassName,
 				 WS_OVERLAPPEDWINDOW,
-				 CW_USEDEFAULT, CW_USEDEFAULT,
+				 canvas != NULL
+				 ? (screenWidth / 2 - canvas->width/2)
+				 : CW_USEDEFAULT,
+				 canvas != NULL
+				 ? (screenHeight / 2 - (canvas->height + 39)/2)
+				 : CW_USEDEFAULT,
 				 canvas != NULL ? canvas->width : CW_USEDEFAULT,
 				 canvas != NULL ? canvas->height + 39 : CW_USEDEFAULT,
 				 NULL,
@@ -719,11 +731,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
 				 hInstance,
 				 NULL))) {
     return false;
-  }
-
-#ifndef GUI_CONSOLE
-  FreeConsole();
-#endif //GUI_CONSOLE
+  }  
   gui->dc = GetDC(gui->win);
 
   LONG_PTR lptr = {0};
@@ -749,7 +757,9 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   }
 
   if(canvas != NULL) {
-      gui->canvas = canvas;
+    gui->canvas = canvas;
+  } else {
+    gui->canvas = (Gui_Canvas *)(void *) gui;
   }
 
   gui->running = true;
