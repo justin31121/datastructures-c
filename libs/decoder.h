@@ -506,6 +506,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
   }
 
   decoder->av_format_context->pb = decoder->av_io_context;
+  decoder->av_format_context->flags = AVIO_FLAG_READ;
   if (avformat_open_input(&decoder->av_format_context, NULL, NULL, NULL) != 0) {
     decoder_free(decoder);
     return false;

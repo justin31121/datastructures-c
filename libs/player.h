@@ -41,6 +41,7 @@ typedef struct{
 
 typedef struct{
   Http http;
+  const char *route;
   
   char buffer[HTTP_BUFFER_CAP];
   ssize_t nbytes_total;
@@ -188,7 +189,8 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
 
   socket->pos = 0;
   socket->len = (int) content_length;
-  socket->offset = 00;
+  socket->offset = 0;
+  socket->route = route;
 
   do {
 #ifndef HTTP_NO_SSL
@@ -448,7 +450,7 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
 	
 	socket->nbytes_total = 0;
-	socket->offset = 0;	
+	socket->offset = 0;
       }
 
       socket->pos += len;
@@ -484,27 +486,9 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 }
 
 PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence) {
-    /* TODO
-  Player_Socket *socket = (Player_socket *) opaque;
+  Player_Socket *socket = (Player_Socket *) opaque;
 
-  int pos = socket->pos;
-
-  switch (whence) {
-  case SEEK_SET:
-    pos = offset;
-    break;
-  case SEEK_CUR:
-    pos += offset;
-    break;
-  case SEEK_END:
-    pos = memory->size + offset;
-    break;
-  default:
-    return AVERROR_INVALIDDATA;
-  }
-    
-  return memory->pos;
-    */
+  return -1;
 }
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
@@ -570,13 +554,14 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url) {
 
   if(!decoder_init(&player->decoder,
 		   player_decoder_url_read,
-		   NULL, &player->decoder_socket,
+		   player_decoder_url_seek, &player->decoder_socket,
 		   player->fmt, player->channels, player->volume, player->samples)) {
     player->decoder_memory = (Player_Memory) {0};
     return false;
   }
 
   if(!player_device_init(player, player->decoder.sample_rate)) {
+    
     return false;
   }
   player->decoder_used = true;
