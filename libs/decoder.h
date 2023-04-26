@@ -182,7 +182,6 @@ DECODER_DEF bool decoder_get_sample_rate(const char *filepath, int *sample_rate)
     return false;
   }
 
-  const AVCodec *av_codec = NULL;
   AVCodecParameters *av_codec_parameters = NULL;
   for(size_t i=0;i<av_format_context->nb_streams;i++) {
     av_codec_parameters = av_format_context->streams[i]->codecpar;

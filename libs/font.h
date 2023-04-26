@@ -44,8 +44,8 @@ typedef struct{
   unsigned int width, height;
 }Font2;
 
-FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height);
-FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height);
+/* FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height); */
+/* FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height); */
 FONT_DEF unsigned int font_estimate_width2(const Font2 *font, const char *cstr);
 FONT_DEF void font_render2(Font2 *font, const char* data, u32 data_len,
 			  u32 *pixels, u32 width, u32 height,
@@ -56,6 +56,9 @@ FONT_DEF void font_free2(Font2 *font);
 #ifdef FONT_IMPLEMENTATION
 
 #ifdef STB_TRUETYPE_IMPLEMENTATION
+
+FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height);
+FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height);
 
 FONT_DEF char *font_slurp_file(const char* file_path, size_t *size) {
   char *res = NULL;

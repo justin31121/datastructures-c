@@ -117,7 +117,7 @@ ARRAY_DEF int arr_contains(const Arr *arr, void *src) {
 
 ARRAY_DEF int arr_index(const Arr *arr, void *src) {
     ARRAY_CHECK_NOTNULL(arr);
-    return (src - arr->data) / arr->msize;
+    return ((char *) src - (char *) arr->data) / arr->msize;
 }
 
 ARRAY_DEF void *arr_pop(Arr *arr) {

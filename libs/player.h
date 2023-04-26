@@ -1,10 +1,6 @@
 #ifndef PLAYER_H_H
 #define PLAYER_H_H
 
-#ifdef PLAYER_NO_SSL
-#define HTTP_NO_SSL
-#endif
-
 #ifdef PLAYER_IMPLEMENTATION
 
 #ifdef _WIN32
@@ -20,8 +16,8 @@
 #define PLAYER_DEF static inline
 #endif //PLAYER_DEF
 
-#define PLAYER_BUFFER_SIZE 8192
-#define PLAYER_N 5
+#define PLAYER_BUFFER_SIZE 4096
+#define PLAYER_N 4
 #define PLAYER_VOLUME 0.1f
 
 #define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
@@ -44,6 +40,7 @@ typedef struct{
 typedef struct{
   Http http;
   const char *route;
+  bool ssl;
   
   char buffer[PLAYER_BUFFER_CAP];
   ssize_t nbytes_total;
@@ -53,7 +50,7 @@ typedef struct{
   int pos;
 }Player_Socket;
 
-PLAYER_DEF bool player_socket_init(Player_Socket *s, const char *url);
+PLAYER_DEF bool player_socket_init(Player_Socket *s, const char *url, int start, int end);
 PLAYER_DEF void player_socket_free(Player_Socket *s);
 
 typedef struct{
@@ -132,102 +129,80 @@ PLAYER_DEF bool player_seek(Player *player, float secs);
 
 #ifdef PLAYER_IMPLEMENTATION
 
-PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url) {
-  size_t url_len = strlen(url);
-  bool ssl;
-  size_t hostname_len;
+//TODO: right now i assume that the url, accepts ranges in bytes
+PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int start, int end) {
+  if(url) {
+    size_t url_len = strlen(url);
+    bool ssl;
+    size_t hostname_len;
 
-  int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
-  if(hostname < 0) {
-    return false;
-  }
-
-  int directory_len = url_len - hostname - hostname_len;
-  const char *route = "/";
-  if(directory_len>0) {
-    route = url + hostname + hostname_len;
-  }
-
-  if(!http_init2(&socket->http, url + hostname, hostname_len, ssl)) {
-    return false;
-  }
-
-  HttpHeader header;
-  char request_buffer[PLAYER_BUFFER_CAP];
-  if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
-	    "HEAD %s HTTP/1.1\r\n"
-	    "Host: %.*s\r\n"
-	    "Connection: Close\r\n"
-	    "\r\n",
-	    route, socket->http.host_len,
-	    socket->http.host)) {
-    return false;
-  }
-
-  if(!http_read_body(&socket->http, NULL, NULL, &header)) {
-    return false;
-  }
-
-  string key = STRING("Content-Length");
-  string key2 = STRING("content-length");
-  string value;
-  if(!http_header_has(&header, key, &value) && !http_header_has(&header, key2, &value)) {
-    return false;
-  }
-
-  int content_length;
-  if(!string_chop_int(&value, &content_length)) {
-    return false;
-  }
-
-  if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
-	    "GET %s HTTP/1.1\r\n"
-	    "Host: %.*s\r\n"
-	    "\r\n", route, socket->http.host_len, socket->http.host)) {
-    return false;
-  }
-
-  bool inBody = false;  
-
-  socket->pos = 0;
-  socket->len = (int) content_length;
-  socket->offset = 00;
-
-  do {
-#ifndef HTTP_NO_SSL
-      if(socket->http.conn != NULL) {
-	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, PLAYER_BUFFER_CAP);
-      }
-      else {
-	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
-      }
-#else
-      socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
-#endif //HTTP_NO_SSL
-    
-    if(socket->nbytes_total == -1) {
+    int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
+    if(hostname < 0) {
       return false;
     }
 
-    if(!inBody) {
-      string s = string_from(socket->buffer, (size_t) socket->nbytes_total);
-      while(s.len) {
-	string line = string_chop_by_delim(&s, '\n');
-	if(line.len && line.data[0]=='\r') {
-	  inBody = true;
-	  socket->offset = (int) (line.data+2 - socket->buffer);
-	  break;
-	}
-      }
+    int directory_len = url_len - hostname - hostname_len;
+    const char *route = "/";
+    if(directory_len>0) {
+      route = url + hostname + hostname_len;
+    }
+    
+    if(!http_init2(&socket->http, url + hostname, hostname_len, ssl)) {
+      return false;
+    }
+    socket->route = route;
+    socket->ssl = ssl;
+  } else {
+    if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+      return false;
+    }
+  }
+
+  char request_buffer[PLAYER_BUFFER_CAP];
+  if(end == 0) {
+    HttpHeader header;
+    if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
+	      "HEAD %s HTTP/1.1\r\n"
+	      "Host: %.*s\r\n"
+	      "Connection: Close\r\n"
+	      "\r\n",
+	      socket->route, socket->http.host_len,
+	      socket->http.host)) {
+      return false;
     }
 
-    if(inBody) {
-      break;
+    if(!http_read_body(&socket->http, NULL, NULL, &header)) {
+      return false;
     }
 
-  } while(socket->nbytes_total > 0);
+    string key = STRING("Content-Length");
+    string key2 = STRING("content-length");
+    string value;
+    if(!http_header_has(&header, key, &value) && !http_header_has(&header, key2, &value)) {
+      return false;
+    }
 
-  socket->route = route;
+    if(!string_chop_int(&value, &end)) {
+      return false;
+    }
+  }
+  
+  if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
+	    "GET %s HTTP/1.1\r\n"
+	    "Host: %.*s\r\n"
+	    "Range: bytes=%d-%d\r\n"
+	    "\r\n", socket->route, socket->http.host_len, socket->http.host, start, end)) {
+    return false;
+  }
+
+  socket->pos = start;
+  socket->len = end;
+  socket->offset = 0;
+  if(!http_skip_headers(&socket->http,
+			socket->buffer, PLAYER_BUFFER_CAP,
+			&socket->nbytes_total, &socket->offset)) {
+    return false;
+  }
   return true;
 }
 
@@ -236,10 +211,13 @@ PLAYER_DEF void player_socket_free(Player_Socket *s) {
 }
 
 PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int sample_rate) {
+  (void) sample_rate;
 
+#ifdef _WIN32
   if(!xaudio_init(channels, sample_rate)) {
     return false;
   }
+#endif //_WIN32
 
   if(!decoder_buffer_init(&player->buffer, PLAYER_N, PLAYER_BUFFER_SIZE)) {
     return false;
@@ -258,6 +236,8 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
 
 #ifdef _WIN32    
   player->samples = DECODER_XAUDIO2_SAMPLES;
+#else
+  player->samples = 32;
 #endif //_WIN32
 
   return true;
@@ -283,31 +263,28 @@ PLAYER_DEF bool player_device_init(Player *player, int sample_rate) {
   
   player->audio_thread = NULL;
   player->decoding_thread = NULL;
-#endif //_WIN32
-  
-  /*
-    #elif linux
+#elif linux
 
-    player->pcm = NULL;
-    if(snd_pcm_open(&player->pcm, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+  (void) sample_rate;
+  player->device = NULL;
+  if(snd_pcm_open(&player->device, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
     return false;
-    }
-    if(snd_pcm_set_params(player->pcm, SND_PCM_FORMAT_S16_LE, //TODO unhardcode everything
-    SND_PCM_ACCESS_RW_INTERLEAVED, channels,
-    sample_rate, 0, sample_rate / 4) < 0) {
+  }
+  if(snd_pcm_set_params(player->device, SND_PCM_FORMAT_S16_LE, //TODO unhardcode everything
+			SND_PCM_ACCESS_RW_INTERLEAVED, player->channels,
+			sample_rate, 0, sample_rate / 4) < 0) {
     return false;
-    }
-    snd_pcm_uframes_t buffer_size = 0;
-    snd_pcm_uframes_t period_size = 0;
-    if(snd_pcm_get_params(player->pcm, &buffer_size, &period_size) < 0) {
+  }
+  snd_pcm_uframes_t buffer_size = 0;
+  snd_pcm_uframes_t period_size = 0;
+  if(snd_pcm_get_params(player->device, &buffer_size, &period_size) < 0) {
     return false;
-    }
+  }
   
-    player->audio_thread = 0;  
-    player->decoding_thread = 0;
-    player->samples = period_size;
-    #endif //_WIN32
-  */
+  player->audio_thread = 0;  
+  player->decoding_thread = 0;
+  //player->samples = period_size;
+#endif //_WIN32
 
   player->sample_rate = sample_rate;
   
@@ -322,6 +299,10 @@ PLAYER_DEF bool player_device_free(Player *player) {
 
 #ifdef _WIN32
   xaudio_device_free(&player->device);
+#else
+  snd_pcm_drain(player->device);
+  snd_pcm_close(player->device);
+  player->device = NULL;  
 #endif //_WIN32
 
   player->sample_rate = 0;
@@ -365,7 +346,6 @@ PLAYER_DEF int player_decoder_file_read(void *opaque, uint8_t *buf, int buf_size
 PLAYER_DEF int64_t player_decoder_file_seek(void *opaque, int64_t offset, int whence) {
   
   FILE *file = (FILE *)opaque;
-  int pos = ftell(file);
   
   if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
     return AVERROR_INVALIDDATA;
@@ -378,8 +358,10 @@ PLAYER_DEF int64_t player_decoder_file_seek(void *opaque, int64_t offset, int wh
   return ftell(file);
 }
 
-PLAYER_DEF int player_decoder_memory_read(void *opaque, uint8_t *buf, int buf_size) {
+PLAYER_DEF int player_decoder_memory_read(void *opaque, uint8_t *buf, int _buf_size) {
   Player_Memory *memory = (Player_Memory *) opaque;
+
+  size_t buf_size = (size_t) _buf_size;
 
   if (buf_size > memory->size - memory->pos) {
     buf_size = memory->size - memory->pos;
@@ -392,7 +374,7 @@ PLAYER_DEF int player_decoder_memory_read(void *opaque, uint8_t *buf, int buf_si
   memcpy(buf, memory->memory + memory->pos, buf_size);
   memory->pos += buf_size;
 
-  return buf_size;
+  return (int )buf_size;
 }
 
 PLAYER_DEF int64_t player_decoder_memory_seek(void *opaque, int64_t offset, int whence) {
@@ -415,7 +397,7 @@ PLAYER_DEF int64_t player_decoder_memory_seek(void *opaque, int64_t offset, int 
     return AVERROR_INVALIDDATA;
   }
 
-  if (memory->pos < 0 || memory->pos > memory->size) {
+  if (memory->pos > memory->size) {
     return AVERROR(EIO);
   }
     
@@ -462,16 +444,7 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
       buf_off += len;
       
     } else {
-#ifndef HTTP_NO_SSL
-      if(socket->http.conn != NULL) {
-	  socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, PLAYER_BUFFER_CAP);
-      }
-      else {
-	  socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
-      }
-#else
-      socket->nbytes_total = recv(socket->http.socket, socket->buffer, PLAYER_BUFFER_CAP, 0);
-#endif //HTTP_NO_SSL
+      socket->nbytes_total = http_read(&socket->http, socket->buffer, PLAYER_BUFFER_CAP);
       
       if(socket->nbytes_total == -1) {
 	return -1; //network ERRROR 
@@ -511,8 +484,11 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
 	return AVERROR_INVALIDDATA;
     }
 
-    if(pos < socket->pos) return -1;
     if(pos < 0 || pos > socket->len) return AVERROR_EOF;
+    if(pos - socket->pos > (10 * PLAYER_BUFFER_CAP) || pos < socket->pos) {
+      player_socket_free(socket);
+      player_socket_init(socket, NULL, pos, socket->len);
+    }
 
     while(socket->pos < pos){
 	if(socket->nbytes_total > 0) {
@@ -537,27 +513,12 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
 	    }
 
 	    socket->pos += len;
-	    //printf("stepped: %d (%d), goal: %d\n", len, socket->pos, pos); fflush(stdout);
-      
 	} else if(socket->pos < pos) {
-	    int size = PLAYER_BUFFER_CAP;
-#ifndef HTTP_NO_SSL
-	    if(socket->http.conn != NULL) {
-		socket->nbytes_total = SSL_read(socket->http.conn, socket->buffer, size);
-	    }
-	    else {
-		socket->nbytes_total = recv(socket->http.socket, socket->buffer, size, 0);
-	    }
-#else
-	    socket->nbytes_total = recv(socket->http.socket, socket->buffer, size, 0);
-#endif //HTTP_NO_SSL
-      
+	    socket->nbytes_total = http_read(&socket->http, socket->buffer, PLAYER_BUFFER_CAP);      
 	    if(socket->nbytes_total == -1) {
 		return -1; //network ERRROR 
 	    }
-	    //printf("queried: %ld\n", socket->nbytes_total); fflush(stdout);
-	}
-	
+	}	
 	if(socket->pos > socket->len) {
 	    return AVERROR_EOF;
 	}
@@ -623,13 +584,13 @@ PLAYER_DEF bool player_open_memory(Player *player, const char *memory,
 //TODO: add seek for url
 PLAYER_DEF bool player_open_url(Player *player, const char *url) {
 
-  if(!player_socket_init(&player->decoder_socket, url)) {
+  if(!player_socket_init(&player->decoder_socket, url, 0, 0)) {
     return false;
   }
 
   if(!decoder_init(&player->decoder,
 		   player_decoder_url_read,
-		   NULL, &player->decoder_socket,
+		   player_decoder_url_seek, &player->decoder_socket,
 		   player->fmt, player->channels, player->volume, player->samples)) {
     player->decoder_memory = (Player_Memory) {0};
     return false;

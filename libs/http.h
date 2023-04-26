@@ -195,6 +195,9 @@ HTTP_DEF bool http_bind(int socket, int port);
 HTTP_DEF void http_shutdown(int socket);
 HTTP_DEF void http_close(int socket);
 
+HTTP_DEF ssize_t http_send(Http *http, const void *buf, size_t len);
+HTTP_DEF ssize_t http_read(Http *http, void *buf, size_t count);
+
 HTTP_DEF bool http_valid(int socket);
 HTTP_DEF void http_make_blocking(int socket);
 HTTP_DEF void http_make_nonblocking(int socket);
@@ -204,9 +207,13 @@ HTTP_DEF HttpAccept http_select(int client, fd_set *read_fds, struct timeval *ti
 HTTP_DEF bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len);
 HTTP_DEF bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len);
 HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
+
+HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nbytes_total, int *offset);
+
 HTTP_DEF bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
 HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
-HTTP_DEF bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
+
+HTTP_DEF bool http_read_len(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
 HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_file);
 //----------END SOCKET----------
@@ -646,10 +653,6 @@ HTTP_DEF void http_free(Http *http) {
     SSL_free(http->conn);
   }
 #endif //HTTP_NO_SSL
-
-#ifdef HTTP_SSL_MULTITHREADED
-  SSL_CTX_free(http->ssl_ctx);
-#endif
 }
 
 //----------END HTTP----------
@@ -906,7 +909,7 @@ HTTP_DEF void *http_server_serve_function(void *_arg) {
       break;
     }
 
-    if(!http_read(&client, string_buffer_callback, buffer)) {
+    if(!http_read_len(&client, string_buffer_callback, buffer)) {
       break;
     }
 
@@ -1240,6 +1243,31 @@ HTTP_DEF void http_close_file(FILE **f) {
   if(f) fclose(*f);
 }
 
+HTTP_DEF ssize_t http_send(Http *http, const void *buf, size_t len) {
+#ifndef HTTP_NO_SSL
+  if(http->conn != NULL) {
+    return SSL_write(http->conn, buf, len);
+  } else {
+    return send(http->socket, buf, len, 0);
+  }
+#else
+  return send(http->socket, buf, len, 0);
+#endif //HTTP_NO_SSL 
+}
+
+HTTP_DEF ssize_t http_read(Http *http, void *buf, size_t count) {
+#ifndef HTTP_NO_SSL
+  if(http->conn != NULL) {
+    return SSL_read(http->conn, buf, count);
+  }
+  else {
+    return recv(http->socket, buf, count, 0);
+  }
+#else
+  return recv(http->socket, buf, count, 0);
+#endif //HTTP_NO_SSL
+}
+
 HTTP_DEF void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg) {
   (void) arg;
 
@@ -1512,6 +1540,28 @@ HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_ty
 	       prefix, content_type, body_size_bytes, body_size_bytes, body);
 }
 
+HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nbytes_total, int *offset) {
+  do {
+    *nbytes_total = http_read(http, buf, count);
+    
+    if(*nbytes_total == -1) {
+      return false;
+    }
+
+    string s = string_from(buf, (size_t) *nbytes_total);
+    while(s.len) {
+      string line = string_chop_by_delim(&s, '\n');
+      if(line.len && line.data[0]=='\r') {
+	*offset = (int) (line.data+2 - buf);
+	return true;
+      }
+    }
+
+  } while(*nbytes_total > 0);
+
+  return false;
+}
+
 HTTP_DEF bool http_send_len(const char *buffer, size_t _buffer_size, Http *http) {
   if(!http_valid(http->socket)) {
     return false;
@@ -1526,15 +1576,7 @@ HTTP_DEF bool http_send_len(const char *buffer, size_t _buffer_size, Http *http)
   ssize_t nbytes_last;
   ssize_t nbytes_total = 0;
   while(nbytes_total < buffer_size) {
-#ifndef HTTP_NO_SSL
-    if(http->conn != NULL) {
-      nbytes_last = SSL_write(http->conn, buffer + nbytes_total, buffer_size - nbytes_total);
-    } else {
-      nbytes_last = send(http->socket, buffer + nbytes_total, buffer_size - nbytes_total, 0);
-    }
-#else
-    nbytes_last = send(http->socket, buffer + nbytes_total, buffer_size - nbytes_total, 0);
-#endif //HTTP_NO_SSL
+    nbytes_last = http_send(http, buffer + nbytes_total, buffer_size - nbytes_total);
 
     if(nbytes_last == -1) {
       return false;
@@ -1549,7 +1591,7 @@ HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http) 
   return http_send_len(buffer, buffer_len, (Http *) http);
 }
 
-HTTP_DEF bool http_read(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
+HTTP_DEF bool http_read_len(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
   if(!http_valid(http->socket)) {
     return false;
   }  
@@ -1560,16 +1602,7 @@ HTTP_DEF bool http_read(Http *http, size_t (*write_callback)(const void *data, s
   ssize_t nbytes_last;
   
   do {
-#ifndef HTTP_NO_SSL
-    if(http->conn != NULL) {
-      nbytes_last = SSL_read(http->conn, buffer, HTTP_BUFFER_CAP);
-    }
-    else {
-      nbytes_last = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
-    }
-#else
-    nbytes_last = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
-#endif //HTTP_NO_SSL
+    nbytes_last = http_read(http, buffer, HTTP_BUFFER_CAP);
 
 #ifdef linux
     //TODO: check if it should <= 0 OR < 0
@@ -1620,16 +1653,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 
   ssize_t nbytes_total;
   do{
-#ifndef HTTP_NO_SSL
-    if(http->conn != NULL) {
-      nbytes_total = SSL_read(http->conn, buffer, HTTP_BUFFER_CAP);
-    }
-    else {
-      nbytes_total = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
-    }    
-#else
-    nbytes_total = recv(http->socket, buffer, HTTP_BUFFER_CAP, 0);
-#endif //HTTP_NO_SSL
+    nbytes_total = http_read(http, buffer, HTTP_BUFFER_CAP);
 
     if(nbytes_total == -1) {
       return false;

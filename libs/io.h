@@ -1,10 +1,16 @@
 #ifndef IO_H_H
 #define IO_H_H
 
-#ifdef _WIN32
-#include <windows.h>
 #include <stdbool.h>
+
+#ifdef _WIN32
+# include <windows.h>
 #endif //_WIN32
+
+#ifdef linux
+# include <limits.h>
+# include <dirent.h>
+#endif //linux
 
 #ifndef IO_DEF
 #define IO_DEF static inline
@@ -16,12 +22,22 @@ typedef struct{
   HANDLE handle;
   bool stop;
 #endif //_WIN32
+
+#ifdef linux
+  struct dirent *ent;
+  DIR *handle;
+#endif //linux
+
   const char *name;
 }Io_Dir;
 
 typedef struct{
   bool is_dir;
+#ifdef _WIN32
   char abs_name[MAX_PATH];
+#elif linux
+  char abs_name[PATH_MAX];
+#endif //_WIN32
   char *name;
 }Io_File;
 
@@ -30,6 +46,43 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file);
 IO_DEF void io_dir_close(Io_Dir *dir);
 
 #ifdef IO_IMPLEMENTATION
+
+#ifdef linux
+
+IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
+
+  dir->handle = opendir(dir_path);
+  if(dir->handle == NULL) {
+    return false;
+  }  
+
+  dir->name = dir_path;  
+  return true;
+}
+
+IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file) {
+
+  dir->ent = readdir(dir->handle);
+  if(dir->ent == NULL) {
+    return false;
+  }
+
+  file->is_dir = (dir->ent->d_type == DT_DIR) != 0;
+  file->name = dir->ent->d_name + 1;
+  int len = strlen(dir->name);
+  memcpy(file->abs_name, dir->name, len);
+  int len2 = strlen(dir->ent->d_name);
+  memcpy(file->abs_name + len, dir->ent->d_name, len2);
+  file->abs_name[len + len2] = 0;
+  
+  return true;
+}
+
+IO_DEF void io_dir_close(Io_Dir *dir) {
+  closedir(dir->handle);
+}
+
+#endif //linux
 
 #ifdef _WIN32
 IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
