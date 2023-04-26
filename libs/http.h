@@ -39,12 +39,13 @@ typedef SSIZE_T ssize_t;
 
 #ifdef __GNUC__
 #  include <pthread.h>
+#  include <sys/socket.h>
+#  include <unistd.h>
+#  include <fcntl.h>
+#  include <arpa/inet.h>
+#  include <netdb.h>
 #endif //__GNUC__
 
-/* #  include <sys/socket.h> */
-/* #  include <unistd.h> */
-/* #  include <fcntl.h> */
-/* #  include <arpa/inet.h> */
 
 #ifndef HTTP_DEF
 #define HTTP_DEF static inline

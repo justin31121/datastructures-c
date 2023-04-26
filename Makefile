@@ -2,17 +2,13 @@ MAKEFLAGS += --no-print-directory
 
 GCC-FLAGS = -Wall -Wextra -pedantic -Wshadow -ggdb
 
-PREFIX = CL
-
-ifeq ($(PREFIX),CL)
-	CLEAN_UP = && del *.obj
-endif
-
 ifeq ($(OS),Windows_NT)
+	PREFIX = CL
 	GUI = -lgdi32
 	OPENGL = -lopengl32
 	AUDIO = -lxaudio2_8 -lole32
 else
+	PREFIX = GCC
 	GUI = -lX11
 	OPENGL = -lGLX -lGL
 
@@ -21,6 +17,9 @@ else
 	LDLIBS = `pkg-config --cflags $(LIBS)`
 endif
 
+ifeq ($(PREFIX),CL)
+	CLEAN_UP = && del *.obj
+endif
 
 #==========================================================================
 
