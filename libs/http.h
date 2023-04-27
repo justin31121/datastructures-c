@@ -23,14 +23,14 @@ typedef SSIZE_T ssize_t;
 #  include <malloc.h> // _malloca
 #endif //_WIN32
 
-#ifdef __GNUC__
+#ifdef linux
 #  include <pthread.h>
 #  include <sys/socket.h>
 #  include <unistd.h>
 #  include <fcntl.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
-#endif //__GNUC__
+#endif //
 
 #ifdef HTTP_IMPLEMENTATION
 

@@ -44,20 +44,25 @@ bool query_json(String_Buffer *sb) {
 
 String_Buffer sb = {0};
 
-bool on_object(void *arg, void **object) {
-  return true;
+bool on_elem(Json_Parse_Type type, string content, void *arg, void **elem) {
+    printf("got elem: "String_Fmt" (%s)\n",
+	   String_Arg(content),
+	   json_parse_type_name(type));
+    if(type == JSON_PARSE_TYPE_INT) {
+	int *d = malloc(sizeof(int));
+	string_chop_int(&content, d);
+	*elem = d;
+    }
+    return true;
 }
 
 void on_object_elem(void *object, string key, void *elem, void *arg) {
-  
+    if(string_eq(key, STRING("code"))) {
+	printf("code: %d\n", *(int *) elem);
+    }
 }
 
-bool on_array(void *arg, void **array) {
-  return true;
-}
-
-void on_array_elem(void *array, void *elem) {
-  
+void on_array_elem(void *array, void *elem, void *arg) {
 }
 
 int main() {
@@ -67,10 +72,14 @@ int main() {
   }
   */
 
-  const char *payload = "true";
+  const char *payload = "{ \"code\": 200  }";
+  
   string_buffer_append(&sb, payload, strlen(payload));
 
   Json_Parse_Events events = {0};  
+  events.on_elem = on_elem;
+  events.on_object_elem = on_object_elem;
+  events.on_array_elem = on_array_elem;
   
   if(!json_parse(sb.data, sb.len, &events)) {
     panic("json_parse");
@@ -80,3 +89,5 @@ int main() {
   
   return 0;
 }
+
+

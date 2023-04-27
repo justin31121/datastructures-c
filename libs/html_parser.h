@@ -428,20 +428,32 @@ HTML_PARSER_DEF bool html_parse_node(Tokenizer *t, const Html_Parse_Events *even
 }
 
 HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events) {
-  if(!events) {
-    return false;
-  }
+
+    Tokenizer tokenizer = {cstr, cstr_len, 0, 0};
+    void *node;
+    if(!events) {
+	Html_Parse_Events no_events = {0};      
+	if(!html_parse_expect_doctype_html(&tokenizer, &no_events)) {
+	    tokenizer.pos = 0;
+	    tokenizer.last = 0;
+	    printf("could not parse doctype\n");
+	}
+	void *node;
+	if(!html_parse_node(&tokenizer, &no_events, &node)) {
+	    return false;
+	}
+
+    } else {
+	if(!html_parse_expect_doctype_html(&tokenizer, events)) {
+	    tokenizer.pos = 0;
+	    tokenizer.last = 0;
+	    printf("could not parse doctype\n");
+	}
+	if(!html_parse_node(&tokenizer, events, &node)) {
+	    return false;
+	}      
+    }
   
-  Tokenizer tokenizer = {cstr, cstr_len, 0, 0};  
-  if(!html_parse_expect_doctype_html(&tokenizer, events)) {
-    tokenizer.pos = 0;
-    tokenizer.last = 0;
-    printf("could not parse doctype\n");
-  }
-  void *node;
-  if(!html_parse_node(&tokenizer, events, &node)) {
-    return false;
-  }
   
   return true;
 }
@@ -449,3 +461,4 @@ HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse
 #endif //HTML_PARSER_IMPLEMENTATION
 
 #endif //HTML_PARSER_H_H
+

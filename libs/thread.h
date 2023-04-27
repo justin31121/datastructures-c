@@ -3,6 +3,11 @@
 
 #ifdef _WIN32 ////////////////////////////////////////////
 #include <windows.h>
+
+#ifdef __GNUC__
+#include <process.h>
+#endif //__GNUC__
+
 //#include <process.h>
 typedef HANDLE Thread;
 typedef HANDLE Mutex;
@@ -30,9 +35,9 @@ void mutex_release(Mutex mutex);
 int thread_create(Thread *id, void* (*function)(void *), void *arg) {
   int ret =
 #ifdef _MSC_VER
-    _beginthread(function, 0, arg);
+      _beginthread(function, 0, arg);
 #else
-    _beginthread((_beginthread_proc_type) (void *)function, 0, arg);
+  _beginthread((_beginthread_proc_type) (void *)function, 0, arg);
 #endif    
 
   if(ret == -1) {

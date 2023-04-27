@@ -43,7 +43,9 @@ typedef enum{
 
 	     TOKENTYPE_DOCTYPE,
 	     TOKENTYPE_DOCTYPE2,
-
+	     TOKENTYPE_JSON_NULL,
+	     TOKENTYPE_JSON_TRUE,
+	     TOKENTYPE_JSON_FALSE,
 	     TOKENTYPE_WORD,
 }Tokentype;
 
@@ -52,7 +54,7 @@ const char *tokentype_name(Tokentype t);
 static char symbols[] =
   { '<', '>', '\"', '!', '=', '/', '(', ')', '{', '}', ';', '&', '|', ':', '\'', '[', ']', ',', '.', '_', '-', '+', '?', '^', '\\', '$', '*', '#', '@', '%', '`', '~'};
 
-static char *strings[] = { "!DOCTYPE", "!doctype" };
+static char *strings[] = { "!DOCTYPE", "!doctype" , "null", "true", "false"};
 
 typedef struct{
   Tokentype type;
@@ -115,6 +117,7 @@ const char *tokentype_name(Tokentype t) {
 
   case TOKENTYPE_DOCTYPE: return "DOCTYPE";
   case TOKENTYPE_DOCTYPE2: return "DOCTYPE2";
+  case TOKENTYPE_JSON_NULL: return "JSON_NULL";
 
   case TOKENTYPE_WORD: return "WORD";
     
@@ -278,7 +281,7 @@ void tokenizer_expect_content(Tokenizer *t, Token *_token, Tokentype type, strin
 
   if(_token) {
     *_token = token;
-  }
+  }  
 }
 
 #endif //TOKENIZER_IMPLEMENTATION
