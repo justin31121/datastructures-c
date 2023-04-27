@@ -1,4 +1,4 @@
-#define URL "https://rr3---sn-8xgn5uxa-quhz.googlevideo.com/videoplayback?expire=1682614219&ei=a1NKZOLLN5uf-gaG-KeADg&ip=157.90.242.21&id=o-AH1LE1QpsjROpIotNiB-zd1fXdukVOOATskNWg-GS23r&itag=140&source=youtube&requiressl=yes&pcm2=yes&gcr=de&vprv=1&mime=audio%2Fmp4&ns=6C5hE4FIxZPz0GVHZcEM3zwN&gir=yes&clen=2795488&dur=172.686&lmt=1681229456935946&keepalive=yes&fexp=24007246&c=WEB&txp=4532434&n=_UcF8K1gaVfwgS-bcRU&sparams=expire%2Cei%2Cip%2Cid%2Citag%2Csource%2Crequiressl%2Cpcm2%2Cgcr%2Cvprv%2Cmime%2Cns%2Cgir%2Cclen%2Cdur%2Clmt&ratebypass=yes&sig=AOq0QJ8wRQIgYpxyA2D9ZiGfEglThZjmBb34PWj_1IEcjCFZTzrCaz4CIQDoQBcJHG-85h733gl60GyrNlI9G8DSbYA13fdWhQO60A%3D%3D&redirect_counter=1&rm=sn-4g5eye76&req_id=7040214f938ba3ee&cms_redirect=yes&cmsv=e&ipbypass=yes&mh=xe&mip=2001:16b8:1809:2c00:10b5:832:5611:7382&mm=31&mn=sn-8xgn5uxa-quhz&ms=au&mt=1682592312&mv=m&mvi=3&pl=40&lsparams=ipbypass,mh,mip,mm,mn,ms,mv,mvi,pl&lsig=AG3C_xAwRQIhAKwynOxhajkeMbLShrQ8_75cme0PeNimVf9qBvj5ADlVAiBuIj-cjN5XXutTE5kO0xA0kwZRardmEqG9S7i7Cm895A%3D%3D"
+#define URL "https://rr3---sn-8xgn5uxa-quhz.googlevideo.com/videoplayback?expire=1682633573&ei=BZ9KZI-uBsqK1gLxqJewCA&ip=157.90.242.21&id=o-AM_1qNEF-OXcu0_Ki0ZD9O5Eb7g-JJYiH62xnRdRYSxW&itag=140&source=youtube&requiressl=yes&gcr=de&vprv=1&mime=audio%2Fmp4&ns=1CavqyjjjgHBatzRIbQI5CIN&gir=yes&clen=2795488&dur=172.686&lmt=1681229456935946&keepalive=yes&fexp=24007246&c=WEB&txp=4532434&n=dAw1j7wB6XCZhJyS7DS&sparams=expire%2Cei%2Cip%2Cid%2Citag%2Csource%2Crequiressl%2Cgcr%2Cvprv%2Cmime%2Cns%2Cgir%2Cclen%2Cdur%2Clmt&ratebypass=yes&sig=AOq0QJ8wRQIhAJ5K6nGNcEnDNhlrZvFQTV9pxkr3wrVDykuiZM0zocc-AiA7qilQgJgZp1nBodW_yqFffbUVlILPkRE1A_z8wgAB4g%3D%3D&redirect_counter=1&rm=sn-4g5ez676&req_id=46695c328372a3ee&cms_redirect=yes&cmsv=e&ipbypass=yes&mh=xe&mip=2001:16b8:1809:2c00:fde4:5f4b:2a96:9d06&mm=31&mn=sn-8xgn5uxa-quhz&ms=au&mt=1682611766&mv=m&mvi=3&pl=40&lsparams=ipbypass,mh,mip,mm,mn,ms,mv,mvi,pl&lsig=AG3C_xAwRQIhAIqOeNa_MfAJF_tnP0EJpQ16u4XOvl9-lVc0m5-x8pSOAiB_98ToRKqGV7sb5uBkEn9az5vySsLDccIjwzdOqhEXWQ%3D%3D"
 
 #define PLAYER_IMPLEMENTATION
 #include "../libs/player.h"
@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
   if(!player_play(&player)) {
     panic("player_play");
   }
-  player_set_volume(&player, 0.1);
+  player_set_volume(&player, 1.0);
 
   float button_width = 24.f;
   float bar_y = 60.f;
