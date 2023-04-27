@@ -17,7 +17,7 @@
 #endif //PLAYER_DEF
 
 #define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 4
+#define PLAYER_N 5
 #define PLAYER_VOLUME 0.1f
 
 #define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
@@ -526,7 +526,6 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
     }
 
     return (int64_t) socket->pos;
->>>>>>> 59ef2f17cbe5a0820e27a9a1fe929b3700d019db
 }
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {

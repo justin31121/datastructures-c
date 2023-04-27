@@ -42,6 +42,7 @@ typedef enum{
 	     TOKENTYPE_TILDE,
 
 	     TOKENTYPE_DOCTYPE,
+	     TOKENTYPE_DOCTYPE2,
 
 	     TOKENTYPE_WORD,
 }Tokentype;
@@ -51,7 +52,7 @@ const char *tokentype_name(Tokentype t);
 static char symbols[] =
   { '<', '>', '\"', '!', '=', '/', '(', ')', '{', '}', ';', '&', '|', ':', '\'', '[', ']', ',', '.', '_', '-', '+', '?', '^', '\\', '$', '*', '#', '@', '%', '`', '~'};
 
-static char *strings[] = { "!doctype" };
+static char *strings[] = { "!DOCTYPE", "!doctype" };
 
 typedef struct{
   Tokentype type;
@@ -113,6 +114,7 @@ const char *tokentype_name(Tokentype t) {
   case TOKENTYPE_TILDE: return "TILDE";
 
   case TOKENTYPE_DOCTYPE: return "DOCTYPE";
+  case TOKENTYPE_DOCTYPE2: return "DOCTYPE2";
 
   case TOKENTYPE_WORD: return "WORD";
     
@@ -206,7 +208,7 @@ bool tokenizer_next(Tokenizer *t, Token *token) {
     char c = t->text[i];
     s32 u = (s32) (u8) c;
     
-    if(!isalpha(c) && !isdigit(c) && u <= 128) {
+    if(!isalpha(c) && !isdigit(c) && u <= 127) {
       break;
     }
   }

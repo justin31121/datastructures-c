@@ -1,3 +1,5 @@
+#define URL "https://rr3---sn-8xgn5uxa-quhz.googlevideo.com/videoplayback?expire=1682614219&ei=a1NKZOLLN5uf-gaG-KeADg&ip=157.90.242.21&id=o-AH1LE1QpsjROpIotNiB-zd1fXdukVOOATskNWg-GS23r&itag=140&source=youtube&requiressl=yes&pcm2=yes&gcr=de&vprv=1&mime=audio%2Fmp4&ns=6C5hE4FIxZPz0GVHZcEM3zwN&gir=yes&clen=2795488&dur=172.686&lmt=1681229456935946&keepalive=yes&fexp=24007246&c=WEB&txp=4532434&n=_UcF8K1gaVfwgS-bcRU&sparams=expire%2Cei%2Cip%2Cid%2Citag%2Csource%2Crequiressl%2Cpcm2%2Cgcr%2Cvprv%2Cmime%2Cns%2Cgir%2Cclen%2Cdur%2Clmt&ratebypass=yes&sig=AOq0QJ8wRQIgYpxyA2D9ZiGfEglThZjmBb34PWj_1IEcjCFZTzrCaz4CIQDoQBcJHG-85h733gl60GyrNlI9G8DSbYA13fdWhQO60A%3D%3D&redirect_counter=1&rm=sn-4g5eye76&req_id=7040214f938ba3ee&cms_redirect=yes&cmsv=e&ipbypass=yes&mh=xe&mip=2001:16b8:1809:2c00:10b5:832:5611:7382&mm=31&mn=sn-8xgn5uxa-quhz&ms=au&mt=1682592312&mv=m&mvi=3&pl=40&lsparams=ipbypass,mh,mip,mm,mn,ms,mv,mvi,pl&lsig=AG3C_xAwRQIhAKwynOxhajkeMbLShrQ8_75cme0PeNimVf9qBvj5ADlVAiBuIj-cjN5XXutTE5kO0xA0kwZRardmEqG9S7i7Cm895A%3D%3D"
+
 #define PLAYER_IMPLEMENTATION
 #include "../libs/player.h"
 
@@ -20,9 +22,6 @@
 
 #define HTML_PARSER_IMPLEMENTATION
 #include "../libs/html_parser.h"
-
-#define YOUTUBE_IMPLEMENTATION
-#include "../libs/youtube.h"
 
 #include "../rsc/atlas.h"
 #include "../rsc/musik.h"
@@ -87,6 +86,11 @@ void load_files(const char *dir_path, Player *player, String_Buffer *buffer) {
   io_dir_close(&dir);
 }
 
+#ifdef linux
+
+#define YOUTUBE_IMPLEMENTATION
+#include "../libs/youtube.h"
+
 String_Buffer sbs[3] = {0};
 duk_context *duk_ctx = NULL;
 
@@ -127,6 +131,8 @@ bool query_url(const char *videoId, char **url) {
   
   return result;
 }
+
+#endif //_linux
 
 String_Buffer temp = {0};
 String_Buffer filebuffer = {0};
@@ -170,22 +176,24 @@ int main(int argc, char **argv) {
   int sbuffer_pos = 0;
 
   bool playing_url = true;
+  
+#ifdef linux
   char *url;
   if(!query_url("7D89nNqLqQE", &url)) {
     panic("query_url");
   }
   for(int i=0;i<3;i++) string_buffer_free(&sbs[i]);
   duk_destroy_heap(duk_ctx);
+#endif //linux
   
-  if(!player_open_url(&player, url)) {
+  if(!player_open_url(&player, URL)) {
     panic("player_open_url");
   }
   
   if(!player_play(&player)) {
     panic("player_play");
   }
-  player_seek(&player, 10.f);
-  //player_set_volume(&player, 0.2);
+  player_set_volume(&player, 0.1);
 
   float button_width = 24.f;
   float bar_y = 60.f;
@@ -258,7 +266,6 @@ int main(int argc, char **argv) {
       if(d - n < 0.02 && n < d) {
 	if(playing_url) {
 	  playing_url = false;
-	  free(url);
 	} else {
 	  sbuffer_pos += strlen(sbuffer.data + sbuffer_pos) + 1;
 	  if((size_t) sbuffer_pos >= sbuffer.len) sbuffer_pos = 0; 

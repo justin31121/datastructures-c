@@ -12,7 +12,7 @@
 #include "./tokenizer.h"
 
 typedef struct {  
-  void *(*on_node)(string name, void *arg);
+  bool (*on_node)(string name, void *arg, void **node);
   void (*on_node_attribute)(void *node, string key, string value, void *arg);
   void (*on_node_child)(void *node, void *child, void *arg);
   void (*on_node_content)(void *node, string content, void *arg);
@@ -28,15 +28,13 @@ HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse
 static char *html_node_singletons[] = {"area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"};
 static char *html_node_maybe_singletons[] = {"li"};
 
-#define __html_parse_expect_doctype(_type) do{		\
-    if(!tokenizer_next(t, &token)) {			\
-      events->on_error(err, t->last, events->arg);	\
-      return false;					\
-    }							\
-    if(token.type != _type) {				\
-      events->on_error(err, t->last, events->arg);	\
-      return false;					\
-    }							\
+#define __html_parse_expect_doctype(_type) do{	\
+    if(!tokenizer_next(t, &token)) {		\
+      return false;				\
+    }						\
+    if(token.type != _type) {			\
+      return false;				\
+    }						\
   }while(0)
 
 HTML_PARSER_DEF bool html_parse_expect_doctype_html(Tokenizer *t, const Html_Parse_Events *events) {
@@ -44,31 +42,40 @@ HTML_PARSER_DEF bool html_parse_expect_doctype_html(Tokenizer *t, const Html_Par
   
   Token token;
   __html_parse_expect_doctype(TOKENTYPE_ANGLE_OPEN);
-  __html_parse_expect_doctype(TOKENTYPE_DOCTYPE);
+  if(!tokenizer_next(t, &token)) {
+    return false;
+  }
+  if(token.type != TOKENTYPE_DOCTYPE && token.type != TOKENTYPE_DOCTYPE2) {
+    return false;
+  }
   __html_parse_expect_doctype(TOKENTYPE_WORD);
   if(!string_eq(token.content, STRING("html"))) {
-    events->on_error(err, t->last, events->arg);
     return false;
   }
   __html_parse_expect_doctype(TOKENTYPE_ANGLE_CLOSE);
-
   return true;
 }
 
 #define __html_parse_expect_token(_type) do{					\
     if(!tokenizer_next(t, &token)) {					\
-      events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      if(events->on_error) {						\
+	events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      }									\
       return false;							\
     }									\
     if(token.type != _type) {						\
-      events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      if(events->on_error) {						\
+	events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      }									\
       return false;							\
     }									\
 }while(0)
 
 #define __html_parse_peek_token(_type) do{					\
     if(!tokenizer_peek(t, &token)) {					\
-      events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      if(events->on_error) {						\
+	events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      }\
       return false;							\
     }									\
 }while(0)
@@ -105,7 +112,11 @@ HTML_PARSER_DEF bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events 
     return false;
   }
   if(root) {
-      *root = events->on_node(*root_name, events->arg);      
+    if(events->on_node) {
+      if(!events->on_node(*root_name, events->arg, root)) {
+	return false;
+      }
+    }
   }
   
   __html_parse_peek_token(TOKENTYPE_WORD);
@@ -125,37 +136,62 @@ HTML_PARSER_DEF bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events 
 
     if(token.type == TOKENTYPE_ANGLE_CLOSE) {
 	if(root) {
-	    events->on_node_attribute(*root, key, string_from_cstr(""), events->arg);	    
+	  if(events->on_node_attribute) {
+	    events->on_node_attribute(*root, key, string_from_cstr(""), events->arg);
+	  }
 	}
 	t->pos = t->last;
 	continue;
     }
 
+    string value = {0};
     __html_parse_peek_token(TOKENTYPE_EQUALS);
-    Tokentype quotation = TOKENTYPE_DOUBLE_QUOTATION;
-    if(token.type == TOKENTYPE_DOUBLE_QUOTATION) {
-      __html_parse_expect_token(TOKENTYPE_DOUBLE_QUOTATION);
-    } else {
-      __html_parse_expect_token(TOKENTYPE_QUOTATION);
-      quotation = TOKENTYPE_QUOTATION;
-    }
-
-    __html_parse_peek_token(quotation);
-    string value = token.content;
-    while(token.type != quotation) {
-      tokenizer_next(t, &token);
-      if(token.content.data != value.data) {
-	u64 diff = token.content.data - value.data - value.len;
-	value = string_from(value.data, value.len + diff + token.content.len);	
+    if(token.type == TOKENTYPE_DOUBLE_QUOTATION ||
+       token.type == TOKENTYPE_QUOTATION) {
+      
+      Tokentype quotation = TOKENTYPE_DOUBLE_QUOTATION;
+      if(token.type == TOKENTYPE_DOUBLE_QUOTATION) {
+	__html_parse_expect_token(TOKENTYPE_DOUBLE_QUOTATION);
+      } else {
+	__html_parse_expect_token(TOKENTYPE_QUOTATION);
+	quotation = TOKENTYPE_QUOTATION;
       }
-      __html_parse_peek_token(quotation);
-    }
 
-    __html_parse_expect_token(quotation);
+      __html_parse_peek_token(quotation);
+      value = token.content;
+      while(token.type != quotation) {
+	tokenizer_next(t, &token);
+	if(token.content.data != value.data) {
+	  u64 diff = token.content.data - value.data - value.len;
+	  value = string_from(value.data, value.len + diff + token.content.len);	
+	}
+	__html_parse_peek_token(quotation);
+      }
+
+      __html_parse_expect_token(quotation);
+    } else if(token.type != TOKENTYPE_ANGLE_CLOSE) {
+      __html_parse_expect_token(token.type);
+      const char *from = token.content.data + token.content.len;
+      __html_parse_peek_token(TOKENTYPE_ANGLE_CLOSE);
+      value = token.content;
+      while(token.content.data == from &&
+	    token.type != TOKENTYPE_ANGLE_CLOSE) {
+	tokenizer_next(t, &token);
+	from = token.content.data + token.content.len;
+	if(token.content.data != value.data) {
+	  u64 diff = token.content.data - value.data - value.len;
+	  value = string_from(value.data, value.len + diff + token.content.len);
+	}
+	__html_parse_peek_token(TOKENTYPE_ANGLE_CLOSE);
+      }
+    }
+    
     __html_parse_peek_token(TOKENTYPE_ANGLE_CLOSE);
     
     if(root) {
-	events->on_node_attribute(*root, key, value, events->arg);	
+      if(events->on_node_attribute) {
+	events->on_node_attribute(*root, key, value, events->arg);
+      }
     }
   }
 
@@ -188,8 +224,10 @@ HTML_PARSER_DEF bool html_parse_expect_node_close(Tokenizer *t, const Html_Parse
 
 #define __html_parse_peek_n(n, _type) do{					\
     if(!tokenizer_peek_n(t, &token, n)) {				\
-      events->on_error(tokentype_name(_type), t->last, events->arg); \
-      return NULL;							\
+      if(events->on_error) {						\
+	events->on_error(tokentype_name(_type), t->last, events->arg);	\
+      }									\
+      return false;							\
     }									\
   }while(0)
 
@@ -233,17 +271,18 @@ HTML_PARSER_DEF bool html_parse_peek_n_word_concatenation(Tokenizer *t, int n, s
   return true;
 }
 
-HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *events) {
+HTML_PARSER_DEF bool html_parse_node(Tokenizer *t, const Html_Parse_Events *events, void **node) {
   
   bool closed;
   void *root;
   string root_name;
   
   if(!html_parse_node_open(t, events, &closed, &root, &root_name)) {
-    return NULL;
+    return false;
   }
   if(closed) {
-    return root;
+    *node = root;
+    return true;
   }
 
   u32 old = t->pos;
@@ -262,7 +301,8 @@ HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *eve
   for(u32 i=0;!potential_maybe_singleton && i<singletons_len;i++) {
       string singleton = string_from_cstr(html_node_singletons[i]);
       if(string_eq(root_name, singleton)) {
-	  return root;
+	*node = root;
+	return true;
       }
   }
 
@@ -279,14 +319,20 @@ HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *eve
       if(token.type == TOKENTYPE_SLASH) {
 	string content;
 	if(!html_parse_peek_n_word_concatenation(t, 3, &content)) {
-	  events->on_error(tokentype_name(TOKENTYPE_WORD), t->last, events->arg);
-	  return NULL;
+	  if(events->on_error) {
+	    events->on_error(tokentype_name(TOKENTYPE_WORD), t->last, events->arg);	    
+	  }
+	  return false;
 	}
-	if(string_eq(root_name, content)) {
-	  events->on_node_content(root, current, events->arg);
+	if(string_eq(string_trim(root_name), string_trim(content))) {
+	  if(events->on_node_content) {
+	    events->on_node_content(root, current, events->arg);	    
+	  }
 	  html_parse_expect_node_close(t, events, root_name);
-	  return root;
+	  *node = root;
+	  return true;
 	} else {
+	  
 	  if(!isScript) {
 	      if(potential_maybe_singleton) {
 		  u32 current_pos = t->pos;
@@ -297,20 +343,24 @@ HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *eve
 		  if(html_parse_node_open(t, events, &child_closed, NULL, &child_name)) {
 		      if(string_eq(child_name, root_name)) {
 			  t->pos = current_pos;
-			  return root;
+			  *node = root;
+			  return true;
 		      }
 		  }
 		  t->pos = current_pos;
 	      }
 
-	      if(string_eq(root_name, STRING("li")) && string_eq(content, STRING("ul"))) {
-		  return root;
+	      if(string_eq(root_name, STRING("li")) && string_eq(content, STRING("ul")) ) {
+		*node = root;
+		return true;
 	      }
 	      
 	      fprintf(stderr, "ERORR: Tag not closed "String_Fmt"\n", String_Arg(root_name));
 	      fprintf(stderr, "ERORR: Instead closed "String_Fmt"\n", String_Arg(content));
-	    events->on_error(tokentype_name(TOKENTYPE_WORD), t->last, events->arg);
-	    return NULL;
+	      if(events->on_error) {
+		events->on_error(tokentype_name(TOKENTYPE_WORD), t->last, events->arg);		
+	      }
+	    return false;
 	  } else {
 	    tokenizer_next(t, &token);
 	  }
@@ -351,11 +401,13 @@ HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *eve
 
 	if(!skipped) {
 	  if(!isScript) {
-	    void *child = html_parse_node(t, events);
-	    if(!child) {
-	      return NULL;
+	    void *child;
+	    if(!html_parse_node(t, events, &child)) {
+	      return false;
 	    }
-	    events->on_node_child(root, child, events->arg);
+	    if(events->on_node_child) {
+	      events->on_node_child(root, child, events->arg);	      
+	    }
 	  } else {
 	    tokenizer_next(t, &token);
 	  }
@@ -372,20 +424,22 @@ HTML_PARSER_DEF void *html_parse_node(Tokenizer *t, const Html_Parse_Events *eve
   }
 
   panic("unreachable");
-  return NULL;
+  return false;
 }
 
 HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events) {
-  assert(events);
-  assert(events->on_error);
-  assert(events->on_node);
-  assert(events->on_node_attribute);
-  assert(events->on_node_child);
-  assert(events->on_node_content);
+  if(!events) {
+    return false;
+  }
   
-  Tokenizer tokenizer = {cstr, cstr_len, 0, 0};
-  //html_parse_expect_doctype_html(&tokenizer, events);
-  if(!html_parse_node(&tokenizer, events)) {
+  Tokenizer tokenizer = {cstr, cstr_len, 0, 0};  
+  if(!html_parse_expect_doctype_html(&tokenizer, events)) {
+    tokenizer.pos = 0;
+    tokenizer.last = 0;
+    printf("could not parse doctype\n");
+  }
+  void *node;
+  if(!html_parse_node(&tokenizer, events, &node)) {
     return false;
   }
   
