@@ -17,7 +17,7 @@
 #endif //PLAYER_DEF
 
 #define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 5
+#define PLAYER_N 6
 #define PLAYER_VOLUME 0.1f
 
 #define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
@@ -54,11 +54,10 @@ PLAYER_DEF bool player_socket_init(Player_Socket *s, const char *url, int start,
 PLAYER_DEF void player_socket_free(Player_Socket *s);
 
 typedef struct{
-
   Decoder_Fmt fmt;
   int channels;
 
-  float volume;
+  float current_volume;
   float duration; //fancy
   float duration_abs;
   int den;
@@ -102,6 +101,7 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url);
 PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int buf_size);
 PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence);
 
+
 PLAYER_DEF bool player_close(Player *player);
 
 PLAYER_DEF bool player_device_init(Player *player, int sample_rate);
@@ -114,12 +114,9 @@ PLAYER_DEF bool player_toggle(Player *player);
 PLAYER_DEF void *player_play_thread(void *arg);
 
 ////////////////////////////////////////////////////
-//TODO: right now i am stopping the play_thread for changing the volume etc.
-//Maybe do that differently
 
 PLAYER_DEF void player_init_stats(Player *player);
 
-PLAYER_DEF bool player_get_volume(Player *player, float *volume);
 PLAYER_DEF bool player_set_volume(Player *player, float volume);
 PLAYER_DEF bool player_get_duration_abs(Player *player, float *duration);
 PLAYER_DEF bool player_get_timestamp_abs(Player *player, float *timestamp);
@@ -132,7 +129,7 @@ PLAYER_DEF bool player_seek(Player *player, float secs);
 //TODO: right now i assume that the url, accepts ranges in bytes
 PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int start, int end) {
   if(url) {
-    size_t url_len = strlen(url);
+    size_t url_len = strlen(url);    
     bool ssl;
     size_t hostname_len;
 
@@ -227,8 +224,8 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   player->fmt = fmt;
   player->channels = channels;
   player->sample_rate = 0;
-  player->volume = PLAYER_VOLUME;
   player->file = NULL;
+  player->current_volume = -1.f;
   player->decoder_memory = (Player_Memory) {0};
   player->decoder_socket.len = -1;
 
@@ -312,9 +309,6 @@ PLAYER_DEF bool player_device_free(Player *player) {
 }
 
 PLAYER_DEF void player_init_stats(Player *player) {
-  double volume;
-  av_opt_get_double(player->decoder.swr_context, "rmvol", 0, &volume);
-  player->volume = (float) volume;
   
   float total = (float) player->decoder.av_format_context->duration / AV_TIME_BASE / 60.0f;
   float secs = floorf(total);
@@ -540,7 +534,7 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 		   player->file,
 		   player->fmt,
 		   player->channels,
-		   player->volume,
+		   PLAYER_VOLUME,
 		   player->samples)) {
     fclose(player->file);
     player->file = NULL;
@@ -568,7 +562,7 @@ PLAYER_DEF bool player_open_memory(Player *player, const char *memory,
   if(!decoder_init(&player->decoder,
 		   player_decoder_memory_read,
 		   player_decoder_memory_seek, &player->decoder_memory,
-		   player->fmt, player->channels, player->volume, player->samples)) {
+		   player->fmt, player->channels, player->current_volume, player->samples)) {
     player->decoder_memory = (Player_Memory) {0};
     return false;
   }
@@ -582,7 +576,6 @@ PLAYER_DEF bool player_open_memory(Player *player, const char *memory,
   return true;
 }
 
-//TODO: add seek for url
 PLAYER_DEF bool player_open_url(Player *player, const char *url) {
 
   if(!player_socket_init(&player->decoder_socket, url, 0, 0)) {
@@ -592,13 +585,13 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url) {
   if(!decoder_init(&player->decoder,
 		   player_decoder_url_read,
 		   player_decoder_url_seek, &player->decoder_socket,
-		   player->fmt, player->channels, player->volume, player->samples)) {
+		   player->fmt, player->channels, player->current_volume, player->samples)) {
+    player_socket_free(&player->decoder_socket);
     player->decoder_memory = (Player_Memory) {0};
     return false;
   }
 
   if(!player_device_init(player, player->decoder.sample_rate)) {
-    
     return false;
   }
   player->decoder_used = true;
@@ -655,7 +648,7 @@ PLAYER_DEF void *player_play_thread(void *arg) {
   while(player->playing &&
 	decoder_buffer_next(&player->buffer, &data, &data_size)) {
     
-    if(player->volume > 0.0f) {
+    if(player->current_volume > 0.0f) {
 #ifdef _WIN32
       xaudio_device_play(&player->device, data, data_size);
 #elif linux
@@ -729,16 +722,6 @@ PLAYER_DEF bool player_toggle(Player *player) {
     : player_play(player);
 }
 
-PLAYER_DEF bool player_get_volume(Player *player, float *volume) {
-  if(!player->decoder_used) {
-    return false;
-  }
-
-  *volume = player->volume;
-
-  return true;
-}
-
 PLAYER_DEF bool player_set_volume(Player *player, float volume) {
 
   if(volume < 0.0f || volume > 1.0f) {
@@ -748,19 +731,10 @@ PLAYER_DEF bool player_set_volume(Player *player, float volume) {
   if(!player->decoder_used) {
     return false;
   }
-
-  bool stopped = player_stop(player);
-
-  //set volume
-  av_opt_set_double(player->decoder.swr_context, "rmvol", volume, 0);  
-  swr_init(player->decoder.swr_context);
+  player->decoder.target_volume = volume;
 
   //cache volume
-  player->volume = volume;
-
-  if(stopped && !player_play(player)) {
-    return false;
-  }
+  player->current_volume = volume;
 
   return true;
 }

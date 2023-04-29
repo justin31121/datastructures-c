@@ -1,6 +1,10 @@
 #ifndef YOUTUBE_H_H
 #define YOUTUBE_H_H
 
+#ifndef YOUTUBE_DEF
+#define YOUTUBE_DEF static inline
+#endif //YOUTUBE_DEF
+
 #ifdef YOUTUBE_IMPLEMENTATION
 
 #define HTTP_IMPLEMENTATION
@@ -16,12 +20,13 @@
 
 #include <regex.h>
 
-bool match_regexp(regex_t *regex, const char *cstr, const char *regexp_cstr, int match_index, int *offset, int *len);
+YOUTUBE_DEF bool match_regexp(regex_t *regex, const char *cstr, const char *regexp_cstr, int match_index, int *offset, int *len);
 const char* get_title(Json videoRenderer);
 
-bool youtube_search(Http *http, const char *keyword, Json *out);
-bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Json *out);
-bool youtube_video(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, const char *videoId, Json *out);
+YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out);
+YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Json *out);
+YOUTUBE_DEF bool youtube_video(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, const char *videoId, Json *out);
+YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, string videoId, Json *out);
 
 #ifdef YOUTUBE_IMPLEMENTATION
 
@@ -40,7 +45,7 @@ const char* get_title(Json videoRenderer) {
   return NULL;
 }
 
-bool match_regexp(regex_t *regex, const char *cstr, const char *regexp_cstr, int match_index, int *offset, int *len) {
+YOUTUBE_DEF bool match_regexp(regex_t *regex, const char *cstr, const char *regexp_cstr, int match_index, int *offset, int *len) {
   if(!regex) {
     return false;
   }
@@ -76,7 +81,7 @@ bool match_regexp(regex_t *regex, const char *cstr, const char *regexp_cstr, int
   return ret;
 }
 
-bool youtube_search(Http *http, const char *keyword, Json *out) {
+YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out) {
   if(!http) {
     return false;
   }
@@ -183,7 +188,7 @@ bool youtube_search(Http *http, const char *keyword, Json *out) {
   return true;
 }
 
-bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Json *out) {
+YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Json *out) {
   if(!http || !sb || !out || !videoId) {
     return false;
   }
@@ -223,14 +228,18 @@ bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Js
   return true;
 }
 
-bool youtube_video(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, const char *videoId, Json *out) {
+YOUTUBE_DEF bool youtube_video(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, const char *videoId, Json *out) {
+  return youtube_video2(http, sbs, bases, duk_ctx, string_from_cstr(videoId), out);
+}
+
+YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, string videoId, Json *out) {
 
   if(!http) {
     return false;
   }
 
   char route_buffer[1024];
-  if(snprintf(route_buffer, 1024, "/watch?v=%s", videoId) >= 1024) {
+  if(snprintf(route_buffer, 1024, "/watch?v="String_Fmt, String_Arg(videoId)) >= 1024) {
     return false;
   }
   

@@ -38,7 +38,7 @@ CL-player_demo:
 	cl ./src/player_demo.c /Fe:player.exe
 
 GCC-player_demo:
-	gcc ./src/player_demo.c ./thirdparty/duktape.o $(GCC-FLAGS) -o player $(GUI) $(OPENGL) -lavutil -lavcodec -lavformat -lswresample $(AUDIO) -lm -lpthread $(LDFLAGS) $(LDLIBS) -lssl -lcrypto
+	gcc ./src/player_demo.c ./thirdparty/duktape.o $(GCC-FLAGS) -o player $(GUI) $(OPENGL) -lavutil -lavcodec -lavformat -lswresample $(AUDIO) -lm -lpthread $(LDFLAGS) $(LDLIBS) -lssl -lcrypto -ggdb
 
 #==========================================================================
 

@@ -1,0 +1,10 @@
+-*- mode: compilation; default-directory: "~/Documents/repos/datastructures-c/" -*-
+Compilation started at Sat Apr 29 09:35:36
+
+cd .. && make player_demo && ./player "https://open.spotify.com/track/0pMrfuW3AFMzqdHbzXuK2x"
+make GCC-player_demo 
+gcc ./src/player_demo.c ./thirdparty/duktape.o -Wall -Wextra -pedantic -Wshadow -ggdb -o player -lX11 -lGLX -lGL -lavutil -lavcodec -lavformat -lswresample  -lm -lpthread `pkg-config --libs alsa` `pkg-config --cflags alsa` -lssl -lcrypto -ggdb
+trackId: 0pMrfuW3AFMzqdHbzXuK2x
+got keyword: STERNHIMMELDACH%20BOJAN%20Jamule
+
+Compilation exited abnormally with code 69 at Sat Apr 29 09:35:37

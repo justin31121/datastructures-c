@@ -37,8 +37,7 @@ static char *html_node_maybe_singletons[] = {"li"};
     }						\
   }while(0)
 
-HTML_PARSER_DEF bool html_parse_expect_doctype_html(Tokenizer *t, const Html_Parse_Events *events) {
-  static const char *err = "<!doctype html>";
+HTML_PARSER_DEF bool html_parse_expect_doctype_html(Tokenizer *t) {
   
   Token token;
   __html_parse_expect_doctype(TOKENTYPE_ANGLE_OPEN);
@@ -433,18 +432,17 @@ HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse
     void *node;
     if(!events) {
 	Html_Parse_Events no_events = {0};      
-	if(!html_parse_expect_doctype_html(&tokenizer, &no_events)) {
+	if(!html_parse_expect_doctype_html(&tokenizer)) {
 	    tokenizer.pos = 0;
 	    tokenizer.last = 0;
 	    printf("could not parse doctype\n");
 	}
-	void *node;
-	if(!html_parse_node(&tokenizer, &no_events, &node)) {
+	if(!html_parse_node(&tokenizer, &no_events, node)) {
 	    return false;
 	}
 
     } else {
-	if(!html_parse_expect_doctype_html(&tokenizer, events)) {
+	if(!html_parse_expect_doctype_html(&tokenizer)) {
 	    tokenizer.pos = 0;
 	    tokenizer.last = 0;
 	    printf("could not parse doctype\n");

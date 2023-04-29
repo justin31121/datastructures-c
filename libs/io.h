@@ -10,6 +10,7 @@
 #ifdef linux
 # include <limits.h>
 # include <dirent.h>
+# include <sys/stat.h>
 #endif //linux
 
 #ifndef IO_DEF
@@ -44,6 +45,8 @@ typedef struct{
 IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path);
 IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file);
 IO_DEF void io_dir_close(Io_Dir *dir);
+
+IO_DEF bool io_exists(const char *file_path, bool *is_file);
 
 #ifdef IO_IMPLEMENTATION
 
@@ -80,6 +83,18 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file) {
 
 IO_DEF void io_dir_close(Io_Dir *dir) {
   closedir(dir->handle);
+}
+
+IO_DEF bool io_exists(const char *file_path, bool *is_file) {
+  struct stat file_info;
+  if(stat(file_path, &file_info) == 0) {        
+    bool file = S_ISREG(file_info.st_mode) != 0;
+    if(is_file) *is_file = file;
+    
+    return file || S_ISDIR(file_info.st_mode) != 0;
+  }
+
+  return false;
 }
 
 #endif //linux

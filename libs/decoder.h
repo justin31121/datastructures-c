@@ -86,6 +86,9 @@ struct Decoder{
   AVFrame *frame;
   int pts;
 
+  float volume;
+  float target_volume;
+
   int samples;
   int sample_size;
   int sample_rate;
@@ -300,177 +303,6 @@ DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer) {
   free(buffer->buffers);  
 }
 
-/*
-DECODER_DEF bool decoder_init2(Decoder *decoder, const char *file_path,
-			       Decoder_Fmt fmt,
-			       int channels,
-			       float volume,
-			       int samples) {
-  *decoder = (Decoder) {0};
-
-  decoder->samples = samples;
-  decoder->sample_size = channels * decoder_fmt_to_bits_per_sample(fmt) / 8;
-  
-  enum AVSampleFormat av_sample_format = decoder_fmt_to_libav_fmt(fmt);
-
-  decoder->av_format_context = NULL;
-  if(avformat_open_input(&decoder->av_format_context, file_path, NULL, NULL) < 0) {
-    return false;
-  }
-
-  if(avformat_find_stream_info(decoder->av_format_context, NULL) < 0) {
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-
-  decoder->stream_index = -1;
-
-  const AVCodec *av_codec = NULL;
-  AVCodecParameters *av_codec_parameters = NULL;
-  for(size_t i=0;i<decoder->av_format_context->nb_streams;i++) {
-    av_codec_parameters = decoder->av_format_context->streams[i]->codecpar;
-    if(av_codec_parameters->codec_type == AVMEDIA_TYPE_AUDIO) {
-      decoder->stream_index = (int) i;
-      if(!(av_codec = avcodec_find_decoder(av_codec_parameters->codec_id))) {
-	avformat_close_input(&decoder->av_format_context);
-	decoder->av_format_context = NULL;
-	decoder->stream_index = -2;
-	return false;
-      }
-      break;
-    }
-  }
-  if(av_codec == NULL) {
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-
-  if(!(decoder->av_codec_context = avcodec_alloc_context3(av_codec))) {
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-
-  if(avcodec_parameters_to_context(decoder->av_codec_context, av_codec_parameters) < 0) {
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-
-  decoder->sample_rate = decoder->av_codec_context->sample_rate;
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif //__GNUC__
-  if(decoder->av_codec_context->channel_layout) {
-    decoder->av_codec_context->channel_layout = AV_CH_LAYOUT_STEREO;
-  }
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif //__GNUC__  
-
-  if(avcodec_open2(decoder->av_codec_context, av_codec, NULL) < 0) {
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif //__GNUC__
-
-  int channel_layout;
-  if(channels == 1) {
-    channel_layout = AV_CH_LAYOUT_MONO;
-  } else if(channels == 2) {
-    channel_layout = AV_CH_LAYOUT_STEREO;
-  } else {
-    return false;
-  }
-
-  if(!(decoder->swr_context = swr_alloc_set_opts(NULL, channel_layout,
-						 av_sample_format,
-						 decoder->av_codec_context->sample_rate,
-						 decoder->av_codec_context->channel_layout,
-						 decoder->av_codec_context->sample_fmt,
-						 decoder->av_codec_context->sample_rate,
-						 0, NULL))) {
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif //__GNUC__
-  
-  av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
-  
-  if(swr_init(decoder->swr_context) < 0) {
-    swr_free(&decoder->swr_context);
-    decoder->swr_context = NULL;
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-
-  int max_buffer_size = decoder->samples * decoder->sample_size;  
-  decoder->buffer = (unsigned char*) malloc(max_buffer_size);
-  if(!(decoder->buffer)) {
-    swr_free(&decoder->swr_context);
-    decoder->swr_context = NULL;
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;    
-    return false;
-  }
-
-  if(!(decoder->packet = av_packet_alloc())) {
-    free(decoder->buffer);
-    swr_free(&decoder->swr_context);
-    decoder->swr_context = NULL;
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-  if(!(decoder->frame = av_frame_alloc())) {
-    free(decoder->buffer);
-    av_packet_free(&decoder->packet);
-    decoder->packet = NULL;
-    swr_free(&decoder->swr_context);
-    decoder->swr_context = NULL;
-    avcodec_close(decoder->av_codec_context);
-    avcodec_free_context(&decoder->av_codec_context);
-    decoder->av_codec_context = NULL;
-    avformat_close_input(&decoder->av_format_context);
-    decoder->av_format_context = NULL;
-    return false;
-  }
-  
-  return true;
-}
-*/
-
 DECODER_DEF bool decoder_init(Decoder *decoder,
 			      Decoder_Read_Function read,
 			      Decoder_Seek_Function seek,
@@ -487,6 +319,8 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
   decoder->buffer = NULL;
   decoder->packet = NULL;
   decoder->frame = NULL;
+  decoder->target_volume = -1.f;
+  decoder->volume = volume;
 
   decoder->samples = samples;
   decoder->sample_size = channels * decoder_fmt_to_bits_per_sample(fmt) / 8;
@@ -506,7 +340,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
 
   decoder->av_format_context->pb = decoder->av_io_context;
   decoder->av_format_context->flags = AVFMT_FLAG_CUSTOM_IO;
-  if (avformat_open_input(&decoder->av_format_context, NULL, NULL, NULL) != 0) {
+  if (avformat_open_input(&decoder->av_format_context, "", NULL, NULL) != 0) {
     decoder_free(decoder);
     return false;
   }
@@ -593,6 +427,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
 #endif //__GNUC__
   
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
+  decoder->target_volume = volume;
   
   if(swr_init(decoder->swr_context) < 0) {
     decoder_free(decoder);
@@ -661,11 +496,19 @@ DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
 
     if(avcodec_receive_frame(decoder->av_codec_context, decoder->frame) >= 0) {
 
+      if(decoder->target_volume != decoder->volume) {
+	av_opt_set_double(decoder->swr_context, "rmvol", decoder->target_volume, 0);
+	double volume;
+	swr_init(decoder->swr_context);
+	av_opt_get_double(decoder->swr_context, "rmvol", 0, &volume);
+	decoder->volume = (float) volume;
+      }
+
+      decoder->pts = decoder->frame->pts;
+      
       *out_samples = swr_convert(decoder->swr_context, &decoder->buffer, decoder->samples,
 				 (const unsigned char **) (decoder->frame->data),
 				 decoder->frame->nb_samples);
-
-      decoder->pts = decoder->frame->pts;
       
       if(*out_samples > 0) {
 	decoder->continue_convert = true;

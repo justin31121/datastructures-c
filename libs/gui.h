@@ -329,9 +329,8 @@ GUI_DEF void gui_swap_buffers(Gui *gui);
 
 #ifdef linux
 GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
-  (void) gui;
-  (void) canvas;
-  (void) name;
+
+  *gui = (Gui) {0};
 
   gui->display = XOpenDisplay(NULL);
   if(!gui->display) {
@@ -417,11 +416,10 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   XStoreName(gui->display, gui->win, name);
   XSelectInput(gui->display, gui->win,
 	       ButtonPressMask | ButtonReleaseMask |
-	       //ExposureMask |
+	       ExposureMask |
 	       PointerMotionMask |
 	       KeyPressMask | StructureNotifyMask);
   XMapWindow(gui->display, gui->win);
-  XFlush(gui->display);
 
   gui->ctx = glXCreateNewContext(gui->display, bestFbc, GLX_RGBA_TYPE, 0, True );
   XSync(gui->display, False);  
@@ -439,11 +437,12 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
 
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 
+  event->type = GUI_EVENT_NONE;
+
   if(gui->fd < 0) {
     gui->fd = ConnectionNumber(gui->display);
     return false;
   }
-
   XEvent *e = &event->x_event;
 
   FD_ZERO(&gui->in_fds);
@@ -454,13 +453,11 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   if(num_ready_fds == 0) {
     hasEvent = 0;
   } else if(num_ready_fds < 0) {
-    //panic
     return false;
   }
-
+  
   if(hasEvent && XPending(gui->display)) {
     XNextEvent(gui->display, e);
-
     if(e->type == ClientMessage) {
       if(e->xclient.data.l[0] == gui->wmDeleteMessage) {
 	gui->running = 0;
@@ -490,7 +487,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
     } 
     return true;
   }
-  
+
   return false;
 }
 
