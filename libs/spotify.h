@@ -38,7 +38,7 @@ SPOTIFY_DEF bool spotify_bearer_token(char *output_buffer, u64 output_size) {
   char buffer[2][BUFFER_SIZE];
   u32 buffer_size = strlen(spotify_creds);
   
-  u64 out_buffer_size;
+  size_t out_buffer_size;
   if(!base64_encode(spotify_creds, buffer_size,
 		    buffer[1], BUFFER_SIZE - 1,
 		    &out_buffer_size)) {
@@ -146,7 +146,7 @@ SPOTIFY_DEF bool spotify_get_keyword(const Json track, char keyword[1024]) {
     pos += artist_name_len;
   }
 
-  u64 keyword_len;
+  size_t keyword_len;
   if(!http_encodeURI(temp, pos, keyword, 1023, &keyword_len)) {
     return false;
   }

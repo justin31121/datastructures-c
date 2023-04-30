@@ -437,7 +437,7 @@ HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse
 	    tokenizer.last = 0;
 	    printf("could not parse doctype\n");
 	}
-	if(!html_parse_node(&tokenizer, &no_events, node)) {
+	if(!html_parse_node(&tokenizer, &no_events, &node)) {
 	    return false;
 	}
 
