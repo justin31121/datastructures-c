@@ -441,22 +441,25 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 
   if(gui->fd < 0) {
     gui->fd = ConnectionNumber(gui->display);
+    
     return false;
   }
   XEvent *e = &event->x_event;
 
-  FD_ZERO(&gui->in_fds);
+  /*
   FD_SET(gui->fd, &gui->in_fds);
+  FD_ZERO(&gui->in_fds);
+  gui->tv.tv_usec = 0;
+  gui->tv.tv_sec = 1;
 
   int hasEvent = 1;
   int num_ready_fds = select(gui->fd + 1, &gui->in_fds, NULL, NULL, &gui->tv);
   if(num_ready_fds == 0) {
     hasEvent = 0;
-  } else if(num_ready_fds < 0) {
-    return false;
   }
   
-  if(hasEvent && XPending(gui->display)) {
+  */
+  if(XPending(gui->display)) {
     XNextEvent(gui->display, e);
     if(e->type == ClientMessage) {
       if(e->xclient.data.l[0] == gui->wmDeleteMessage) {
@@ -481,7 +484,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 	      e->type == KeyRelease) {
       event->type = GUI_EVENT_KEYPRESS;
       if(e->type == KeyRelease) {
-	event->type = GUI_EVENT_KEYPRESS;
+	event->type = GUI_EVENT_KEYRELEASE;
       }
       event->key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
     } 

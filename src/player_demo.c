@@ -546,9 +546,11 @@ int main(int argc, char **argv) {
 	if(state == STATE_DIR || state == STATE_SPOTIFY) {
 	  dir_buffer_pos += strlen(dir_buffer.data + dir_buffer_pos) + 1;
 	  if((size_t) dir_buffer_pos >= dir_buffer.len) dir_buffer_pos = 0;
-	  
-	  payload_buffer_pos += strlen(payload_buffer.data + payload_buffer_pos) + 1;
-	  if((size_t) payload_buffer_pos >= payload_buffer.len) payload_buffer_pos = 0;
+
+	  if(state == STATE_SPOTIFY) {
+	    	  payload_buffer_pos += strlen(payload_buffer.data + payload_buffer_pos) + 1;
+		  if((size_t) payload_buffer_pos >= payload_buffer.len) payload_buffer_pos = 0;
+	  }
 
 	  if(state == STATE_DIR) {
 	    if(!player_open_file(&player, dir_buffer.data + dir_buffer_pos)) {
@@ -764,7 +766,7 @@ int main(int argc, char **argv) {
       size_t payload_off = 0;
       while(dir_off < dir_buffer.len) {
 	float len = font_estimate_width2(&font, dir_buffer.data + dir_path_len + dir_off);
-	bool is_available = dir_off <= (size_t) dir_queried_pos;
+	bool is_available = state == STATE_DIR || dir_off <= (size_t) dir_queried_pos;
 	if(is_available && click &&
 	   mousex > draw_files_x &&
 	   mousey > file_y &&
@@ -802,7 +804,9 @@ int main(int argc, char **argv) {
 	render_line(&renderer, draw_files_x, file_y, &font, dir_buffer.data + dir_path_len + dir_off, color);
 	file_y -= (float) font.height;
 	dir_off += strlen(dir_buffer.data + dir_off) + 1;
-	payload_off += strlen(payload_buffer.data + payload_off) + 1;
+	if(state == STATE_SPOTIFY) {
+	  payload_off += strlen(payload_buffer.data + payload_off) + 1;
+	}
       }
 
     }
@@ -905,8 +909,10 @@ int main(int argc, char **argv) {
       dir_buffer_pos += strlen(dir_buffer.data + dir_buffer_pos) + 1;
       if((size_t) dir_buffer_pos >= dir_buffer.len) dir_buffer_pos = 0;
 
-      payload_buffer_pos += strlen(payload_buffer.data + payload_buffer_pos) + 1;
-      if((size_t) payload_buffer_pos >= payload_buffer.len) payload_buffer_pos = 0;
+      if(state == STATE_SPOTIFY) {
+	payload_buffer_pos += strlen(payload_buffer.data + payload_buffer_pos) + 1;
+	if((size_t) payload_buffer_pos >= payload_buffer.len) payload_buffer_pos = 0;	
+      }
 
       if(player.decoder_used) {
 	player_close(&player);
