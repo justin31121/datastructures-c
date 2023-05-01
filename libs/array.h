@@ -18,8 +18,12 @@ typedef struct{
 
 ARRAY_DEF Arr *arr_init(size_t msize);
 ARRAY_DEF Arr *arr_init2(size_t n, size_t msize);
+
 ARRAY_DEF void *arr_push(Arr *arr, void *ptr);
+ARRAY_DEF void *arr_pop(Arr *arr);
 ARRAY_DEF void *arr_get(const Arr *arr, size_t p);
+ARRAY_DEF void *arr_unshift(Arr *arr, void *ptr);
+
 ARRAY_DEF int arr_contains(const Arr *arr, void *src);
 ARRAY_DEF int arr_index(const Arr *arr, void *src);
 ARRAY_DEF void arr_free(Arr *arr);
@@ -82,6 +86,23 @@ ARRAY_DEF void *arr_push(Arr *arr, void *ptr) {
   }
   
   void *dest = (char *) arr->data + arr->msize*arr->count;
+  memcpy(dest, ptr, arr->msize);
+  arr->count++;
+  return dest;
+}
+
+ARRAY_DEF void *arr_unshift(Arr *arr, void *ptr) {
+  ARRAY_CHECK_NOTNULL(arr);
+  if(arr->count>=arr->size) {
+    arr_realloc(arr);
+  }
+
+  for(size_t i=arr->count-1;i>=0;i--) {
+    void *src = (char *) arr->data + arr->msize*i;
+    void *dest = (char *) arr->data + arr->msize*(i+1);
+    memcpy(src, dest, arr->msize);
+  }
+  void *dest = (char *) arr->data + arr->msize;
   memcpy(dest, ptr, arr->msize);
   arr->count++;
   return dest;

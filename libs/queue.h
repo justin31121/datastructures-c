@@ -1,6 +1,10 @@
 #ifndef QUEUE_H_
 #define QUEUE_H_
 
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
 typedef struct{
   void *buffer;
   size_t cap;
@@ -10,7 +14,9 @@ typedef struct{
 }Queue;
 
 Queue *queue_init(size_t cap, size_t memb);
+void queue_append_front(Queue *queue, const void *data);
 void queue_append(Queue *queue, const void *data);
+void *queue_pop_front(Queue *queue);
 void *queue_pop(Queue *queue);
 int queue_contains(const Queue *queue, const void *data);
 void queue_free(Queue *queue);
@@ -37,6 +43,22 @@ Queue *queue_init(size_t cap, size_t memb) {
   return queue;
 }
 
+void queue_append_front(Queue *queue, const void *data) {
+  if(queue->size>=queue->cap) {
+    fprintf(stderr, "ERORR: Queue-Overflow\n");
+    exit(1);
+  }
+  
+  int _pos = (queue->start - 1) % queue->cap;
+  if(_pos < 0) {
+    _pos = queue->cap - 1;
+  }
+  size_t pos = (size_t) _pos;
+  memcpy((char *) queue->buffer + pos*queue->memb, data, queue->memb);
+  queue->size++;
+  queue->start = pos;
+}
+
 void queue_append(Queue *queue, const void *data) {
   if(queue->size>=queue->cap) {
     fprintf(stderr, "ERORR: Queue-Overflow\n");
@@ -46,6 +68,19 @@ void queue_append(Queue *queue, const void *data) {
   size_t pos = (queue->start + queue->size) % queue->cap;
   memcpy((char *) queue->buffer + pos*queue->memb, data, queue->memb);
   queue->size++;
+}
+
+bool queue_maybe_pop(Queue *queue, void **out) {
+  if(queue->size<=0) {
+    return false;
+  }
+  
+  void *v = (char *) queue->buffer + queue->memb*queue->start;
+  queue->start = (queue->start + 1) % queue->cap;
+  queue->size--;
+  *out = v;
+
+  return true;
 }
 
 void *queue_pop(Queue *queue) {
