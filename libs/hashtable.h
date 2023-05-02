@@ -99,7 +99,7 @@ HASHTABLE_DEF void ht_entry_create(Ht_Entry *entry,
     fprintf(stderr, "ERROR: Can not allocate enough memory: ht_entry_create\n");
     exit(1);
   }
-  memcpy(entry->key, key, key_size+1);
+  memcpy(entry->key, key, key_size);
   entry->key_size = key_size;
 
   entry->value = malloc(value_size);

@@ -179,10 +179,10 @@ void on_error(const char *message, u64 pos, void *arg) {
 	 message);
 }
 
-void *on_node(string name, void *arg) {
+bool on_node(string name, void *arg, void **node) {
   (void) arg;
-  Node *node = node_alloc(name);
-  return node;
+  *node = node_alloc(name);
+  return true;
 }
 
 void on_node_attribute(void *node, string key, string value, void *arg) {

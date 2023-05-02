@@ -1,0 +1,7 @@
+-*- mode: compilation; default-directory: "c:/Users/jschartner/Documents/datastructures-c/" -*-
+Compilation started at Tue May  2 11:09:20
+
+cd .. && gcc -o youtube ./src/youtube.c -lcrypto -lssl -lws2_32 && youtube
+p'vUÃ
+
+Compilation finished at Tue May  2 11:09:23

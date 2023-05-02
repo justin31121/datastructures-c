@@ -8,14 +8,14 @@
 int main() {
 
   Regex regex;
-  if(!regex_compile(&regex, "a\\.c")) { 
+  if(!regex_compile(&regex, "a[:print:]*c")) {
     panic("regex_compile");
   }
  
   regex_print(&regex);
   printf("==============================================================\n");  
 
-  const char *cstr = "a.c";
+  const char *cstr = "aBB00120_39192aBc";
   size_t off, len;
   if(regex_match(&regex, cstr, &off, &len)) {
     printf("GOOD: regex matched: '%s' with '%.*s'\n", cstr, (int) len, cstr + off);

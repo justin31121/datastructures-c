@@ -146,6 +146,12 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file) {
 IO_DEF void io_dir_close(Io_Dir *dir) {
   FindClose(dir->handle);
 }
+
+IO_DEF bool io_exists(const char *file_path, bool *is_file) {
+    DWORD attribs = GetFileAttributes(file_path);
+    *is_file = !(attribs & FILE_ATTRIBUTE_DIRECTORY);
+    return attribs != INVALID_FILE_ATTRIBUTES;
+}
 #endif //_WIN32
 
 #endif //IO_IMPLEMENTATION
