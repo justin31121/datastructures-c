@@ -17,7 +17,7 @@
 #endif //PLAYER_DEF
 
 #define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 6
+#define PLAYER_N 8
 #define PLAYER_VOLUME 0.1f
 
 #define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
@@ -161,7 +161,6 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
     if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	      "HEAD %s HTTP/1.1\r\n"
 	      "Host: %.*s\r\n"
-	      "Connection: Close\r\n"
 	      "\r\n",
 	      socket->route, socket->http.host_len,
 	      socket->http.host)) {
@@ -183,7 +182,12 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
       return false;
     }
   }
-  
+
+  http_free(&socket->http);
+  if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+    return false;
+  }
+
   if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	    "GET %s HTTP/1.1\r\n"
 	    "Host: %.*s\r\n"
@@ -198,6 +202,7 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
   if(!http_skip_headers(&socket->http,
 			socket->buffer, PLAYER_BUFFER_CAP,
 			&socket->nbytes_total, &socket->offset)) {
+    printf("here it fails\n");
     return false;
   }
   
