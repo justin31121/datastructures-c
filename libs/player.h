@@ -183,6 +183,7 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
       return false;
     }
   }
+
   
   if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	    "GET %s HTTP/1.1\r\n"
@@ -198,6 +199,7 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
   if(!http_skip_headers(&socket->http,
 			socket->buffer, PLAYER_BUFFER_CAP,
 			&socket->nbytes_total, &socket->offset)) {
+    printf("here4\n"); fflush(stdout);
     return false;
   }
   
@@ -587,7 +589,7 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url) {
 		   player_decoder_url_seek, &player->decoder_socket,
 		   player->fmt, player->channels, player->current_volume, player->samples)) {
     player_socket_free(&player->decoder_socket);
-    player->decoder_memory = (Player_Memory) {0};
+    player->decoder_memory = (Player_Memory) {0};    
     return false;
   }
 

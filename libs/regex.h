@@ -449,7 +449,9 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 		    }		    
 		}
 	    }
+#ifdef __GNUC__
 	    [[fallthrough]];
+#endif //__GNUC__
 	}  //Intentionally should fall through
 	default: {
 	    Regex *last = &stack[stack_len-1];
