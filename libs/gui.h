@@ -12,7 +12,7 @@
 GLuint (*glCreateShader)(GLenum shaderType) = NULL;
 void (*glShaderSource) (GLuint shader,
 			GLsizei count,
-			const GLchar **string,
+			const GLchar **_string,
 			const GLint *length)= NULL;
 void (*glCompileShader)(GLuint shader) = NULL;
 void (*glGetShaderiv)(GLuint shader, GLenum pname, GLint *params) = NULL;
@@ -120,9 +120,9 @@ GLuint glCreateShader(GLenum shaderType) { return _glCreateShader(shaderType); }
 PROC _glShaderSource = NULL;
 void glShaderSource(GLuint shader,
 		    GLsizei count,
-		    const GLchar **string,
+		    const GLchar **_string,
 		    const GLint *length) {
-  _glShaderSource(shader, count, string, length);
+  _glShaderSource(shader, count, _string, length);
 }
 
 PROC _glCompileShader = NULL;
@@ -431,7 +431,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
 
   gui->fd = -1; //ConnectionNumber(gui->display);  
   gui->tv.tv_usec = 0;
-  gui->tv.tv_sec = 1;  
+  gui->tv.tv_sec = 1;
   return true;
 }
 
@@ -441,7 +441,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 
   if(gui->fd < 0) {
     gui->fd = ConnectionNumber(gui->display);
-    
+
     return false;
   }
   XEvent *e = &event->x_event;
@@ -487,7 +487,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 	event->type = GUI_EVENT_KEYRELEASE;
       }
       event->key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
-    } 
+    }
     return true;
   }
 
@@ -876,7 +876,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   }
 
   if(event->type) {
-    return true;
+      return true;
   }
   
   bool result = PeekMessage(msg, gui->win, 0, 0, PM_REMOVE);
@@ -923,7 +923,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   default: {     
   } break;
   }
-  
+
   return result;
 }
 

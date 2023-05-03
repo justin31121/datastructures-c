@@ -321,7 +321,7 @@ YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk
 		string_buffer_append(jsFile, "\0", 1);
 
 		char filename[128];
-		if(snprintf(filename, 128, "base%lu.js", bases->count) >= 128) {
+		if(snprintf(filename, 128, "base%zd.js", bases->count) >= 128) {
 		    return false;
 		}
 

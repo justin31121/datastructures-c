@@ -228,7 +228,7 @@ HTTP_DEF size_t _fwrite(const void *data, size_t size, size_t memb, void *userda
 
 #ifdef HTTP_IMPLEMENTATION
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #  pragma comment(lib,"ws2_32.lib")
 #  ifndef HTTP_NO_SSL
 #    pragma comment(lib, "crypt32.lib")
@@ -1544,7 +1544,6 @@ HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nb
   do {
     int read = http_read(http, buf, count);
     if(read <= 0) {
-      int err = SSL_get_error(http->conn, read);
       return false;
     }
     

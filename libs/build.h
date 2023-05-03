@@ -3,19 +3,63 @@
 
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <windows.h>
 #include <process.h>
+
+#ifdef BUILD_IMPLEMENTATION
+#define IO_IMPLEMENTATION
+#endif //BUILD_IMPLEMENTATION
+
+#include "./io.h"
 
 #ifndef BUILD_DEF
 #define BUILD_DEF static inline
 #endif //BUILD_DEF
 
+
 BUILD_DEF int run();
-BUILD_DEF void rebuild_urself(int argc, char **argv);
 BUILD_DEF char *join(const char *delim);
 
+BUILD_DEF bool gcc();
+BUILD_DEF bool msvc();
+BUILD_DEF bool windows();
+BUILD_DEF bool linux();
+
 #ifdef BUILD_IMPLEMENTATION
+
+BUILD_DEF bool windows() {
+#ifdef _WIN32
+    return true;
+#else
+    return false;
+#endif //_WIN32
+}
+
+BUILD_DEF bool linux() {
+#ifdef linux
+    return true;
+#else
+    return false;
+#endif //linux
+}
+
+BUILD_DEF bool msvc() {
+#ifdef _MSC_VER
+    return true;
+#else
+    return false;
+#endif //_MSC_VER
+}
+
+BUILD_DEF bool gcc() {
+#ifdef __GNUC__
+    return true;
+#else
+    return false;
+#endif //__GNUC__
+}
 
 BUILD_DEF LPSTR GetLastErrorAsString(void)
 {
@@ -111,7 +155,7 @@ BUILD_DEF int run_impl(int d, ...) {
     PROCESS_INFORMATION piProcInfo;
     ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
 
-    printf("[RUNNING]: %s\n", cmd_line);
+    printf("[RUNNING]: %s\n", cmd_line); fflush(stdout);
     
     BOOL bSuccess =
         CreateProcess(
@@ -156,100 +200,6 @@ BUILD_DEF int run_impl(int d, ...) {
     return (int) exit_status;
 }
 
-#ifndef REBUILD_URSELF
-#  if _WIN32
-#    if defined(__GNUC__)
-#       define REBUILD_URSELF(binary_path, source_path) run("gcc", "-o", binary_path, source_path)
-#    elif defined(__clang__)
-#       define REBUILD_URSELF(binary_path, source_path) run("clang", "-o", binary_path, source_path)
-#    elif defined(_MSC_VER)
-#       define REBUILD_URSELF(binary_path, source_path) run("cl.exe", source_path)
-#    endif
-#  else
-#    define REBUILD_URSELF(binary_path, source_path) CMD("cc", "-o", binary_path, source_path)
-#  endif
-#endif
-
-BUILD_DEF HANDLE fd_open_for_read(const char *path) {
-    SECURITY_ATTRIBUTES saAttr = {0};
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saAttr.bInheritHandle = TRUE;
-
-    HANDLE result = CreateFile(
-                    path,
-                    GENERIC_READ,
-                    0,
-                    &saAttr,
-                    OPEN_EXISTING,
-                    FILE_ATTRIBUTE_READONLY,
-                    NULL);
-
-    if (result == INVALID_HANDLE_VALUE) {
-	fprintf(stderr, "ERROR: Could not open file: '%s'\n", path);
-	exit(1);
-    }
-
-    return result;
-}
-
-BUILD_DEF int is_path1_modified_after_path2(const char *path1, const char *path2)
-{
-    FILETIME path1_time, path2_time;
-
-    HANDLE path1_fd = fd_open_for_read(path1);
-    if (!GetFileTime(path1_fd, NULL, NULL, &path1_time)) {
-        fprintf(stderr, "ERROR: Could not get time of '%s'\n", path1);
-	fprintf(stderr, "REASON: %s", path1, GetLastErrorAsString());
-	exit(1);
-    }
-    CloseHandle(path1_fd);
-
-    HANDLE path2_fd = fd_open_for_read(path2);
-    if (!GetFileTime(path2_fd, NULL, NULL, &path2_time)) {
-	fprintf(stderr, "ERROR: Could not get time of '%s'\n", path2);
-	fprintf(stderr, "REASON: %s", path1, GetLastErrorAsString());
-	exit(1);
-    }
-    CloseHandle(path2_fd);
-
-    return CompareFileTime(&path1_time, &path2_time) == 1;
-}
-
-#define rebuild_urself(argc, argv) do {					\
-	const char *source = __FILE__;					\
-	const char *binary = join2_impl(1, ".", argv[0], "exe", NULL);	\
-	const char *binary_temp = join2_impl(1, ".", argv[0], "exe", "temp"); \
-									\
-	if(is_path1_modified_after_path2(source, binary)) {		\
-	    int ret = REBUILD_URSELF(binary, source);			\
-	    if(ret != 0) {						\
-		exit(ret);						\
-	    }								\
-	    size_t len = 0;						\
-	    for(int i=0;i<argc;i++) {					\
-		len += strlen(argv[i]);					\
-		if(i != argc-1) len += 1;				\
-	    }								\
-									\
-	    char *content = malloc(len + 1);				\
-	    if(!content) {						\
-		fprintf(stderr, "ERROR: Can not allocate enough memory\n"); \
-		exit(1);						\
-	    }								\
-									\
-	    len = 0;							\
-	    for(int i=0;i<argc;i++) {					\
-		size_t arg_len = strlen(argv[i]);			\
-		memcpy(content + len, argv[i], arg_len);		\
-		len += arg_len;						\
-		if(i != argc-1) content[len++] = ' ';			\
-	    }								\
-	    content[len] = 0;						\
-									\
-	    printf("now i just have to execute: '%s'\n", content);	\
-	    exit(0);							\
-	}								\
-    }while(0)
 #endif //BUILD_IMPLEMENTATION
 
 #endif //BUILD_H_H
