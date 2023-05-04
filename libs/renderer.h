@@ -73,6 +73,7 @@ RENDER_DEF void renderer_solid_triangle3(Renderer *renderer,
 					 Vec2f p1, Vec2f p2, Vec2f p3, Vec4f c1, Vec4f c2, Vec4f c3);
 RENDER_DEF void renderer_solid_rect(Renderer *renderer, Vec2f pos, Vec2f size, Vec4f color);
 RENDER_DEF void renderer_image_rect(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f usvs);
+RENDER_DEF void renderer_image_rect_alpha(Renderer *r, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, float alpha);
 RENDER_DEF unsigned int renderer_push_texture(Renderer *renderer, int width, int height, char *data, bool grey);
 RENDER_DEF void renderer_text(Renderer *renderer, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, Vec4f c);
 RENDER_DEF void renderer_set_shader(Renderer *renderer, Renderer_Shader shader);
@@ -124,7 +125,9 @@ static const char *renderer_frag_shader_sources[] = {
     "in vec2 out_uv;\n"
     "\n"
     "void main() {\n"
-    "  gl_FragColor = texture(image, vec2(out_uv.x, 1-out_uv.y));\n"
+    "  vec4 color = texture(image, vec2(out_uv.x, 1-out_uv.y));\n"
+    "  color.w = color.w * out_color.w;\n"
+    "  gl_FragColor = color;\n"
     "}\n",
     [SHADER_FOR_RIPPLE] = //http://adrianboeing.blogspot.com/2011/02/ripple-effect-in-webgl.html
     "#version 330 core\n"
@@ -315,7 +318,17 @@ RENDER_DEF void renderer_solid_rect(Renderer *r, Vec2f pos, Vec2f size, Vec4f co
 
 RENDER_DEF void renderer_image_rect(Renderer *r, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs)
 {
-  Vec4f c = vec4f(0, 0, 0, 0);
+  Vec4f c = vec4f(1, 1, 1, 1);
+  renderer_quad(
+		r,
+		p, vec2f_add(p, vec2f(s.x, 0)), vec2f_add(p, vec2f(0, s.y)), vec2f_add(p, s),
+		c, c, c, c,
+		uvp, vec2f_add(uvp, vec2f(uvs.x, 0)), vec2f_add(uvp, vec2f(0, uvs.y)), vec2f_add(uvp, uvs));
+}
+
+RENDER_DEF void renderer_image_rect_alpha(Renderer *r, Vec2f p, Vec2f s, Vec2f uvp, Vec2f uvs, float alpha)
+{
+  Vec4f c = vec4f(1, 1, 1, alpha);
   renderer_quad(
 		r,
 		p, vec2f_add(p, vec2f(s.x, 0)), vec2f_add(p, vec2f(0, s.y)), vec2f_add(p, s),
