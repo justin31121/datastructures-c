@@ -149,7 +149,7 @@ IO_DEF void io_dir_close(Io_Dir *dir) {
 
 IO_DEF bool io_exists(const char *file_path, bool *is_file) {
     DWORD attribs = GetFileAttributes(file_path);
-    *is_file = !(attribs & FILE_ATTRIBUTE_DIRECTORY);
+    if(is_file) *is_file = !(attribs & FILE_ATTRIBUTE_DIRECTORY);
     return attribs != INVALID_FILE_ATTRIBUTES;
 }
 #endif //_WIN32

@@ -150,7 +150,7 @@ REGEX_DEF bool regex_alnum_underscore_dot(char c) {
 REGEX_DEF const char *regex_function_name(Regex_Function function) {
     size_t functions_count = sizeof(regex_functions) / sizeof(regex_functions[0]);
     for(size_t i=0;i<functions_count;i++) {
-	if( ((void *) function) == ((void *) regex_functions[i]) ) {
+	if( function == regex_functions[i] ) {
 	    return regex_functions_names[i];
 	}
     }
@@ -405,6 +405,10 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 	    i++;
 	    continue;
 	} break;
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif //__GNUC__
 	case '[': {
 	    if(i+2 < regex_cstr_len && regex_cstr[i+1] == ':') {
 		size_t j=i+2;
@@ -449,9 +453,6 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 		    }		    
 		}
 	    }
-#ifdef __GNUC__
-	    [[fallthrough]];
-#endif //__GNUC__
 	}  //Intentionally should fall through
 	default: {
 	    Regex *last = &stack[stack_len-1];
@@ -470,6 +471,9 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 	    continue;
 	} break;
 	}
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif //__GNUC__
     }
 
     if(stack_len != 1) {

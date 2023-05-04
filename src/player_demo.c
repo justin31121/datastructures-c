@@ -289,8 +289,8 @@ void play(State state) {
 	}
 
 	if(!player_open_url(&player, url)) {
-	    printf("%s\n", url);
-	    panic("player_open_url");
+	  printf("%s\n", url);
+	  panic("player_open_url");
 	}
 
 	for(int i=0;i<3;i++) string_buffer_free(&sbs[i]);
@@ -324,7 +324,8 @@ void play(State state) {
 	}
 
 	if(!player_open_url(&player, url)) {
-	    panic("player_open_url");
+	  printf("%s\n", url);
+	  panic("player_open_url");
 	}
 
 	for(int i=0;i<3;i++) string_buffer_free(&sbs[i]);

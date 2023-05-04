@@ -58,7 +58,7 @@ typedef struct{
   
   int n;
   int buffer_size;
-  char *buffers;
+  unsigned char *buffers;
 
   int *buffers_size;
 
@@ -68,7 +68,7 @@ typedef struct{
 DECODER_DEF bool decoder_buffer_init(Decoder_Buffer *buffer, int n, int buffer_size);
 DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, int index);
 DECODER_DEF void decoder_buffer_reset(Decoder_Buffer *buffer);
-DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, char **data, int *data_size);
+DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, unsigned char **data, int *data_size);
 DECODER_DEF void decoder_buffer_free(Decoder_Buffer *buffer);
 
 typedef int (*Decoder_Read_Function)(void *opaque, uint8_t* buffer, int buffer_size);
@@ -119,7 +119,7 @@ DECODER_DEF void decoder_get_waveformat(WAVEFORMATEX *waveFormat,
 
 #ifdef DECODER_IMPLEMENTATION
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #pragma comment(lib, "avcodec.lib")
 #pragma comment(lib, "avformat.lib")
 #pragma comment(lib, "avutil.lib")
@@ -205,7 +205,7 @@ DECODER_DEF bool decoder_get_sample_rate(const char *filepath, int *sample_rate)
 
 DECODER_DEF bool decoder_buffer_init(Decoder_Buffer *buffer, int n, int buffer_size) {
   
-  buffer->buffers = (char *) malloc(sizeof(char) * (n+1) * buffer_size);
+  buffer->buffers = (unsigned char *) malloc(sizeof(unsigned char) * (n+1) * buffer_size);
   if(!buffer->buffers) {
     fprintf(stderr, "ERROR: decoder_buffer_init: Can not allocate enough memory\n");
     return false;
@@ -283,7 +283,7 @@ DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, i
   return true;
 }
 
-DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, char **data, int *data_size) {
+DECODER_DEF bool decoder_buffer_next(Decoder_Buffer *buffer, unsigned char **data, int *data_size) {
 
   *data = buffer->buffers + (buffer->play_step++ % buffer->n) * buffer->buffer_size;
   *data_size = buffer->last_size + buffer->buffer_size * (1 - buffer->last_size);

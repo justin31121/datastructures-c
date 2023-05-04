@@ -120,6 +120,7 @@ static const char *renderer_frag_shader_sources[] = {
     "\n"
     "uniform sampler2D image;\n"
     "\n"
+    "in vec4 out_color;\n"
     "in vec2 out_uv;\n"
     "\n"
     "void main() {\n"

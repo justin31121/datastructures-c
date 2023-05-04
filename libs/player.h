@@ -17,7 +17,7 @@
 #endif //PLAYER_DEF
 
 #define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 6
+#define PLAYER_N 5
 #define PLAYER_VOLUME 0.1f
 
 #define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
@@ -155,13 +155,15 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
     }
   }
 
+  bool close_connection = false;
+
   char request_buffer[PLAYER_BUFFER_CAP];
   if(end == 0) {
     HttpHeader header;
     if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	      "HEAD %s HTTP/1.1\r\n"
 	      "Host: %.*s\r\n"
-	      "Connection: Close\r\n"
+	      "Connection: Keep-Alive\r\n"
 	      "\r\n",
 	      socket->route, socket->http.host_len,
 	      socket->http.host)) {
@@ -180,14 +182,27 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
     }
 
     if(!string_chop_int(&value, &end)) {
-      return false;
+	printf("string_chop_int ? \n"); fflush(stdout);
+	return false;
+    }
+
+    if(http_header_has(&header, STRING("Connection"), &value) &&
+       (string_eq(value, STRING("close")) || string_eq(value, STRING("Close"))) ) {
+	close_connection = true;
     }
   }
 
-  
+  if(close_connection) {
+      http_free(&socket->http);
+      if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+	  return false;
+      }      
+  }
+
   if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
 	    "GET %s HTTP/1.1\r\n"
 	    "Host: %.*s\r\n"
+	    "Connection: Keep-Alive\r\n"
 	    "Range: bytes=%d-%d\r\n"
 	    "\r\n", socket->route, socket->http.host_len, socket->http.host, start, end)) {
     return false;
@@ -645,7 +660,7 @@ PLAYER_DEF void *player_play_thread(void *arg) {
   }
 
   //play buffer
-  char *data;
+  unsigned char *data;
   int data_size;
   while(player->playing &&
 	decoder_buffer_next(&player->buffer, &data, &data_size)) {

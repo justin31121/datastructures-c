@@ -101,7 +101,6 @@ JSON_PARSER_DEF bool json_parse_number(Tokenizer *t, const Json_Parse_Events *ev
   }
 
   bool parsed_minus = false;
-  bool parsed_dot = false;
 
   if(token.type == TOKENTYPE_MINUS) {
     tokenizer_next(t, &token);
@@ -166,7 +165,6 @@ JSON_PARSER_DEF bool json_parse_number(Tokenizer *t, const Json_Parse_Events *ev
       }
       return true;
     }
-    parsed_dot = true;
   }
 
   if(token.type == TOKENTYPE_WORD) {

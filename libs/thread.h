@@ -37,7 +37,7 @@ int thread_create(Thread *id, void* (*function)(void *), void *arg) {
 #ifdef _MSC_VER
       _beginthread(function, 0, arg);
 #else
-  _beginthread((_beginthread_proc_type) (void *)function, 0, arg);
+  _beginthread((_beginthread_proc_type) function, 0, arg);
 #endif    
 
   if(ret == -1) {

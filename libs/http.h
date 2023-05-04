@@ -228,7 +228,7 @@ HTTP_DEF size_t _fwrite(const void *data, size_t size, size_t memb, void *userda
 
 #ifdef HTTP_IMPLEMENTATION
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #  pragma comment(lib,"ws2_32.lib")
 #  ifndef HTTP_NO_SSL
 #    pragma comment(lib, "crypt32.lib")
@@ -1256,7 +1256,7 @@ HTTP_DEF ssize_t http_send(Http *http, const void *buf, size_t len) {
 }
 
 HTTP_DEF ssize_t http_read(Http *http, void *buf, size_t count) {
-#ifndef HTTP_NO_SSL
+#ifndef HTTP_NO_SSL  
   if(http->conn != NULL) {
     return SSL_read(http->conn, buf, count);
   }
@@ -1542,9 +1542,13 @@ HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_ty
 
 HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nbytes_total, int *offset) {
   do {
-    *nbytes_total = http_read(http, buf, count);
+    int read = http_read(http, buf, count);
+    if(read <= 0) {
+      return false;
+    }
     
-    if(*nbytes_total == -1) {
+    *nbytes_total = (ssize_t) read;
+    if(*nbytes_total < 0 ) {
       return false;
     }
 

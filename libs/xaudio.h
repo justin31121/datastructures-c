@@ -21,11 +21,13 @@ IXAudio2MasteringVoice *xaudioMasteringVoice = NULL;
 XAUDIO_DEF bool xaudio_init(int channels, int sample_rate);
 XAUDIO_DEF bool xaudio_device_init(XAudio2Device *device, const WAVEFORMATEX *pSourceFormat);
 XAUDIO_DEF void xaudio_device_free(XAudio2Device *device);
-XAUDIO_DEF void xaudio_device_play(XAudio2Device *device, BYTE* data, UINT32 size);
+XAUDIO_DEF void xaudio_device_play(XAudio2Device *device, unsigned char* data, UINT32 size);
 
 #ifdef XAUDIO_IMPLEMENTATION
 
-#pragma comment(lib, "ole32.lib")
+#ifdef _MSC_VER
+# pragma comment(lib, "ole32.lib")
+#endif //_MCS_VER
 
 XAUDIO_DEF void xaudio_OnBufferEnd(IXAudio2VoiceCallback* This, void* pBufferContext) {
   XAudio2Device *device = (XAudio2Device *) pBufferContext;
@@ -104,7 +106,7 @@ XAUDIO_DEF bool xaudio_device_init(XAudio2Device *device, const WAVEFORMATEX *pS
   return true;
 }
 
-XAUDIO_DEF void xaudio_device_play(XAudio2Device* device, BYTE* data, UINT32 size) {
+XAUDIO_DEF void xaudio_device_play(XAudio2Device* device, unsigned char* data, UINT32 size) {
   XAUDIO2_BUFFER xaudioBuffer = {0};
   
   xaudioBuffer.AudioBytes = size;
