@@ -242,7 +242,7 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   player->channels = channels;
   player->sample_rate = 0;
   player->file = NULL;
-  player->current_volume = -1.f;
+  player->current_volume = PLAYER_VOLUME;
   player->decoder_memory = (Player_Memory) {0};
   player->decoder_socket.len = -1;
 
@@ -551,12 +551,13 @@ PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 		   player->file,
 		   player->fmt,
 		   player->channels,
-		   PLAYER_VOLUME,
+		   player->current_volume,
 		   player->samples)) {
     fclose(player->file);
     player->file = NULL;
     return false;
   }
+  player->current_volume = PLAYER_VOLUME;
 
   if(!player_device_init(player, player->decoder.sample_rate)) {
     decoder_free(&player->decoder);
