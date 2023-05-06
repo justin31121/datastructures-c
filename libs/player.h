@@ -101,7 +101,7 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url);
 PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int buf_size);
 PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence);
 
-
+PLAYER_DEF bool player_open(Player *player, const char *path);
 PLAYER_DEF bool player_close(Player *player);
 
 PLAYER_DEF bool player_device_init(Player *player, int sample_rate);
@@ -539,6 +539,15 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
     return (int64_t) socket->pos;
 }
 
+PLAYER_DEF bool player_open(Player *player, const char *path) {
+  if(player_open_file(player, path)) {
+    return true;
+  } else if(player_open_url(player, path)) {
+    return true;
+  }
+  return false;
+}
+
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 
   player->file = fopen(filepath, "rb");
@@ -624,8 +633,7 @@ PLAYER_DEF bool player_close(Player *player) {
     return false;
   }
 
-  player_stop(player);
-    
+  player_stop(player);    
   decoder_free(&player->decoder);
 
   //FREE any kind of track ? 
@@ -714,7 +722,7 @@ PLAYER_DEF bool player_stop(Player *player) {
   }
 
   //stop player
-  player->playing = false; //this would be better seperated
+  player->playing = false;
   thread_join(player->audio_thread);
   player->buffer.last_size = -2;
   thread_join(player->decoding_thread);

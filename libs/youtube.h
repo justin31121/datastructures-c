@@ -20,14 +20,55 @@
 #include "./json.h"
 #include "./regex.h"
 
+#define YOUTUBE_HOSTNAME "www.youtube.com"
+
+typedef struct{
+  Http http;
+  String_Buffer sbs[3];
+  Ht *bases;
+  duk_context *duk_ctx;
+}Youtube_Context;
+
+YOUTUBE_DEF bool youtube_context_init(Youtube_Context *context);
+YOUTUBE_DEF void youtube_context_free(Youtube_Context *context);
+YOUTUBE_DEF bool youtube_context_start(Youtube_Context *context);
+YOUTUBE_DEF void youtube_context_stop(Youtube_Context *context);
+
 const char* get_title(Json videoRenderer);
 
-YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out);
-YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Json *out);
-YOUTUBE_DEF bool youtube_video(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, const char *videoId, Json *out);
-YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, string videoId, Json *out);
+YOUTUBE_DEF bool youtube_search(Youtube_Context *context, const char *keyword, Json *out);
+YOUTUBE_DEF bool youtube_initial_data(Youtube_Context *context, const char *videoId, Json *out);
+YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *out);
+YOUTUBE_DEF bool youtube_get_videoId(const char *url, string *videoId);
+YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, char **url, char **name);
+
 
 #ifdef YOUTUBE_IMPLEMENTATION
+
+YOUTUBE_DEF bool youtube_get_videoId(const char *url, string *videoId) {
+    string id = {0};
+
+    string url_string = string_from_cstr(url);
+
+    if(!string_chop_string(&url_string, STRING("https://www.youtube.com/watch?"))) {
+	return false;
+    }
+  
+    while(url_string.len) {    
+	string pair = string_chop_by_delim(&url_string, '&');
+	string value = string_chop_by_delim(&pair, '=');
+	if(string_eq(value, STRING("v"))) {
+	    id = pair;
+	}
+    }
+
+    if(!id.len) {
+	return false;
+    }
+
+    *videoId = id;
+    return true;
+}
 
 const char* get_title(Json videoRenderer) {
     if(json_has(videoRenderer, "title")) {
@@ -44,8 +85,8 @@ const char* get_title(Json videoRenderer) {
     return NULL;
 }
 
-YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out) {
-    if(!http) {
+YOUTUBE_DEF bool youtube_search(Youtube_Context *context, const char *keyword, Json *out) {
+    if(!context) {
 	return false;
     }
   
@@ -55,15 +96,15 @@ YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out) {
 	return false;
     }
 
-    String_Buffer sb = {0};
-    if(!http_request(http, buffer, "GET", NULL, NULL, string_buffer_callback, &sb, NULL, NULL)) {
+    context->sbs[0].len = 0;
+    if(!http_request(&context->http, buffer, "GET", NULL, NULL, string_buffer_callback, &context->sbs[0], NULL, NULL)) {
 	return false;
     }
 
     const char *target = "ytInitialData = ";
     u32 target_len = strlen(target);
     
-    string s = string_from(sb.data, sb.len);
+    string s = string_from(context->sbs[0].data, context->sbs[0].len);
     s32 pos = string_index_of(s, target);
     if(pos < 0) {
 	return false;
@@ -78,7 +119,7 @@ YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out) {
     }
 
     Json json;
-    if(!json_parse_len(sb.data + off, _pos - off - 1, &json)) {
+    if(!json_parse_len(context->sbs[0].data + off, _pos - off - 1, &json)) {
 	return false;
     }
 
@@ -144,15 +185,14 @@ YOUTUBE_DEF bool youtube_search(Http *http, const char *keyword, Json *out) {
     }
 
     json_free_all(json);
-    string_buffer_free(&sb);
 
     *out = arr;
   
     return true;
 }
 
-YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char *videoId, Json *out) {
-    if(!http || !sb || !out || !videoId) {
+YOUTUBE_DEF bool youtube_initial_data(Youtube_Context *context, const char *videoId, Json *out) {
+    if(!context || !out || !videoId) {
 	return false;
     }
 
@@ -161,14 +201,15 @@ YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char 
 	return false;
     }
 
-    if(!http_request(http, route_buffer, "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
+    context->sbs[0].len = 0;
+    if(!http_request(&context->http, route_buffer, "GET", NULL, NULL, string_buffer_callback, &context->sbs[0], NULL, NULL)) {
 	return false;
     }
 
     const char *target = "ytInitialData = ";
     u32 target_len = strlen(target);
 
-    string content = string_from(sb->data, sb->len);
+    string content = string_from(context->sbs[0].data, context->sbs[0].len);
     int start = string_index_of(content, target);
     if(start == -1) {
 	return false;
@@ -179,10 +220,10 @@ YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char 
 	return false;
     }
 
-    write_file_len("compact.json", sb->data + start + target_len, end - start - target_len - 1);
+    write_file_len("compact.json", context->sbs[0].data + start + target_len, end - start - target_len - 1);
 
     Json initialData;
-    if(!json_parse_len(sb->data + start + target_len, end - start - target_len - 1, &initialData)) {
+    if(!json_parse_len(context->sbs[0].data + start + target_len, end - start - target_len - 1, &initialData)) {
 	return false;
     }
 
@@ -191,13 +232,9 @@ YOUTUBE_DEF bool youtube_initial_data(Http *http, String_Buffer *sb, const char 
     return true;
 }
 
-YOUTUBE_DEF bool youtube_video(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, const char *videoId, Json *out) {
-    return youtube_video2(http, sbs, bases, duk_ctx, string_from_cstr(videoId), out);
-}
+YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *out) {
 
-YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk_context *duk_ctx, string videoId, Json *out) {
-
-    if(!http) {
+    if(!context) {
 	return false;
     }
 
@@ -206,14 +243,14 @@ YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk
 	return false;
     }
   
-    String_Buffer *sb = &sbs[0];
+    String_Buffer *sb = &context->sbs[0];
     sb->len = 0;
-    String_Buffer *buffer = &sbs[1];
+    String_Buffer *buffer = &context->sbs[1];
     buffer->len = 0;
-    String_Buffer *jsFile = &sbs[2];
+    String_Buffer *jsFile = &context->sbs[2];
     jsFile->len = 0;
 
-    if(!http_request(http, route_buffer, "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
+    if(!http_request(&context->http, route_buffer, "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
 	return false;
     }
 
@@ -287,9 +324,9 @@ YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk
 	    string_buffer_append(jsFile, url, strlen(url));
 	    string_buffer_append(jsFile, "\")\0", 3);
     
-	    duk_eval_string(duk_ctx, jsFile->data);
+	    duk_eval_string(context->duk_ctx, jsFile->data);
 	    json_free_all(json_get(format, "url"));
-	    json_put_string(format, "url", duk_get_string(duk_ctx, -1));
+	    json_put_string(format, "url", duk_get_string(context->duk_ctx, -1));
 	}
     } else {
 	Regex regexs[4] = {0};
@@ -310,26 +347,26 @@ YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk
 	string_buffer_append(buffer, sb->data + offset, len);
 	string_buffer_append(buffer, "\0", 1);
 
-	if(bases != NULL) {
-	    char *base_path = (char *) ht_get(bases, buffer->data);
+	if(context->bases != NULL) {
+	    char *base_path = (char *) ht_get(context->bases, buffer->data);
 	    if(base_path != NULL) {
 		slurp_file2(base_path, string_buffer_callback, jsFile);
 	    } else {
-		if(!http_request(http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
+		if(!http_request(&context->http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
 		    return false;
 		}
 		string_buffer_append(jsFile, "\0", 1);
 
 		char filename[128];
-		if(snprintf(filename, 128, "base%zd.js", bases->count) >= 128) {
+		if(snprintf(filename, 128, "base%zd.js", context->bases->count) >= 128) {
 		    return false;
 		}
 
 		write_file_len(filename, jsFile->data, jsFile->len);
-		ht_insert(bases, buffer->data, filename, strlen(filename));
+		ht_insert(context->bases, buffer->data, filename, strlen(filename));
 	    }
 	} else {
-	    if(!http_request(http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
+	    if(!http_request(&context->http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
 		return false;
 	    }
 	    string_buffer_append(jsFile, "\0", 1);
@@ -429,15 +466,15 @@ YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk
 	    string_buffer_append(jsFile, prefix_encode, strlen(prefix_encode));
 	    string_buffer_append(jsFile, url.data, url.len);
 	    string_buffer_append(jsFile, "\")\0", 3);
-	    duk_eval_string(duk_ctx, jsFile->data);
+	    duk_eval_string(context->duk_ctx, jsFile->data);
 
 	    jsFile->len = 0;
-	    const char* evaled_string = duk_get_string(duk_ctx, -1);
+	    const char* evaled_string = duk_get_string(context->duk_ctx, -1);
 	    string_buffer_append(jsFile, evaled_string, strlen(evaled_string));
 	    const char* sig_part = "&sig=";
 	    string_buffer_append(jsFile, sig_part, strlen(sig_part));
-	    duk_eval_string(duk_ctx, buffer->data);
-	    const char* second_evaled_string = duk_get_string(duk_ctx, -1);
+	    duk_eval_string(context->duk_ctx, buffer->data);
+	    const char* second_evaled_string = duk_get_string(context->duk_ctx, -1);
 	    string_buffer_append(jsFile, second_evaled_string, strlen(second_evaled_string));
 	    string_buffer_append(jsFile, "\0", 1);
 	    json_put_string(format, "url", jsFile->data);
@@ -475,6 +512,80 @@ YOUTUBE_DEF bool youtube_video2(Http *http, String_Buffer sbs[3], Ht *bases, duk
   
     return true;
 }
+
+#define YOUTUBE_TRIES 3
+
+YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, char **url, char **name) {
+
+  HttpHeader header;
+  bool url_is_valid = false;
+
+  if(name) *name = NULL;
+
+  for(int i=0;i<3;i++) {
+    Json out;
+    if(!youtube_video(context, videoId, &out)) {
+      return false;
+    }
+
+    if(name && !(*name)) {
+      if(json_has(out, "videoDetails")) {
+	Json videoDetails = json_get(out, "videoDetails");
+	if(json_has(videoDetails, "title")) {
+	  *name = json_get_string(videoDetails, "title");
+	  json_put_null(videoDetails, "title");
+	}	
+      }
+    }
+
+    Json formats = json_get(out, "formats");
+    for(s32 j=0;j<json_size(formats);j++) {
+      Json format = json_opt(formats, j);
+      int itag = json_get_int(format, "itag");
+      if(itag == 140) {      
+	*url = json_get_string(format, "url");
+
+	if(!http_head((const char *) *url, &header, NULL)) {
+	  break;
+	}
+	s32 responseCode = http_header_response_code(&header);
+	url_is_valid = responseCode == 200;
+
+	if(url_is_valid) {
+	  json_put_null(format, "url");
+	}
+	break;
+      }
+    }
+    
+    json_free_all(out);
+    if(url_is_valid) break;
+  }
+
+  return url_is_valid;
+}
+
+YOUTUBE_DEF bool youtube_context_init(Youtube_Context *context) {  
+  for(size_t i=0;i<3;i++) context->sbs[i] = (String_Buffer) {0};
+  context->bases = NULL;
+  context->duk_ctx = duk_create_heap_default();
+  return true;
+}
+
+YOUTUBE_DEF bool youtube_context_start(Youtube_Context *context) {
+  return http_init2(&context->http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true);
+}
+
+YOUTUBE_DEF void youtube_context_stop(Youtube_Context *context) {
+  http_free(&context->http);
+}
+
+YOUTUBE_DEF void youtube_context_free(Youtube_Context *context) {
+  for(size_t i=0;i<3;i++) string_buffer_free(&context->sbs[i]);
+  if(context->bases) ht_free(context->bases);
+  duk_destroy_heap(context->duk_ctx);
+}
+
 
 #endif //YOUTUBE_IMPLEMENTATION
 

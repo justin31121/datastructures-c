@@ -27,6 +27,7 @@ IMGUI_DEF bool imgui_init(Gui *gui, Gui_Event *event);
 IMGUI_DEF void imgui_rect(Vec2f pos, Vec2f size, Vec4f color);
 IMGUI_DEF bool imgui_button(Vec2f pos, Vec2f size, Vec4f color);
 IMGUI_DEF bool imgui_bar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, float value, float *cursor);
+IMGUI_DEF bool imgui_tribar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, float value, float *cursor);
 
 IMGUI_DEF void imgui_img(int img, Vec2f pos, Vec2f size);
 IMGUI_DEF bool imgui_img_button(int img, Vec2f pos, Vec2f size);
@@ -106,6 +107,7 @@ static Imgui imgui_instance = {0};
    ((input).x < (pos).x + (size).x) &&			\
    ((pos).y <= (input).y) &&				\
    ((input).y < (pos).y + (size).y))
+
 
 IMGUI_DEF bool imgui_init(Gui *gui, Gui_Event *event) {
   if(imgui_running) return true;
@@ -187,7 +189,8 @@ IMGUI_DEF bool imgui_bar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, f
   }
     
   IMGUI_RENDERER_UPDATE_SHADER(SHADER_FOR_COLOR);
-  renderer_solid_rect(&imgui_instance.renderer, pos, size, background);
+  renderer_solid_rect(&imgui_instance.renderer, pos, vec2f(cursor_pos.x - pos.x,size.y), color);
+  renderer_solid_rect(&imgui_instance.renderer, vec2f(cursor_pos.x, pos.y), vec2f(size.x - cursor_pos.x + pos.x, size.y), background);
   renderer_solid_rect(&imgui_instance.renderer, cursor_pos, cursor_size, color);
 
   bool clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size);
@@ -198,6 +201,42 @@ IMGUI_DEF bool imgui_bar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, f
     *cursor = (imgui_instance.input.x - pos.x) / size.x;
     return true;
   }
+  return false;
+}
+
+IMGUI_DEF bool imgui_tribar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, float value, float *cursor) {
+  IMGUI_RENDERER_UPDATE_SHADER(SHADER_FOR_COLOR);
+  *cursor = value;
+  
+  renderer_solid_triangle(&imgui_instance.renderer,
+			  pos, vec2f(pos.x + size.x, pos.y), vec2f(pos.x + size.x, pos.y + size.y), background);
+
+  float px = imgui_instance.pos.x - pos.x;
+  float max_y_at_px = pos.y + (px * (size.y / size.x));
+  bool cursor_clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) && max_y_at_px > imgui_instance.pos.y;
+
+  float dx = (1.0f - value) * size.x;
+  if(cursor_clicked) {
+    *cursor = (imgui_instance.pos.x - pos.x) / size.x;
+    if(dx < 0.f) dx = 0.f;
+    if(dx > 1.f) dx = 1.f;
+    dx = (1.0f - (*cursor)) * size.x;
+  }
+  float dy = size.y - ((size.x - dx) * size.y / size.x);  
+  renderer_solid_triangle(&imgui_instance.renderer,
+			  vec2f(pos.x, pos.y), vec2f(pos.x + size.x - dx, pos.y), vec2f(pos.x + size.x - dx, pos.y + size.y - dy), color);
+
+  //TODO: add proper triangle check
+  px = imgui_instance.input.x - pos.x;  
+  max_y_at_px = pos.y + (px * (size.y / size.x));
+  bool clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) &&
+    max_y_at_px > imgui_instance.input.y;
+    
+  if(imgui_instance.released && clicked) {
+    *cursor = px / size.x;
+    return true;
+  }
+  
   return false;
 }
 

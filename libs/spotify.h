@@ -18,6 +18,8 @@
 #include "../libs/base64.h"
 
 SPOTIFY_DEF bool spotify_bearer_token(char *output_buffer, u64 output_size);
+SPOTIFY_DEF bool spotify_by_id(const char *prefix, const char *id, Json *json);
+SPOTIFY_DEF bool spotify_by_id2(string prefix, const char *id, Json *json);
 SPOTIFY_DEF bool spotify_playlist_by_id(const char* playlistId, Json *json);
 SPOTIFY_DEF bool spotify_album_by_id(const char* albumId, Json *json);
 SPOTIFY_DEF bool spotify_track_by_id(const char* track, Json *json);
@@ -76,7 +78,7 @@ SPOTIFY_DEF bool spotify_bearer_token(char *output_buffer, u64 output_size) {
   return len < (output_size - 1);
 }
 
-SPOTIFY_DEF bool spotify_by_id(const char *prefix, const char *id, Json *json) {
+SPOTIFY_DEF bool spotify_by_id2(string prefix, const char *id, Json *json) {
   char bearer_token[1024];
   if(!spotify_bearer_token(bearer_token, 1024)) {
     return false;
@@ -87,7 +89,7 @@ SPOTIFY_DEF bool spotify_by_id(const char *prefix, const char *id, Json *json) {
     return false;
   }
 
-  if(snprintf(buffer[1], 1024 * 10, "https://api.spotify.com/v1/%s/%s", prefix, id) >= (1024 * 10)) {
+  if(snprintf(buffer[1], 1024 * 10, "https://api.spotify.com/v1/"String_Fmt"s/%s", String_Arg(prefix), id) >= (1024 * 10)) {
     return false;
   }
   
@@ -101,20 +103,23 @@ SPOTIFY_DEF bool spotify_by_id(const char *prefix, const char *id, Json *json) {
   }
   
   string_buffer_free(&sb);
-  return true;
-  
+  return true;    
+}
+
+SPOTIFY_DEF bool spotify_by_id(const char *prefix, const char *id, Json *json) {
+  return spotify_by_id2(string_from_cstr(prefix), id, json);
 }
 
 SPOTIFY_DEF bool spotify_track_by_id(const char *trackId, Json *json) {
-  return spotify_by_id("tracks", trackId, json);
+  return spotify_by_id("track", trackId, json);
 }
 
 SPOTIFY_DEF bool spotify_playlist_by_id(const char* playlistId, Json *json) {
-  return spotify_by_id("playlists", playlistId, json);
+  return spotify_by_id("playlist", playlistId, json);
 }
 
 SPOTIFY_DEF bool spotify_album_by_id(const char* albumId, Json *json) {
-  return spotify_by_id("albums", albumId, json);
+  return spotify_by_id("album", albumId, json);
 }
 
 SPOTIFY_DEF bool spotify_get_keyword(const Json track, char keyword[1024]) {

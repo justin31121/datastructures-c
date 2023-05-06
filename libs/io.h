@@ -101,7 +101,11 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
 
 #ifdef _WIN32
 IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
-  int num_wchars = MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, NULL, 0);
+  if(!io_exists(dir_path, NULL)) {
+    return false;
+  }
+  
+  int num_wchars = MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, NULL, 0); 
   wchar_t *my_wstring = (wchar_t *)malloc((num_wchars+1) * sizeof(wchar_t));
   MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, my_wstring, num_wchars);
   my_wstring[num_wchars-1] = '*';
@@ -110,6 +114,12 @@ IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
   // Use my_wstring as a const wchar_t *
   dir->handle = FindFirstFileExW(my_wstring, FindExInfoStandard, &dir->file_data, FindExSearchNameMatch, NULL, 0);
   if(dir->handle == INVALID_HANDLE_VALUE) {
+    free(my_wstring);
+    return false;
+  }
+
+  bool is_dir = (dir->file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) > 0;
+  if(!is_dir) {
     free(my_wstring);
     return false;
   }

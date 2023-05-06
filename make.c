@@ -44,7 +44,7 @@ int main(int argc, char ** argv) {
     if(strcmp(arg, "player_demo") == 0) {
 	if(use_gcc) {
 	    if(!io_exists(obj_duktape, NULL)) {
-		ret = run("gcc -o ", obj_duktape,"c ./thirdparty/duktape.c");
+		ret = run("gcc -o ", obj_duktape,"-c ./thirdparty/duktape.c");
 		if(ret) return ret;
 	    }	    
 	    ret = run("gcc ", flags, "-o player", obj_duktape, "./src/player_demo.c",

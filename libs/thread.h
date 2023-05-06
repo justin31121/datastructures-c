@@ -33,12 +33,15 @@ void mutex_release(Mutex mutex);
 #ifdef _WIN32 ////////////////////////////////////////////
 
 int thread_create(Thread *id, void* (*function)(void *), void *arg) {
-  int ret =
-#ifdef _MSC_VER
-      _beginthread(function, 0, arg);
-#else
-  _beginthread((_beginthread_proc_type) function, 0, arg);
-#endif    
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+#endif //__GNUC__
+  int ret = _beginthread(function, 0, arg);
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif //__GNUC__
+
 
   if(ret == -1) {
     return 0;

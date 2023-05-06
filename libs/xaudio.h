@@ -37,10 +37,10 @@ XAUDIO_DEF void xaudio_OnBufferEnd(IXAudio2VoiceCallback* This, void* pBufferCon
 
 XAUDIO_DEF void xaudio_OnStreamEnd(IXAudio2VoiceCallback* This) { (void) This; }
 XAUDIO_DEF void xaudio_OnVoiceProcessingPassEnd(IXAudio2VoiceCallback* This) { (void) This; }
-XAUDIO_DEF void xaudio_OnVoiceProcessingPassStart(IXAudio2VoiceCallback* This, UINT32 SamplesRequired) { (void) This; }
+XAUDIO_DEF void xaudio_OnVoiceProcessingPassStart(IXAudio2VoiceCallback* This, UINT32 SamplesRequired) { (void) This; (void) SamplesRequired; }
 XAUDIO_DEF void xaudio_OnBufferStart(IXAudio2VoiceCallback* This, void* pBufferContext) { (void) This; (void) pBufferContext; }
 XAUDIO_DEF void xaudio_OnLoopEnd(IXAudio2VoiceCallback* This, void* pBufferContext) { (void) This; (void) pBufferContext; }
-XAUDIO_DEF void xaudio_OnVoiceError(IXAudio2VoiceCallback* This, void* pBufferContext, HRESULT Error) { (void) This; (void) pBufferContext; }
+XAUDIO_DEF void xaudio_OnVoiceError(IXAudio2VoiceCallback* This, void* pBufferContext, HRESULT Error) { (void) This; (void) pBufferContext; (void) Error; }
 
 IXAudio2VoiceCallback xaudio_xAudioCallbacks = {
     .lpVtbl = &(IXAudio2VoiceCallbackVtbl) {
