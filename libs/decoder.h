@@ -230,7 +230,7 @@ DECODER_DEF void decoder_buffer_reset(Decoder_Buffer *buffer) {
 
 DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, int index) {
   int data_size = 0;
-  int out_samples;
+  int out_samples = 0;
 
   if(buffer->extra_size > 0) {
     memcpy(buffer->buffers + index * buffer->buffer_size,

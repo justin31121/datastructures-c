@@ -227,6 +227,10 @@ int wglSwapIntervalEXT(GLint interval) {
     return _wglSwapIntervalEXT(interval);
 }
 
+#ifdef GUI_LOOPLESS
+#include "LooplessSizeMove.h"
+#endif //GUI_LOOPLESS
+
 #endif //_WIN32
 
 #include <stdbool.h>
@@ -292,6 +296,7 @@ typedef struct{
   HDC dc;
   RECT rect;
   BITMAPINFO info;
+  bool wm_move;
 #endif //_WIN32
   bool running;
   Gui_Canvas *canvas;
@@ -642,10 +647,22 @@ GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, floa
 }
 
 #ifdef _WIN32
+
+#ifdef GUI_LOOPLESS
+#include "LooplessSizeMove.c"
+#define UsedWindowProc LSMProc
+#endif //GUI_LOOPLESS
+
 static LARGE_INTEGER guiWin32PerfCountFrequency;
 static HCURSOR guiDefaultCursor;
 
+#ifndef UsedWindowProc
+#define UsedWindowProc DefWindowProc
+#endif //UsedWindowProc
+
+//DefWindowProc vs LSMProc
 LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+  //printf("message: %d, WM_USER: %d\n", message, WM_USER); fflush(stdout);
   if(message == WM_CLOSE) {
     Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
     if(gui != NULL) {
@@ -673,12 +690,12 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
       EndPaint(gui->win, &ps);
       return 0;
     }
-    return DefWindowProc(hWnd, message, wParam, lParam);
+    return UsedWindowProc(hWnd, message, wParam, lParam);
   } else if(message == WM_SETCURSOR) {
     SetCursor(guiDefaultCursor);
-    return DefWindowProc(hWnd, message, wParam, lParam);
+    return UsedWindowProc(hWnd, message, wParam, lParam);
   } else {
-    return DefWindowProc(hWnd, message, wParam, lParam);
+    return UsedWindowProc(hWnd, message, wParam, lParam);
   }
 }
 
@@ -687,6 +704,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
 #ifndef GUI_CONSOLE
   FreeConsole();
 #endif //GUI_CONSOLE
+  SetProcessDPIAware();
   
   if(!guiWin32PerfCountFrequency.QuadPart) {
     QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
@@ -763,6 +781,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   }
 
   gui->running = true;
+  gui->wm_move = false;
 
   ShowWindow(gui->win, nCmdShow);
   UpdateWindow(gui->win);
@@ -862,6 +881,7 @@ GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height) {
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   MSG *msg = &event->msg;
   event->type = 0;
+  gui->wm_move = false;
   
   int old_mousex = event->mousex;
   int old_mousey = event->mousey;
@@ -872,19 +892,18 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
     if(old_mousex != event->mousex ||
        old_mousey != event->mousey) {
       event->type = GUI_EVENT_MOUSEMOTION;
+      return true;
     }
   }
 
-  if(event->type) {
-      return true;
-  }
-  
   bool result = PeekMessage(msg, gui->win, 0, 0, PM_REMOVE);
   if(!result) {
     return result;
   }
-
   TranslateMessage(msg);
+#ifdef GUI_LOOPLESS
+  SizingCheck(msg);
+#endif //GUI_LOOPLESS
   DispatchMessage(msg);
 
   switch(msg->message) {

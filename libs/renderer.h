@@ -161,7 +161,7 @@ static const char *renderer_frag_shader_sources[] = {
     "  float d = texture(image, vec2(out_uv.x, 1 - out_uv.y)).r;\n"
     "  float aaf = fwidth(d);\n"
     "  float alpha = smoothstep(0.5 - aaf, 0.5 + aaf, d);\n"
-    "  gl_FragColor = vec4(out_color.rgb, alpha);\n"
+    "  gl_FragColor = vec4(out_color.rgb, alpha * out_color.a);\n"
    "}\n"
   };
 

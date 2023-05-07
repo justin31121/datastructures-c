@@ -11,6 +11,10 @@
 
 #endif //PLAYLIST_IMPLEMENTATION
 
+#ifndef PLAYLIST_DEF
+#define PLAYLIST_DEF static inline
+#endif //PLAYLIST_DEF
+
 #include "./array.h"
 #include "./io.h"
 #include "./player.h"
@@ -29,17 +33,17 @@ typedef struct{
   bool using_yt_context;
 }Playlist;
 
-void playlist_init(Playlist *playlist);
-bool playlist_from(Playlist *playlist, Player *player, const char *file_path);
-bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path);
-bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path);
-bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link);
-bool playlist_from_spotify(Playlist *playlist, Player *player, const char *link);
-void playlist_next(Playlist *playlist);
-void playlist_prev(Playlist *playlist);
-const char *playlist_get_name(Playlist *playlist, size_t pos);
-const char *playlist_get_source(Playlist *playlist, size_t pos);
-void playlist_free(Playlist *playlist);
+PLAYLIST_DEF void playlist_init(Playlist *playlist);
+PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *file_path);
+PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path);
+PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path);
+PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link);
+PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, const char *link);
+PLAYLIST_DEF void playlist_next(Playlist *playlist);
+PLAYLIST_DEF void playlist_prev(Playlist *playlist);
+PLAYLIST_DEF const char *playlist_get_name(Playlist *playlist, size_t pos);
+PLAYLIST_DEF const char *playlist_get_source(Playlist *playlist, size_t pos);
+PLAYLIST_DEF void playlist_free(Playlist *playlist);
 
 #ifdef PLAYLIST_IMPLEMENTATION
 
@@ -51,7 +55,7 @@ void playlist_free(Playlist *playlist);
     (playlist)->len++;							\
   }while(0)
 
-void playlist_init(Playlist *playlist) {
+PLAYLIST_DEF void playlist_init(Playlist *playlist) {
   playlist->sources = (String_Buffer) {0};
   playlist->sources_offsets = arr_init(sizeof(size_t));
   playlist->names = (String_Buffer) {0};
@@ -59,7 +63,7 @@ void playlist_init(Playlist *playlist) {
   playlist->using_yt_context = false;
 }
 
-bool playlist_from(Playlist *playlist, Player *player, const char *arg) {
+PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *arg) {
   if(playlist_from_file(playlist, player, arg)) {
     return true;
   } else if(playlist_from_dir(playlist, player, arg)) {
@@ -73,7 +77,7 @@ bool playlist_from(Playlist *playlist, Player *player, const char *arg) {
   return false;
 }
 
-bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path) {
+PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
   playlist->pos = 0;
@@ -93,7 +97,7 @@ bool playlist_from_file(Playlist *playlist, Player *player, const char *file_pat
   return true;
 }
 
-bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path) {
+PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
   playlist->pos = 0;
@@ -124,7 +128,7 @@ bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path)
   return true;
 }
 
-bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link) {
+PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
   playlist->pos = 0;
@@ -163,7 +167,7 @@ bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link)
   return true;
 }
 
-bool playlist_track_from_keyword(Playlist *playlist, Player *player, const char *keyword) {  
+PLAYLIST_DEF bool playlist_track_from_keyword(Playlist *playlist, Player *player, const char *keyword) {  
   Json results;
   if(!youtube_search(&playlist->yt_context, keyword, &results)) {
     youtube_context_stop(&playlist->yt_context);
@@ -195,7 +199,7 @@ bool playlist_track_from_keyword(Playlist *playlist, Player *player, const char 
   return true;
 }
 
-bool playlist_from_spotify(Playlist *playlist, Player *player, const char *_link) {
+PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, const char *_link) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
   playlist->pos = 0;
@@ -265,32 +269,35 @@ bool playlist_from_spotify(Playlist *playlist, Player *player, const char *_link
   return result;
 }
 
-void playlist_next(Playlist *playlist) {
+PLAYLIST_DEF void playlist_next(Playlist *playlist) {
   playlist->pos = (playlist->pos + 1) % playlist->len;
 }
 
-void playlist_prev(Playlist *playlist) {
+PLAYLIST_DEF void playlist_prev(Playlist *playlist) {
   if(playlist->pos == 0) playlist->pos = playlist->len - 1;
   else playlist->pos--;
 }
 
-const char *playlist_get_source(Playlist *playlist, size_t pos) {
+PLAYLIST_DEF const char *playlist_get_source(Playlist *playlist, size_t pos) {
   if(pos >= playlist->len) return NULL;
   size_t off = *(size_t *) arr_get(playlist->sources_offsets, pos);
   return playlist->sources.data + off;
 }
 
-const char *playlist_get_name(Playlist *playlist, size_t pos) {
+PLAYLIST_DEF const char *playlist_get_name(Playlist *playlist, size_t pos) {
   if(pos >= playlist->len) return NULL;
   size_t off = *(size_t *) arr_get(playlist->names_offsets, pos);
   return playlist->names.data + off;
 }
 
-void playlist_free(Playlist *playlist) {
+PLAYLIST_DEF void playlist_free(Playlist *playlist) {
   string_buffer_free(&playlist->sources);
   string_buffer_free(&playlist->names);
   arr_free(playlist->sources_offsets);
   arr_free(playlist->names_offsets);
+  if(playlist->using_yt_context) {
+    youtube_context_free(&playlist->yt_context);
+  }
 }
 
 #endif //PLAYLIST_IMPLEMENTATION

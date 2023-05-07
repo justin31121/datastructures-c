@@ -35,8 +35,9 @@ IMGUI_DEF bool imgui_img_button(int img, Vec2f pos, Vec2f size);
 IMGUI_DEF void imgui_subimg(int img, Vec2f pos, Vec2f size, Vec2f uvs, Vec2f uvp);
 IMGUI_DEF bool imgui_subimg_button(int img, Vec2f pos, Vec2f size, Vec2f uvs, Vec2f uvp);
 
-IMGUI_DEF void imgui_text(Vec2f pos, const char *text);
-IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len);
+IMGUI_DEF void imgui_text(Vec2f pos, const char *text, Vec4f color);
+IMGUI_DEF bool imgui_text_button(Vec2f pos, const char *text, Vec4f color);
+IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len, Vec4f color);
 
 IMGUI_DEF int imgui_add_img(unsigned int *img_data, int img_width, int img_height);
 IMGUI_DEF void imgui_set_font(Font2 *font);
@@ -184,10 +185,10 @@ IMGUI_DEF bool imgui_bar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, f
   if(cursor_clicked) {
     cursor_pos.x = imgui_instance.pos.x - size.y;
     if(cursor_pos.x >= pos.x + size.x) cursor_pos.x = pos.x + size.x - size.y;
-    if(cursor_pos.x < pos.x) cursor_pos.x = pos.x - size.y;
+    if(cursor_pos.x + size.y < pos.x) cursor_pos.x = pos.x - size.y;
     *cursor = (cursor_pos.x - pos.x + size.y) / size.x;
   }
-    
+  
   IMGUI_RENDERER_UPDATE_SHADER(SHADER_FOR_COLOR);
   renderer_solid_rect(&imgui_instance.renderer, pos, vec2f(cursor_pos.x - pos.x,size.y), color);
   renderer_solid_rect(&imgui_instance.renderer, vec2f(cursor_pos.x, pos.y), vec2f(size.x - cursor_pos.x + pos.x, size.y), background);
@@ -207,33 +208,32 @@ IMGUI_DEF bool imgui_bar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, f
 IMGUI_DEF bool imgui_tribar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, float value, float *cursor) {
   IMGUI_RENDERER_UPDATE_SHADER(SHADER_FOR_COLOR);
   *cursor = value;
-  
-  renderer_solid_triangle(&imgui_instance.renderer,
-			  pos, vec2f(pos.x + size.x, pos.y), vec2f(pos.x + size.x, pos.y + size.y), background);
+  float m = size.y / size.x;
+  Vec2f p2 = vec2f(pos.x + size.x, pos.y);
+  Vec2f p3 = vec2f(pos.x + size.x, pos.y + size.y);  
 
+  float max_y_at_px = pos.y + (imgui_instance.input.x - pos.x) * m;
+  bool clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) && max_y_at_px > imgui_instance.input.y;
   float px = imgui_instance.pos.x - pos.x;
-  float max_y_at_px = pos.y + (px * (size.y / size.x));
+  max_y_at_px = pos.y + px * m;
   bool cursor_clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) && max_y_at_px > imgui_instance.pos.y;
-
-  float dx = (1.0f - value) * size.x;
-  if(cursor_clicked) {
-    *cursor = (imgui_instance.pos.x - pos.x) / size.x;
-    if(dx < 0.f) dx = 0.f;
-    if(dx > 1.f) dx = 1.f;
-    dx = (1.0f - (*cursor)) * size.x;
-  }
-  float dy = size.y - ((size.x - dx) * size.y / size.x);  
-  renderer_solid_triangle(&imgui_instance.renderer,
-			  vec2f(pos.x, pos.y), vec2f(pos.x + size.x - dx, pos.y), vec2f(pos.x + size.x - dx, pos.y + size.y - dy), color);
-
-  //TODO: add proper triangle check
-  px = imgui_instance.input.x - pos.x;  
-  max_y_at_px = pos.y + (px * (size.y / size.x));
-  bool clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) &&
-    max_y_at_px > imgui_instance.input.y;
-    
-  if(imgui_instance.released && clicked) {
+  if(clicked && cursor_clicked) {
     *cursor = px / size.x;
+    if(*cursor < 0.f) *cursor = 0.f;
+    if(*cursor > 1.f) *cursor = 1.f;
+    value = *cursor;
+  }
+  float dx = (1.0f - value) * size.x;
+  float dy = size.y - ((size.x - dx) * m);
+  
+  renderer_solid_triangle(&imgui_instance.renderer, pos, p2, p3, background);
+  p2.x -= dx;
+  p3.x -= dx;
+  p3.y -= dy;
+  renderer_solid_triangle(&imgui_instance.renderer, pos, p2, p3, color);
+  
+  //TODO: add proper triangle check    
+  if(imgui_instance.released && clicked) {
     return true;
   }
   
@@ -282,11 +282,22 @@ IMGUI_DEF bool imgui_subimg_button(int img, Vec2f pos, Vec2f size, Vec2f uvs, Ve
   return imgui_instance.released && holding;    
 }
 
-IMGUI_DEF void imgui_text(Vec2f pos, const char *text) {
-  imgui_text_len(pos, text, strlen(text));
+IMGUI_DEF void imgui_text(Vec2f pos, const char *text, Vec4f color) {
+  imgui_text_len(pos, text, strlen(text), color);
 }
 
-IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len) {
+IMGUI_DEF bool imgui_text_button(Vec2f pos, const char *text, Vec4f color) {
+  Vec2f size = vec2f((float) font_estimate_width2(imgui_instance.font, text),
+		     (float) imgui_instance.font->height);
+  bool holding = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size);
+  if(holding) {
+    color.w *= .5f;
+  }
+  imgui_text_len(pos, text, strlen(text), color);
+  return imgui_instance.released && holding;
+}
+
+IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len, Vec4f color) {
   IMGUI_RENDERER_UPDATE(imgui_instance.font_index, SHADER_FOR_TEXT);
   for(size_t k=0;k<text_len;k++) {
     char c = text[k];
@@ -306,7 +317,7 @@ IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len) {
 		  char_size,
 		  vec2f(char_off, 0),
 		  vec2f(char_width, 1),
-		  vec4f(1, 1, 1, 1));
+		  color);
     pos.x += char_size.x;
 
   }
