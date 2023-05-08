@@ -3,6 +3,9 @@
 #define BUILD_IMPLEMENTATION
 #include "./libs/build.h"
 
+#define STRING_IMPLEMENTATION
+#include "./libs/string.h"
+
 int main(int argc, char ** argv) {
 
     if(argc < 2) {
@@ -98,8 +101,23 @@ int main(int argc, char ** argv) {
     }
 
     if(msvc()) {
-      //TODO: Delete files with io.h
-      //ret = run("del *.obj");
+      Io_Dir dir;
+      if(io_dir_open(&dir, ".\\")) {
+	
+	Io_File file;
+	const char * target = ".obj";
+	int target_len = strlen(target);
+	while(io_dir_next(&dir, &file)) {
+	  int name_len = strlen(file.abs_name);
+	  int pos = cstr_index_of(file.abs_name, name_len, target, target_len);
+	  if(pos == -1 || name_len != pos + target_len) continue;
+
+	  io_delete(file.abs_name);
+	}
+	
+	io_dir_close(&dir);
+      }
+
     }
     
     return ret;

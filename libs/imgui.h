@@ -21,6 +21,7 @@
 #endif //IMGUI_DEF
 
 typedef struct Imgui Imgui;
+typedef struct Imgui_ListView Imgui_ListView;
 
 IMGUI_DEF bool imgui_init(Gui *gui, Gui_Event *event);
 
@@ -28,6 +29,7 @@ IMGUI_DEF void imgui_rect(Vec2f pos, Vec2f size, Vec4f color);
 IMGUI_DEF bool imgui_button(Vec2f pos, Vec2f size, Vec4f color);
 IMGUI_DEF bool imgui_bar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, float value, float *cursor);
 IMGUI_DEF bool imgui_tribar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background, float value, float *cursor);
+IMGUI_DEF int imgui_list(Vec2f pos, Vec2f size, Vec4f primary, Vec4f secondary, Imgui_ListView *listView);
 
 IMGUI_DEF void imgui_img(int img, Vec2f pos, Vec2f size);
 IMGUI_DEF bool imgui_img_button(int img, Vec2f pos, Vec2f size);
@@ -52,6 +54,18 @@ IMGUI_DEF void imgui_free();
 #ifdef IMGUI_RENDERER_IMPLEMENTATION
 
 #include "./renderer.h"
+
+typedef const char * (*Imgui_ListView_Get)(void *arg, size_t pos);
+typedef bool (*Imgui_ListView_Enabled)(void *arg, size_t pos);
+
+struct Imgui_ListView{
+  size_t len;
+  size_t pos;
+  size_t scroll_pos;
+  Imgui_ListView_Get get;
+  Imgui_ListView_Enabled enabled;
+  void *arg;
+};
 
 struct Imgui{
   Gui *gui;
@@ -212,12 +226,11 @@ IMGUI_DEF bool imgui_tribar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background
   Vec2f p2 = vec2f(pos.x + size.x, pos.y);
   Vec2f p3 = vec2f(pos.x + size.x, pos.y + size.y);  
 
-  float max_y_at_px = pos.y + (imgui_instance.input.x - pos.x) * m;
+  float px = imgui_instance.input.x - pos.x;
+  float max_y_at_px = pos.y + px * m;
   bool clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) && max_y_at_px > imgui_instance.input.y;
-  float px = imgui_instance.pos.x - pos.x;
-  max_y_at_px = pos.y + px * m;
-  bool cursor_clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size) && max_y_at_px > imgui_instance.pos.y;
-  if(clicked && cursor_clicked) {
+  px = imgui_instance.pos.x - pos.x;
+  if(clicked) {
     *cursor = px / size.x;
     if(*cursor < 0.f) *cursor = 0.f;
     if(*cursor > 1.f) *cursor = 1.f;
@@ -238,6 +251,45 @@ IMGUI_DEF bool imgui_tribar(Vec2f pos, Vec2f size, Vec4f color, Vec4f background
   }
   
   return false;
+}
+
+IMGUI_DEF int imgui_list(Vec2f pos, Vec2f size, Vec4f primary, Vec4f secondary, Imgui_ListView *listView) {
+  //SCROLL PANE
+  IMGUI_RENDERER_UPDATE_SHADER(SHADER_FOR_COLOR);
+  float width = 8.f;
+  Vec2f pane_size = vec2f(width, size.y / listView->len * (float) imgui_instance.font->height);
+  Vec2f pane_pos = vec2f(pos.x + size.x - width,
+			 pos.y + size.y + - pane_size.y + listView->scroll_pos);
+  if(pane_size.y <= size.y) {
+    bool clicked = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pane_pos, pane_size);
+    if(clicked) {
+      pane_pos.y = imgui_instance.pos.y - pane_size.y;
+      if(pane_pos.y + pane_size.y >= pos.y + size.y) pane_pos.y = pos.y + size.y - pane_size.y;
+      if(pane_pos.y < pos.y) pane_pos.y = pos.y;
+    }
+    renderer_solid_rect(&imgui_instance.renderer, pane_pos, pane_size, vec4f(1, 1, 1, 1));    
+  }
+  
+  //TEXT
+  Vec2f file_pos = vec2f(pos.x,
+			 pos.y + size.y - (float) imgui_instance.font->height);
+  int result = -1;
+  for(size_t i=0;i<listView->len;i++) {
+    if(file_pos.y < pos.y) break;
+    Vec4f color = listView->pos == i ? primary : secondary;
+    bool is_enabled = listView->enabled(listView->arg, i);
+    const char *text = listView->get(listView->arg, i);
+    if(is_enabled) {
+      if(imgui_text_button(file_pos, text, color)) {
+	result = (int) i;
+      }      
+    } else {
+      color.w *= .25f;
+      imgui_text(file_pos, text, color);
+    }  
+    file_pos.y -= (float) imgui_instance.font->height;    
+  }
+  return result;
 }
 
 IMGUI_DEF bool imgui_button(Vec2f pos, Vec2f size, Vec4f color) {

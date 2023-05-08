@@ -28,9 +28,12 @@ typedef struct{
   Arr *names_offsets;  
   size_t pos;
   size_t len;
+  size_t available;
 
   Youtube_Context yt_context;
   bool using_yt_context;
+
+  Json spotify_tracks;
 }Playlist;
 
 PLAYLIST_DEF void playlist_init(Playlist *playlist);
@@ -38,9 +41,14 @@ PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *
 PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path);
 PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path);
 PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link);
+
 PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, const char *link);
+PLAYLIST_DEF bool playlist_track_from_keyword(Playlist *playlist, Player *player, const char *keyword);
+PLAYLIST_DEF void *playlist_tracks_from_spotify_thread(void *arg);
+
 PLAYLIST_DEF void playlist_next(Playlist *playlist);
 PLAYLIST_DEF void playlist_prev(Playlist *playlist);
+PLAYLIST_DEF bool playlist_is_enabled(Playlist *playlist, size_t pos);
 PLAYLIST_DEF const char *playlist_get_name(Playlist *playlist, size_t pos);
 PLAYLIST_DEF const char *playlist_get_source(Playlist *playlist, size_t pos);
 PLAYLIST_DEF void playlist_free(Playlist *playlist);
@@ -53,7 +61,20 @@ PLAYLIST_DEF void playlist_free(Playlist *playlist);
     arr_push((playlist)->names_offsets, &(playlist)->names.len);	\
     string_buffer_append(&(playlist)->names, (name), strlen(name)+1);	\
     (playlist)->len++;							\
+    (playlist)->available++;						\
   }while(0)
+
+#define PLAYLIST_NAME_APPEND(playlist, name) do{	\
+arr_push((playlist)->names_offsets, &(playlist)->names.len);		\
+string_buffer_append(&(playlist)->names, (name), strlen(name)+1);	\
+(playlist)->len++;	\
+}while(0)
+
+#define PLAYLIST_SOURCE_APPEND(playlist, source) do{	\
+   arr_push((playlist)->sources_offsets, &(playlist)->sources.len);	\
+string_buffer_append(&(playlist)->sources, (source), strlen((source))+1); \
+(playlist)->available++;\
+}while(0)
 
 PLAYLIST_DEF void playlist_init(Playlist *playlist) {
   playlist->sources = (String_Buffer) {0};
@@ -61,6 +82,9 @@ PLAYLIST_DEF void playlist_init(Playlist *playlist) {
   playlist->names = (String_Buffer) {0};
   playlist->names_offsets = arr_init(sizeof(size_t));
   playlist->using_yt_context = false;
+  playlist->pos = 0;
+  playlist->len = 0;
+  playlist->available = 0;
 }
 
 PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *arg) {
@@ -73,15 +97,12 @@ PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *
   } else if(playlist_from_spotify(playlist, player, arg)) {
     return true;
   }
-
   return false;
 }
 
 PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
-  playlist->pos = 0;
-  playlist->len = 0;
 
   bool is_file;
   if(!io_exists(file_path, &is_file) || !is_file) {
@@ -93,15 +114,13 @@ PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const c
   }
   player_close(player);
 
-  PLAYLIST_APPEND(playlist, file_path, file_path); 
+  PLAYLIST_APPEND(playlist, file_path, file_path);
   return true;
 }
 
 PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
-  playlist->pos = 0;
-  playlist->len = 0;
   
   size_t dir_path_len = strlen(dir_path);
 
@@ -131,8 +150,6 @@ PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const ch
 PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link) {
   playlist->sources.len = 0;
   playlist->names.len = 0;
-  playlist->pos = 0;
-  playlist->len = 0;
 
   string videoId;
   if(!youtube_get_videoId(link, &videoId)) {
@@ -157,8 +174,7 @@ PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, cons
   }
   player_close(player);
 
-  PLAYLIST_APPEND(playlist, name, url);
-  
+  PLAYLIST_APPEND(playlist, name, url);  
   free(name);
   free(url);
 
@@ -167,32 +183,56 @@ PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, cons
   return true;
 }
 
+PLAYLIST_DEF void *playlist_tracks_from_spotify_thread(void *arg) {
+  Playlist *playlist = (Playlist *) arg;
+
+  char keyword[1024];
+  Json tracks = json_get(json_get(playlist->spotify_tracks, "tracks"), "items");
+  for(s32 i=1;i<json_size(tracks) && i<30;i++) {
+    Json track = json_opt(tracks, i);
+    if(json_has(track, "track")) {
+      track = json_get(track, "track");
+    }
+
+    if(!spotify_get_keyword(track, keyword)) {
+      break;
+    }
+    
+    playlist_track_from_keyword(playlist, NULL, keyword);
+  }
+ 
+  json_free_all(playlist->spotify_tracks);
+  youtube_context_stop(&playlist->yt_context);
+  return NULL;
+}
+
 PLAYLIST_DEF bool playlist_track_from_keyword(Playlist *playlist, Player *player, const char *keyword) {  
   Json results;
   if(!youtube_search(&playlist->yt_context, keyword, &results)) {
-    youtube_context_stop(&playlist->yt_context);
     return false;
   }
 
   Json result = json_opt(results, 0);
   const char *videoId = json_get_string(result, "videoId");
 
-  char *url, *name = NULL;
-  if(!youtube_get_audio(&playlist->yt_context, string_from_cstr(videoId), &url, &name)) {
+  char *url;
+  if(!youtube_get_audio(&playlist->yt_context, string_from_cstr(videoId), &url, NULL)) {
     json_free_all(results);
-    youtube_context_stop(&playlist->yt_context);
     return false;
   }
 
+  (void) player;
+  //TODO: maybe add a second player for validation or dont
+  
+  /*
   if(!player_open_url(player, url)) {
     json_free_all(results);
-    youtube_context_stop(&playlist->yt_context);
     return false;
   }
   player_close(player);
+  */
 
-  PLAYLIST_APPEND(playlist, name, url);  
-  free(name);
+  PLAYLIST_SOURCE_APPEND(playlist, url);
   free(url);
   json_free_all(results);
 
@@ -200,10 +240,9 @@ PLAYLIST_DEF bool playlist_track_from_keyword(Playlist *playlist, Player *player
 }
 
 PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, const char *_link) {
+  string_buffer_reserve(&playlist->sources, 1024 * 4);
   playlist->sources.len = 0;
   playlist->names.len = 0;
-  playlist->pos = 0;
-  playlist->len = 0;
 
   string link = string_from_cstr(_link);
   if(!string_chop_string(&link, STRING("https://open.spotify.com/"))) {
@@ -232,40 +271,52 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
       return false;
     }
 
+    const char *name = json_get_string(track, "name");
+
     char keyword[1024]; 
     if(!spotify_get_keyword(track, keyword)) {
       return false;
     }
     json_free_all(track);
 
-    result = playlist_track_from_keyword(playlist, player, keyword);    
+    PLAYLIST_NAME_APPEND(playlist, name);
+    result = playlist_track_from_keyword(playlist, player, keyword);
+    youtube_context_stop(&playlist->yt_context);
   } else {
 
-    Json spotify_tracks;
-    if(!spotify_by_id2(prefix, link.data, &spotify_tracks)) {
+    if(!spotify_by_id2(prefix, link.data, &playlist->spotify_tracks)) {
       youtube_context_stop(&playlist->yt_context);
       return false;
     }
 
     char keyword[1024];
-    Json tracks = json_get(json_get(spotify_tracks, "tracks"), "items");
-    for(s32 i=0;i<json_size(tracks) && i<1;i++) {
-      Json track = json_opt(tracks, i);
+    Json tracks = json_get(json_get(playlist->spotify_tracks, "tracks"), "items");
+    Json track;
+    for(s32 i=0;i<json_size(tracks) && i<30;i++) {
+      track = json_opt(tracks, i);
       if(json_has(track, "track")) {
 	track = json_get(track, "track");
       }
+      
+      const char *name = json_get_string(track, "name");      
+      PLAYLIST_NAME_APPEND(playlist, name);
+    }
 
-      const char *name = json_get_string(track, "name");
-      if(!spotify_get_keyword(track, keyword)) {
-	fprintf(stderr, "WARNING: Failed to build keyword for song: '%s'\n", name);
-	continue;
-      }
+    track = json_opt(tracks, 0);
+    if(json_has(track, "track")) {
+      track = json_get(track, "track");
+    }
+    if(!spotify_get_keyword(track, keyword)) {
+      result = false;
     }
     result = playlist_track_from_keyword(playlist, player, keyword);
-    json_free_all(spotify_tracks);
+
+    Thread spotify_thread;
+    if(!thread_create(&spotify_thread, playlist_tracks_from_spotify_thread, playlist)) {
+      return false;
+    }  
   }
-    
-  youtube_context_stop(&playlist->yt_context);
+
   return result;
 }
 
@@ -278,8 +329,12 @@ PLAYLIST_DEF void playlist_prev(Playlist *playlist) {
   else playlist->pos--;
 }
 
+PLAYLIST_DEF bool playlist_is_enabled(Playlist *playlist, size_t pos) {
+  return pos < playlist->available;
+}
+
 PLAYLIST_DEF const char *playlist_get_source(Playlist *playlist, size_t pos) {
-  if(pos >= playlist->len) return NULL;
+  if(pos >= playlist->available) return NULL;
   size_t off = *(size_t *) arr_get(playlist->sources_offsets, pos);
   return playlist->sources.data + off;
 }

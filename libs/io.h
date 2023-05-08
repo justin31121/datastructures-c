@@ -47,6 +47,7 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file);
 IO_DEF void io_dir_close(Io_Dir *dir);
 
 IO_DEF bool io_exists(const char *file_path, bool *is_file);
+IO_DEF bool io_delete(const char *file_path);
 
 #ifdef IO_IMPLEMENTATION
 
@@ -101,10 +102,6 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
 
 #ifdef _WIN32
 IO_DEF bool io_dir_open(Io_Dir *dir, const char *dir_path) {
-  if(!io_exists(dir_path, NULL)) {
-    return false;
-  }
-  
   int num_wchars = MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, NULL, 0); 
   wchar_t *my_wstring = (wchar_t *)malloc((num_wchars+1) * sizeof(wchar_t));
   MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, my_wstring, num_wchars);
@@ -161,6 +158,10 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
     DWORD attribs = GetFileAttributes(file_path);
     if(is_file) *is_file = !(attribs & FILE_ATTRIBUTE_DIRECTORY);
     return attribs != INVALID_FILE_ATTRIBUTES;
+}
+
+IO_DEF bool io_delete(const char *file_path) {
+  return remove(file_path) == 0;
 }
 #endif //_WIN32
 

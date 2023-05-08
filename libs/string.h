@@ -80,7 +80,7 @@ int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t va
   if(val_size > cstr_size) {
     return -1;
   }
-  for(size_t i=0;i<cstr_size - val_size;i++) {
+  for(size_t i=0;i<=cstr_size - val_size;i++) {
     int found = 1;
     for(size_t j=0;j<val_size;j++) {
       if(cstr[i+j] != val[j]) {

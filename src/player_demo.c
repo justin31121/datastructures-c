@@ -5,7 +5,7 @@
 #include "../thirdparty/stb_truetype.h"
 
 #define GUI_OPENGL
-#define GUI_LOOPLESS
+//#define GUI_LOOPLESS
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"
 
@@ -30,11 +30,13 @@
 
 #include "../rsc/musik.h"
 #include "../rsc/atlas.h"
-//#include "../rsc/segoeui.h"
+#include "../rsc/segoeui.h"
 
 static String_Buffer temp = {0};
 static Player player;
 static Playlist playlist;
+static bool loading = true;
+static char *loading_log = NULL;
 
 void toggle() {
   player_toggle(&player);
@@ -65,6 +67,39 @@ void choose(size_t pos) {
   player_play(&player);
 }
 
+void *player_start(void *_arg) {
+  char *arg = (char *) _arg;
+
+  loading_log = "initializing player . . .";
+  if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) {
+    return NULL;
+  }
+
+  loading_log = "initializing playlist . . .";
+  playlist_init(&playlist);
+  if(!playlist_from(&playlist, &player, arg)) {
+    fprintf(stderr, "ERROR: Can not play argument: '%s'\n", arg);
+    return NULL;
+  }
+  loading_log = "cleaning playlist . . .";
+  //youtube_context_free(&playlist.yt_context);
+
+  loading_log = "opening song . . .";
+  if(!player_open(&player, playlist_get_source(&playlist, playlist.pos))) {
+    return NULL;
+  }
+
+  loading_log = "start playing . . .";
+  if(!player_play(&player)) {
+    return NULL;
+  }
+  
+  loading = false;
+  loading_log = NULL;
+
+  return NULL;
+}
+
 int main(int argc, char **argv) {
 
   Gui gui;
@@ -79,41 +114,34 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if(!player_init(&player, DECODER_FMT_S16, 2, 44100)) {
-    return 1;
-  }
-
-  playlist_init(&playlist);
-  const char *arg = ".\\rsc\\";
+  char *arg = ".\\rsc\\";
   if(argc > 1) {
     arg = argv[1];
   }
-  if(!playlist_from(&playlist, &player, arg)) {
-    fprintf(stderr, "ERROR: Can not play argument: '%s'\n", arg);
-    return 1;    
-  }
-  youtube_context_free(&playlist.yt_context);
 
-  if(!player_open(&player, playlist_get_source(&playlist, playlist.pos))) {
+  Thread player_start_thread;
+  if(!thread_create(&player_start_thread, player_start, arg)) {
     return 1;
   }
 
-  Font2 font;
-  if(!font_init2(&font, "C:\\Windows\\Fonts\\segoeui.ttf", 48)) {
-    return 1;
-  }
+  Font2 font = font2_segoeui_24;
   imgui_set_font(&font);
   int musik = imgui_add_img(musik_data, musik_width, musik_height);
   int atlas = imgui_add_img(atlas_data, atlas_width, atlas_height);
   imgui_set_background(0xff181818);
   
-  if(!player_play(&player)) {
-    return 1;
-  }
+  Imgui_ListView listView = {
+    .arg = &playlist,
+    .pos = playlist.pos,
+    .scroll_pos = 0,
+    .len = playlist.len,
+    .get = playlist_get_name,
+    .enabled = playlist_is_enabled,    
+  };
 
   float width, height;
   float slider, secs = 0.f;
-  float volume = player.decoder.volume;
+  float volume = 0.f;
   while(gui.running) {
     temp.len = 0;
     while(imgui_peek()) {
@@ -134,6 +162,15 @@ int main(int argc, char **argv) {
 	}
       }
     }
+    if(player.playing) {
+      float d = player.duration;
+      float n;
+      player_get_timestamp(&player, &n);
+      if(d - n < 0.02 && n < d) {
+	next();
+      }
+    }
+    
     imgui_get_size(&width, &height);
     if(player.playing) {
       player_get_timestamp_abs(&player, &secs);
@@ -160,6 +197,10 @@ int main(int argc, char **argv) {
       imgui_rect(draw_files_pos, draw_files_size, GREY);
     }    
     //VOLUME BAR
+    volume = 0.f;
+    if(player.decoder_used) {
+      volume = player.decoder.volume;
+    }
     imgui_tribar(vec2f(width - BUTTON_WIDTH/2 - TRIBAR_WIDTH, BUTTON_WIDTH/2),
 		 vec2f(TRIBAR_WIDTH, atlas_height),
 		 FOREGROUND, GREY, volume, &volume);
@@ -168,28 +209,35 @@ int main(int argc, char **argv) {
       player_set_volume(&player, volume); 
     }
     //FILES
-    if(draw_files) {
-      Vec2f file_pos = vec2f(draw_files_pos.x,
-			     draw_files_pos.y + draw_files_size.y - (float) font.height);
-      for(size_t i=0;i<playlist.len;i++) {
-	const char *name = playlist_get_name(&playlist, i);
-	Vec4f color = playlist.pos == i ? FOREGROUND : WHITE;
-	if(imgui_text_button(file_pos, name, color)) {
-	  choose(i);
-	}
-	file_pos.y -= (float) font.height;
+    if(!loading && draw_files) {
+      listView.pos = playlist.pos;
+      listView.len = playlist.len;
+      if(playlist.available == playlist.len && playlist.using_yt_context) {
+	youtube_context_free(&playlist.yt_context);
+	playlist.using_yt_context = false;
+      }
+      int pos;
+      if((pos = imgui_list(draw_files_pos, draw_files_size, FOREGROUND, WHITE, &listView)) >= 0) {
+	choose(pos);
       }
     }
     //TIME
-    const char *text = tprintf(&temp, "%.2f", slider * player.duration);
-    float text_width = font_estimate_width2(&font, text);
-    imgui_text(vec2f(BAR_MARGIN - text_width/2, BAR_Y + font.height), text, WHITE);
+    if(!loading) {
+      const char *text = tprintf(&temp, "%.2f", slider * player.duration);
+      float text_width = font_estimate_width2(&font, text);
+      imgui_text(vec2f(BAR_MARGIN - text_width/2, BAR_Y + font.height), text, WHITE);
 
-    text = tprintf(&temp, "%.2f", player.duration);
-    text_width = (float) font_estimate_width2(&font, text);
-    imgui_text(vec2f(width - BAR_MARGIN - text_width/2, BAR_Y + font.height), text, WHITE);
+      text = tprintf(&temp, "%.2f", player.duration);
+      text_width = (float) font_estimate_width2(&font, text);
+      imgui_text(vec2f(width - BAR_MARGIN - text_width/2, BAR_Y + font.height), text, WHITE);
+    }
     //NAME
-    imgui_text(vec2f(0, height - font.height), playlist_get_name(&playlist, playlist.pos), WHITE);
+    if(loading) {
+      char *text = loading_log == NULL ? "loading . . . " : loading_log;
+      imgui_text(vec2f(0, height - font.height), text, WHITE);
+    } else {
+      imgui_text(vec2f(0, height - font.height), playlist_get_name(&playlist, playlist.pos), WHITE);      
+    }
     //LOGO
     imgui_img(musik, vec2f(WIDTH/2 - BUTTON_WIDTH/2 - musik_width/2, BAR_Y + 1.5*BUTTON_WIDTH),
 	      vec2f(musik_width, musik_height));

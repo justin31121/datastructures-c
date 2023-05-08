@@ -220,8 +220,7 @@ FONT_DEF void font_free(Font *font) {
 FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height) {
   if(!font) {
     return false;
-  }
-  
+  }  
   unsigned int ascii_vals = 127 - 32;
   unsigned int ascii_width = ascii_vals * font_height;
   //data: ascii_vals * font_height * font_height * sizeof(u8)
@@ -254,7 +253,7 @@ FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height) {
     
     int w, h, x ,y;
     u8 *bitmap =
-      stbtt_GetCodepointSDF(&font_info, scale, c, 0, 128, 256.0, &w, &h, &x, &y);
+      stbtt_GetCodepointSDF(&font_info, scale, c, 0, 128, 16.f, &w, &h, &x, &y);
       //stbtt_GetCodepointBitmap(&font_info, 0, scale, c, &w, &h, &x, &y);
 
     font->xs[c - 32] = x;
