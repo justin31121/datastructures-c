@@ -5,6 +5,7 @@
 
 #ifdef _WIN32
 # include <windows.h>
+# include <stdio.h>
 #endif //_WIN32
 
 #ifdef linux

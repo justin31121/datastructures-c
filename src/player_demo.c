@@ -77,6 +77,7 @@ void *player_start(void *_arg) {
 
   loading_log = "initializing playlist . . .";
   playlist_init(&playlist);
+  /*
   if(!playlist_from(&playlist, &player, arg)) {
     fprintf(stderr, "ERROR: Can not play argument: '%s'\n", arg);
     return NULL;
@@ -93,6 +94,12 @@ void *player_start(void *_arg) {
   if(!player_play(&player)) {
     return NULL;
   }
+  */
+
+  for(size_t i=0;i<20;i++) {
+      const char *name = tprintf(&temp, "foo%zd", i);
+      PLAYLIST_APPEND(&playlist, name, name);
+  }
   
   loading = false;
   loading_log = NULL;
@@ -103,7 +110,8 @@ void *player_start(void *_arg) {
 int main(int argc, char **argv) {
 
   Gui gui;
-  Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
+  //Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
+  Gui_Canvas canvas = {WIDTH*2, HEIGHT, NULL};
   Gui_Event event;
   if(!gui_init(&gui, &canvas, "JPlayer")) {
     return 1;
@@ -133,10 +141,11 @@ int main(int argc, char **argv) {
   Imgui_ListView listView = {
     .arg = &playlist,
     .pos = playlist.pos,
-    .scroll_pos = 0,
+    .scroll_pos = 0.f,
+    .off = -1.f,
     .len = playlist.len,
     .get = playlist_get_name,
-    .enabled = playlist_is_enabled,    
+    .enabled = playlist_is_enabled,
   };
 
   float width, height;
