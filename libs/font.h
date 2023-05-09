@@ -356,7 +356,9 @@ FONT_DEF unsigned int font_estimate_width2(const Font2 *font, const char *cstr) 
   unsigned int x0 = 0;
   while(*cstr) {
     char c = *cstr++;
-    if(c == ' ') x0 += font->height * 1 / 4;
+    if(c < 32 || c >= 128 || c == ' ') {
+      x0 += font->height * 1 / 4;
+    }
     else x0 += font->xs[c - 32] + font->ws[c - 32];
   }
   return x0;
@@ -377,9 +379,14 @@ FONT_DEF void font_render2(Font2 *font, const char* data, u32 data_len,
 
     for(u32 k=0;k<data_len;k++) {
 	char c = data[k];
+	
 	if(c == ' ') {
 	    x_off += font->height / 2;
 	    continue;
+	}
+
+	if(c < 32 || c >= 127) {
+	  c = '?';
 	}
 
 	for(u32 j=0;j<font->height;j++) {

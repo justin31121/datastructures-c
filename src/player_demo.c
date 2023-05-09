@@ -77,13 +77,10 @@ void *player_start(void *_arg) {
 
   loading_log = "initializing playlist . . .";
   playlist_init(&playlist);
-  /*
   if(!playlist_from(&playlist, &player, arg)) {
     fprintf(stderr, "ERROR: Can not play argument: '%s'\n", arg);
     return NULL;
   }
-  loading_log = "cleaning playlist . . .";
-  //youtube_context_free(&playlist.yt_context);
 
   loading_log = "opening song . . .";
   if(!player_open(&player, playlist_get_source(&playlist, playlist.pos))) {
@@ -94,12 +91,6 @@ void *player_start(void *_arg) {
   if(!player_play(&player)) {
     return NULL;
   }
-  */
-
-  for(size_t i=0;i<20;i++) {
-      const char *name = tprintf(&temp, "foo%zd", i);
-      PLAYLIST_APPEND(&playlist, name, name);
-  }
   
   loading = false;
   loading_log = NULL;
@@ -108,6 +99,7 @@ void *player_start(void *_arg) {
 }
 
 int main(int argc, char **argv) {
+  av_log_set_level(AV_LOG_QUIET);
 
   Gui gui;
   //Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};

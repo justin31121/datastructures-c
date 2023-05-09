@@ -245,6 +245,7 @@ typedef enum{
   GUI_EVENT_KEYPRESS,
   GUI_EVENT_MOUSEPRESS,
   GUI_EVENT_MOUSERELEASE,
+  GUI_EVENT_MOUSEWHEEL,
   GUI_EVENT_MOUSEMOTION,
   GUI_EVENT_COUNT,
 }Gui_Event_Type;
@@ -258,8 +259,11 @@ typedef struct{
   MSG msg;
   POINT cursor;
 #endif //_WIN32
-  Gui_Event_Type type;  
-  char key;
+  Gui_Event_Type type;
+  typedef union{
+    char key;
+    int amount;
+  };
   int mousex;
   int mousey;
 }Gui_Event;
@@ -907,6 +911,11 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   DispatchMessage(msg);
 
   switch(msg->message) {
+  case WM_MOUSEWHEEL:
+  case WM_MOUSEHWHEEL: {
+    event->type = GUI_EVENT_MOUSEWHEEL; 
+    event->amount = GET_WHEEL_DELTA_WPARAM(msg->wParam) / 120;//apperantly this is 120`s steps
+  } break;
   case WM_RBUTTONUP: 
   case WM_RBUTTONDOWN: {
       event->type = GUI_EVENT_MOUSEPRESS;
