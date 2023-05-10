@@ -683,7 +683,6 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
   } else if(message == WM_PAINT){
     Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
     if(gui != NULL && gui->canvas != NULL) {
-	/*
       PAINTSTRUCT ps;
       HDC context = BeginPaint(gui->win, &ps);
       StretchDIBits(context,
@@ -693,7 +692,6 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 		    &gui->info,
 		    DIB_RGB_COLORS, SRCCOPY);
       EndPaint(gui->win, &ps);
-	*/
       return 0;
     }
     return UsedWindowProc(hWnd, message, wParam, lParam);
