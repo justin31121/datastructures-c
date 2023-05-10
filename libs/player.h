@@ -17,7 +17,7 @@
 #endif //PLAYER_DEF
 
 #define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 5
+#define PLAYER_N 8
 #define PLAYER_VOLUME 0.1f
 
 #define PLAYER_BUFFER_CAP 8192

@@ -14,9 +14,6 @@
 #define DECODER_DEF static inline
 #endif //DECODER_DEF
 
-#define DECODER_XAUDIO2_SAMPLES 64 //TODO: fix this
-#define DECODER_AV_IO_MEMORY_SIZE 1024
-
 #ifdef _WIN32
 #include <windows.h>
 #include <mmreg.h>
@@ -546,15 +543,19 @@ DECODER_DEF void *decoder_start_decoding_function(void *arg) {
   
   Decoder_Buffer *buffer = (Decoder_Buffer *) arg;
   Decoder *decoder = buffer->decoder;
-  
-  while(buffer->last_size == 0) {
 
-    while(buffer->play_step + 2 >= buffer->fill_step &&
-	  (buffer->fill_step % buffer->n) != (buffer->play_step & buffer->n)) {
-      decoder_buffer_fill(buffer, decoder, (buffer->fill_step++) % buffer->n);	
+  while(buffer->last_size == 0) {
+    int p = buffer->fill_step % buffer->n;
+    int q = buffer->play_step % buffer->n;
+    int c = (buffer->play_step + 1) % buffer->n;
+    while( (buffer->play_step + 4 >= buffer->fill_step) &&
+	   (p != q) &&
+	   (p != c)) {
+      decoder_buffer_fill(buffer, decoder, p);
+      buffer->fill_step++;
     }
 
-    thread_sleep(10);
+    thread_sleep(5);
   }
 
   return NULL;

@@ -160,11 +160,11 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
     if(is_file) *is_file = !(attribs & FILE_ATTRIBUTE_DIRECTORY);
     return attribs != INVALID_FILE_ATTRIBUTES;
 }
+#endif //_WIN32
 
 IO_DEF bool io_delete(const char *file_path) {
   return remove(file_path) == 0;
 }
-#endif //_WIN32
 
 #endif //IO_IMPLEMENTATION
 

@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  char *arg = ".\\rsc\\";
+  char *arg = "./rsc/";
   if(argc > 1) {
     arg = argv[1];
   }
@@ -249,7 +249,6 @@ int main(int argc, char **argv) {
       if(playlist.len != 0 &&
 	 playlist.available == playlist.len &&
 	 playlist.using_yt_context) {
-	printf("NOW FREEING\n"); fflush(stdout);
 	youtube_context_free(&playlist.yt_context);
 	playlist.using_yt_context = false;
       }
