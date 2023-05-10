@@ -69,8 +69,13 @@ int main(int argc, char ** argv) {
 		ret = run("gcc -o ", obj_duktape,"-c ./thirdparty/duktape.c");
 		if(ret) return ret;
 	    }	    
-
 	    ret = run("gcc", flags, "-o youtube ", obj_duktape, "./src/youtube.c", link_ssl);
+	} else {
+	  if(!io_exists(obj_duktape, NULL)) {
+	    ret = run("cl /Fe:", obj_duktape,"/c ./thirdparty/duktape.c");
+	    if(ret) return ret;
+	  }	    
+	  ret = run("cl", flags, "/Fe:youtube", obj_duktape, "./src/youtube.c");
 	}
     } else if(strcmp(arg, "google") == 0) {
 	if(use_gcc) {
