@@ -65,7 +65,12 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "youtube") == 0) {
 	if(use_gcc) {
-	    ret = run("gcc", flags, "-o youtube ./src/youtube.c", link_ssl);
+	    if(!io_exists(obj_duktape, NULL)) {
+		ret = run("gcc -o ", obj_duktape,"-c ./thirdparty/duktape.c");
+		if(ret) return ret;
+	    }	    
+
+	    ret = run("gcc", flags, "-o youtube ", obj_duktape, "./src/youtube.c", link_ssl);
 	}
     } else if(strcmp(arg, "google") == 0) {
 	if(use_gcc) {

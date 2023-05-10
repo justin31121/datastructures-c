@@ -260,7 +260,7 @@ typedef struct{
   POINT cursor;
 #endif //_WIN32
   Gui_Event_Type type;
-  typedef union{
+  union{
     char key;
     int amount;
   };
@@ -683,6 +683,7 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
   } else if(message == WM_PAINT){
     Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
     if(gui != NULL && gui->canvas != NULL) {
+	/*
       PAINTSTRUCT ps;
       HDC context = BeginPaint(gui->win, &ps);
       StretchDIBits(context,
@@ -692,6 +693,7 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 		    &gui->info,
 		    DIB_RGB_COLORS, SRCCOPY);
       EndPaint(gui->win, &ps);
+	*/
       return 0;
     }
     return UsedWindowProc(hWnd, message, wParam, lParam);
@@ -960,7 +962,7 @@ GUI_DEF void gui_time_capture(Gui_Time *time) {
 }
 
 GUI_DEF unsigned long gui_time_measure(Gui_Time *reference) {
-  LARGE_INTEGER endCounter;
+    LARGE_INTEGER endCounter;
   QueryPerformanceCounter(&endCounter);
 
   long elapsed = endCounter.QuadPart - reference->counter.QuadPart;

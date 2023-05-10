@@ -20,7 +20,7 @@
 #define PLAYER_N 5
 #define PLAYER_VOLUME 0.1f
 
-#define PLAYER_BUFFER_CAP HTTP_BUFFER_CAP
+#define PLAYER_BUFFER_CAP 8192
 
 #ifdef linux
 #include <alsa/asoundlib.h>

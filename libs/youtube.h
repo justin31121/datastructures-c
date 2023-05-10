@@ -90,9 +90,8 @@ YOUTUBE_DEF bool youtube_search(Youtube_Context *context, const char *keyword, J
 	return false;
     }
   
-    char buffer[10240];
-    if(snprintf(buffer, 10240, "/results?search_query=%s",
-		keyword) >= 10240) {
+    char buffer[1024];
+    if(snprintf(buffer, 1024, "/results?search_query=%s", keyword) >= 1024) {
 	return false;
     }
 

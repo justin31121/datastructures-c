@@ -79,17 +79,17 @@ void *player_start(void *_arg) {
   playlist_init(&playlist);
   if(!playlist_from(&playlist, &player, arg)) {
     fprintf(stderr, "ERROR: Can not play argument: '%s'\n", arg);
-    return NULL;
+    panic("playlist_from");
   }
 
   loading_log = "opening song . . .";
   if(!player_open(&player, playlist_get_source(&playlist, playlist.pos))) {
-    return NULL;
+      panic("player_open");
   }
 
   loading_log = "start playing . . .";
   if(!player_play(&player)) {
-    return NULL;
+      panic("player_play");
   }
   
   loading = false;

@@ -355,8 +355,8 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
 FONT_DEF unsigned int font_estimate_width2(const Font2 *font, const char *cstr) {
   unsigned int x0 = 0;
   while(*cstr) {
-    char c = *cstr++;
-    if(c < 32 || c >= 128 || c == ' ') {
+      char c = *cstr++;
+      if(c < 32  || c == ' ') { // c <= 128
       x0 += font->height * 1 / 4;
     }
     else x0 += font->xs[c - 32] + font->ws[c - 32];

@@ -32,7 +32,7 @@ typedef struct {
   void *arg;
 }Json_Parse_Events;
 
-JSON_PARSER_DEF bool json_parse(const char *cstr, u64 cstr_len, const Json_Parse_Events *events);
+JSON_PARSER_DEF bool json_parse2(const char *cstr, size_t cstr_len, const Json_Parse_Events *events);
 JSON_PARSER_DEF const char *json_parse_type_name(Json_Parse_Type type);
 
 #ifdef JSON_PARSER_IMPLEMENTATION
@@ -82,7 +82,7 @@ JSON_PARSER_DEF bool json_parse_constant(Tokentype type, Tokenizer *t, const Jso
     default:
       assert(!"unreachable json_parse_constant");
     }
-    if(parse_type == -1) assert(!"parse_type should not be negative");
+    if((int) parse_type == -1) assert(!"parse_type should not be negative");
     if(!events->on_elem(parse_type, token.content, events->arg, elem)) {
       return false;
     }
@@ -458,7 +458,7 @@ JSON_PARSER_DEF bool json_parse_json(Tokenizer *t, const Json_Parse_Events *even
   return false;
 }
 
-JSON_PARSER_DEF bool json_parse(const char *cstr, u64 cstr_len, const Json_Parse_Events *events) {
+JSON_PARSER_DEF bool json_parse2(const char *cstr, size_t cstr_len, const Json_Parse_Events *events) {
   if(!events) {
     return false;
   }
