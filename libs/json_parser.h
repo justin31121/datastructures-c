@@ -232,6 +232,10 @@ JSON_PARSER_DEF bool json_parse_string(Tokenizer *t, const Json_Parse_Events *ev
 	t->pos = start;
 	return false;
       }
+      if(token.content.data != value.data) {
+	u64 diff = token.content.data - value.data - value.len;
+	value = string_from(value.data, value.len + diff + token.content.len);	
+      }
     }
     
     if(!tokenizer_peek(t, &token)) {

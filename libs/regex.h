@@ -61,7 +61,8 @@ typedef struct{
 
 REGEX_DEF bool regex_compile(Regex *regex, const char *regex_cstr);
 REGEX_DEF bool regex_match(Regex *regex, const char* cstr, size_t *off, size_t *len);
-REGEX_DEF bool regex_match_nth(Regex *regex, const char* cstr, size_t n, size_t *off, size_t *len);
+REGEX_DEF bool regex_match_len(Regex *regex, const char* cstr, size_t cstr_len, size_t *off, size_t *len);
+//REGEX_DEF bool regex_match_nth(Regex *regex, const char* cstr, size_t n, size_t *off, size_t *len);
 
 REGEX_DEF void regex_print(Regex *regex);
 REGEX_DEF bool regex_init(Regex *regex);
@@ -725,19 +726,20 @@ REGEX_DEF bool regex_match_impl(Regex *regex,
 }
 
 REGEX_DEF bool regex_match(Regex *regex, const char* cstr, size_t *off, size_t *len) {  
-    size_t cstr_len = strlen(cstr);
-
-
-    for(size_t i=0;i<cstr_len;i++) {
-	if(regex_match_impl(regex, cstr + i, cstr_len - i, len)) {
-	    *off = i;
-	    return true;
-	}
-    }
-  
-    return false;
+  return regex_match_len(regex, cstr, strlen(cstr), off, len);
 }
 
+REGEX_DEF bool regex_match_len(Regex *regex, const char* cstr, size_t cstr_len, size_t *off, size_t *len) {
+  for(size_t i=0;i<cstr_len;i++) {
+    if(regex_match_impl(regex, cstr + i, cstr_len - i, len)) {
+      *off = i;
+      return true;
+    }
+  }  
+  return false;
+}
+
+/*
 REGEX_DEF bool regex_match_nth(Regex *regex, const char* cstr, size_t n, size_t *off, size_t *len) {
 
     size_t cstr_len = strlen(cstr);
@@ -755,6 +757,7 @@ REGEX_DEF bool regex_match_nth(Regex *regex, const char* cstr, size_t n, size_t 
   
     return false;
 }
+*/
 
 #endif //REGEX_IMPLEMENTATION
 

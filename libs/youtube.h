@@ -297,12 +297,12 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 
     Json videoDetails = json_get(initialPlayerResponse, "videoDetails");
     if(json_has(videoDetails, "isLive") && json_get_bool(videoDetails, "isLive")) {
-	const char *m3u8Link = json_get_string(streamingData, "hlsManifestUrl");
-	json_put_string(video, "hlsManifestUrl", m3u8Link);
+      const char *m3u8Link = json_get_string(streamingData, "hlsManifestUrl");
+      json_put_string(video, "hlsManifestUrl", m3u8Link);
     }
     if(streamingData.type && json_has(streamingData, "dashManifestUrl")) {
-	const char *dashLink = json_get_string(streamingData, "dashManifestUrl");
-	json_put_string(video, "dashManifestUrl", dashLink);
+      const char *dashLink = json_get_string(streamingData, "dashManifestUrl");
+      json_put_string(video, "dashManifestUrl", dashLink);
     }
     json_put_object(video, "videoDetails", &videoDetails);
 
@@ -389,7 +389,7 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	if(!regex_compile(&regexs[2], "\\.split\\(\"\"\\);[:alnum:]+\\.")) {
 	    panic("can not copmile regex");
 	}
-	if(!regex_match_nth(&regexs[2], sb->data, 0, &offset, &len)) {
+	if(!regex_match(&regexs[2], sb->data, &offset, &len)) {
 	    panic("regex_match");
 	}
 
@@ -409,7 +409,7 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	if(!regex_compile(&regexs[3], buffer->data)) {
 	    panic("can not copmile regex");
 	}
-	if(!regex_match_nth(&regexs[3], jsFile->data, 0, &offset, &len)) {
+	if(!regex_match(&regexs[3], jsFile->data, &offset, &len)) {
 	    panic("regex_match");
 	}
 

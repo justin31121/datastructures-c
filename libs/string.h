@@ -69,6 +69,7 @@ size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *
 void string_buffer_free(String_Buffer *sb);
 
 const char *tprintf(String_Buffer *sb, const char *format, ...);
+string tsprintf(String_Buffer *sb, const char *format, ...);
 
 #ifdef STRING_IMPLEMENTATION
 

@@ -454,6 +454,17 @@ HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
 	    if(lo > 57) lo -= 39;
 	    output[pos++] = (hi << 4) | (lo & 0xf);
 	    i+=2;
+	} else if(c == '\\' && i+5 < input_size) {
+	  bool replace_with_and = true;
+	  if(input[i+1] != 'u') replace_with_and = false;
+	  if(input[i+2] != '0') replace_with_and = false;
+	  if(input[i+3] != '0') replace_with_and = false;
+	  if(input[i+4] != '2') replace_with_and = false;
+	  if(input[i+5] != '6') replace_with_and = false;
+	  if(replace_with_and) {
+	    output[pos++] = '&';
+	    i += 5;
+	  }
 	} else {
 	    output[pos++] = c;
 	}
