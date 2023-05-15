@@ -131,7 +131,7 @@ bool tokenizer_init(Tokenizer *t, const char *text) {
   }
   
   t->text = text;
-  t->len = strlen(text);
+  t->len = (u32) strlen(text);
   t->pos = 0;
   
   return true;
@@ -143,7 +143,7 @@ bool tokenizer_init2(Tokenizer *t, const char *text, size_t text_len) {
   }
   
   t->text = text;
-  t->len = text_len;
+  t->len = (u32) text_len;
   t->pos = 0;
   
   return true;
@@ -173,7 +173,7 @@ bool tokenizer_next(Tokenizer *t, Token *token) {
   //STRINGS
   for(u32 i=0;i<strings_len;i++) {    
     char *_string = strings[i];
-    u32 _string_len = strlen(_string);
+    u32 _string_len = (u32) strlen(_string);
     
     if(_string_len > (t->len - t->pos)) { // TEST that
       continue;

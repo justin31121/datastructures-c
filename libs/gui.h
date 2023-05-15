@@ -115,7 +115,7 @@ void glVertexAttribPointer(GLuint index,
 }
 
 PROC _glCreateShader = NULL;
-GLuint glCreateShader(GLenum shaderType) { return _glCreateShader(shaderType); }
+GLuint glCreateShader(GLenum shaderType) { return (GLuint) _glCreateShader(shaderType); }
 
 PROC _glShaderSource = NULL;
 void glShaderSource(GLuint shader,
@@ -142,7 +142,7 @@ void glGetShaderInfoLog(GLuint shader,
 }
 
 PROC _glCreateProgram = NULL;
-GLuint glCreateProgram(void) { return _glCreateProgram(); }
+GLuint glCreateProgram(void) { return (GLuint) _glCreateProgram(); }
 
 PROC _glAttachShader = NULL;
 void glAttachShader(GLuint program, GLuint shader) { _glAttachShader(program, shader); }
@@ -199,7 +199,7 @@ void glUniform1i(GLint location, GLint v0) {
 }
 
 PROC _glGetUniformLocation = NULL;
-GLint glGetUniformLocation(GLuint program, const GLchar *name) { return _glGetUniformLocation(program, name); }
+GLint glGetUniformLocation(GLuint program, const GLchar *name) { return (GLint) _glGetUniformLocation(program, name); }
 
 PROC _glGetActiveUniform = NULL;
 void glGetActiveUniform(GLuint program,
@@ -224,7 +224,7 @@ void glGetUniformiv(GLuint program, GLint location, GLsizei bufSize, GLint *para
 
 PROC _wglSwapIntervalEXT = NULL;
 int wglSwapIntervalEXT(GLint interval) {
-    return _wglSwapIntervalEXT(interval);
+  return (int) _wglSwapIntervalEXT(interval);
 }
 
 #ifdef GUI_LOOPLESS
@@ -263,7 +263,7 @@ typedef struct{
   union{
     char key;
     int amount;
-  };
+  }as;
   int mousex;
   int mousey;
 }Gui_Event;
@@ -736,22 +736,23 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   int screenWidth = GetSystemMetrics(SM_CXSCREEN);
   int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-  if(!(gui->win = CreateWindowEx(0,
-				 wc.lpszClassName,
-				 wc.lpszClassName,
-				 WS_OVERLAPPEDWINDOW,
-				 canvas != NULL
-				 ? (screenWidth / 2 - canvas->width/2)
-				 : CW_USEDEFAULT,
-				 canvas != NULL
-				 ? (screenHeight / 2 - (canvas->height + 39)/2)
-				 : CW_USEDEFAULT,
-				 canvas != NULL ? canvas->width : CW_USEDEFAULT,
-				 canvas != NULL ? canvas->height + 39 : CW_USEDEFAULT,
-				 NULL,
-				 NULL,
-				 hInstance,
-				 NULL))) {
+  gui->win = CreateWindowEx(0,
+			    wc.lpszClassName,
+			    wc.lpszClassName,
+			    WS_OVERLAPPEDWINDOW,
+			    canvas != NULL
+			    ? (screenWidth / 2 - canvas->width/2)
+			    : CW_USEDEFAULT,
+			    canvas != NULL
+			    ? (screenHeight / 2 - (canvas->height + 39)/2)
+			    : CW_USEDEFAULT,
+			    canvas != NULL ? canvas->width : CW_USEDEFAULT,
+			    canvas != NULL ? canvas->height + 39 : CW_USEDEFAULT,
+			    NULL,
+			    NULL,
+			    hInstance,
+			    NULL);
+  if(!gui->win) {
     return false;
   }  
   gui->dc = GetDC(gui->win);
@@ -914,7 +915,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   case WM_MOUSEWHEEL:
   case WM_MOUSEHWHEEL: {
     event->type = GUI_EVENT_MOUSEWHEEL; 
-    event->amount = GET_WHEEL_DELTA_WPARAM(msg->wParam) / 120;//apperantly this is 120`s steps
+    event->as.amount = GET_WHEEL_DELTA_WPARAM(msg->wParam) / 120;//apperantly this is 120`s steps
   } break;
   case WM_RBUTTONUP: 
   case WM_RBUTTONDOWN: {
@@ -922,7 +923,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       if(msg->message == WM_RBUTTONUP) {
 	  event->type = GUI_EVENT_MOUSERELEASE;	  
       }
-      event->key = 'R';
+      event->as.key = 'R';
   } break;
   case WM_LBUTTONUP: 
   case WM_LBUTTONDOWN: {
@@ -930,7 +931,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       if(msg->message == WM_LBUTTONUP) {
 	  event->type = GUI_EVENT_MOUSERELEASE;	  
       }
-      event->key = 'L';
+      event->as.key = 'L';
   } break;
   case WM_SYSKEYDOWN:
   case WM_SYSKEYUP:
@@ -940,7 +941,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
     bool isDown = ((msg->lParam & (1 << 31)) == 0);
 
     if(wasDown != isDown) {
-      event->key = msg->wParam;
+      event->as.key = (char) msg->wParam;
       if(wasDown) {
 	event->type = GUI_EVENT_KEYRELEASE;
       } else {
@@ -963,7 +964,7 @@ GUI_DEF unsigned long gui_time_measure(Gui_Time *reference) {
     LARGE_INTEGER endCounter;
   QueryPerformanceCounter(&endCounter);
 
-  long elapsed = endCounter.QuadPart - reference->counter.QuadPart;
+  long elapsed = (long) (endCounter.QuadPart - reference->counter.QuadPart);
   reference->counter = endCounter;
   return (unsigned long) ((1000 * elapsed) / guiWin32PerfCountFrequency.QuadPart);
 }

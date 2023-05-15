@@ -34,6 +34,7 @@ string string_chop_by_delim(string *s, char delim);
 string string_chop_left(string *s, size_t n);
 string string_chop_right(string *s, size_t n);
 bool string_chop_string(string *s, string dst);
+bool string_chop_cstr(string *s, const char *dst);
 bool string_chop_int(string *s, int *n);
 bool string_chop_hex(string *s, uint64_t *n);
 bool string_chop_int64_t(string *s, int64_t *n);
@@ -46,11 +47,17 @@ int string_index_of_offset2(string s, string t, size_t offset);
 
 string string_substring(string s, size_t start, size_t end);
 bool string_eq(string s, string t);
+bool string_eq_cstr(string s, const char *cstr);
 
 char* string_to_cstr(string *s);
 
 bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t val_size);
 int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size);
+
+
+///////////////////////////////////////
+
+bool string_replace(string s, const char *from, const char *to, char *buffer, size_t buffer_cap, size_t *buffer_size);
 
 //STRING_BUFFER
 
@@ -217,7 +224,7 @@ int string_index_of(string s, const char *cstr) {
 }
 
 int string_index_of_offset(string s, const char *cstr, size_t offset) {
-  return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + offset;
+  return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + (int) offset;
 }
 
 int string_index_of2(string s, string t) {
@@ -225,7 +232,7 @@ int string_index_of2(string s, string t) {
 }
 
 int string_index_of_offset2(string s, string t, size_t offset) {
-  return cstr_index_of(s.data + offset, s.len - offset, t.data, t.len) + offset;
+  return cstr_index_of(s.data + offset, s.len - offset, t.data, t.len) + (int) offset;
 }
 
 string string_substring(string s, size_t start, size_t end) {
@@ -246,6 +253,11 @@ bool string_eq(string s, string t) {
     }
   }
   return true;
+}
+
+bool string_eq_cstr(string s, const char *cstr) {
+  string cstr_string = string_from_cstr(cstr);
+  return string_eq(s, cstr_string);
 }
 
 void string_in_cstr(string s, char* target) {
@@ -317,6 +329,16 @@ bool string_chop_string(string *s, string dst) {
     return false;
   }
   string_chop_left(s, dst.len);
+  return true;
+}
+
+bool string_chop_cstr(string *s, const char *dst) {
+  string dst_string = string_from_cstr(dst);
+  int pos = string_index_of2(*s, dst_string);
+  if(pos != 0) {
+    return false;
+  }
+  string_chop_left(s, dst_string.len);
   return true;
 }
 
@@ -412,6 +434,74 @@ const char *tprintf(String_Buffer *sb, const char *format, ...) {
   sb->len += len;
 
   return sb->data + sb->len - len;
+}
+
+string tsprintf(String_Buffer *sb, const char *format, ...) {
+  (void) format;
+  (void) sb;
+
+  va_list args;
+  va_start(args, format);
+#ifdef _MSC_VER
+  va_list two = args;
+#elif __GNUC__
+  va_list two;
+  va_copy(two, args);
+#endif
+  size_t len = vsnprintf(NULL, 0, format, args);
+  va_end(args);
+  
+  string_buffer_reserve(sb, sb->len + len);
+  vsnprintf(sb->data + sb->len, len, format, two);
+  sb->len += len;
+
+  return string_from(sb->data + sb->len - len, len);
+}
+
+bool string_replace(string s, const char *_from, const char *_to, char *buffer, size_t buffer_cap, size_t *buffer_size) {
+  string from = string_from_cstr(_from);
+  string to = string_from_cstr(_to);
+
+  *buffer_size = 0;
+
+  while(s.len) {
+    int pos = string_index_of2(s, from);
+    if(pos == -1) {
+      if(buffer_cap < s.len) {
+	return false;
+      } 
+      memcpy(buffer + *buffer_size, s.data, s.len);
+      *buffer_size += s.len;
+      buffer_cap -= s.len;
+      s.len = 0; // at this point, just discard s
+    } else if(pos == 0) {
+      string_chop_left(&s, from.len);
+      if(buffer_cap < to.len) {
+	return false;
+      }
+      memcpy(buffer + *buffer_size, to.data, to.len);
+      *buffer_size += to.len;
+      buffer_cap -= to.len;    
+    } else {      
+      size_t _pos = (size_t) pos;
+      if(buffer_cap < _pos) {
+	return false;
+      }
+      memcpy(buffer + *buffer_size, s.data, _pos);
+      *buffer_size += _pos;
+      buffer_cap -= _pos;
+      string_chop_left(&s, _pos + from.len);
+      ///////////////////////////
+      if(buffer_cap < to.len) {
+	return false;
+      }
+      memcpy(buffer + *buffer_size, to.data, to.len);
+      *buffer_size += to.len;
+      buffer_cap -= to.len;
+    }    
+  }
+
+  return true;
 }
 
 #endif //STRING_IMPLEMENTATION

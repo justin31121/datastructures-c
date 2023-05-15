@@ -163,13 +163,13 @@ IMGUI_DEF bool imgui_peek() {
 		       &imgui_instance.pos.y);
     
   if(imgui_instance.event->type == GUI_EVENT_MOUSEPRESS &&
-     imgui_instance.event->key == 'L') {
+     imgui_instance.event->as.key == 'L') {
     imgui_instance.input = imgui_instance.pos;
     imgui_instance.clicked = true;
   } else if(imgui_instance.event->type == GUI_EVENT_MOUSERELEASE) {
     imgui_instance.released = true;
   } else if(imgui_instance.event->type == GUI_EVENT_MOUSEWHEEL) {
-    imgui_instance.scroll = imgui_instance.event->amount;
+    imgui_instance.scroll = imgui_instance.event->as.amount;
   }
   return ret;
 }
@@ -379,6 +379,8 @@ IMGUI_DEF bool imgui_text_button(Vec2f pos, const char *text, Vec4f color) {
   bool holding = IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.input, pos, size);
   if(holding) {
     color.w *= .5f;
+  } else if(IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.pos, pos, size)) {
+    color.w *= .75f;
   }
   imgui_text_len(pos, text, strlen(text), color);
   return imgui_instance.released && holding;
@@ -400,7 +402,7 @@ IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len, Vec4
     float char_width = (float) imgui_instance.font->ws[c - 32] / (float) imgui_instance.font->width;
     float char_off = (float) (c - 32) * (float) imgui_instance.font->height / (float) imgui_instance.font->width;
 
-    Vec2f char_size = vec2f(imgui_instance.font->ws[c - 32], imgui_instance.font->height);
+    Vec2f char_size = vec2f((float) imgui_instance.font->ws[c - 32], (float) imgui_instance.font->height);
     pos.x += imgui_instance.font->xs[c -32];
 
     renderer_text(&imgui_instance.renderer,

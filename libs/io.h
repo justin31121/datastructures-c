@@ -36,6 +36,9 @@ typedef struct{
 typedef struct{
   bool is_dir;
 #ifdef _WIN32
+  HANDLE handle;
+  DWORD size;
+  DWORD pos;
   char abs_name[MAX_PATH];
 #elif linux
   char abs_name[PATH_MAX];
@@ -49,6 +52,18 @@ IO_DEF void io_dir_close(Io_Dir *dir);
 
 IO_DEF bool io_exists(const char *file_path, bool *is_file);
 IO_DEF bool io_delete(const char *file_path);
+
+IO_DEF bool io_file_open(Io_File *file, const char *file_path);
+IO_DEF bool io_file_close(Io_File *file);
+IO_DEF size_t io_file_fread(void *ptr, size_t size, size_t count, Io_File *file);
+IO_DEF int io_file_ferror(Io_File *file);
+IO_DEF int io_file_feof(Io_File *file);
+IO_DEF int io_file_fseek(Io_File *file, long offset, int whence);
+IO_DEF long io_file_ftell(Io_File *file);
+
+IO_DEF bool io_getenv(const char *name, char *buffer, size_t buffer_cap);
+IO_DEF bool io_slurp_file(const char *name, char **bufer, size_t *buffer_size);
+IO_DEF bool io_write_file_len(const char *name, char *bufer, size_t buffer_size);
 
 #ifdef IO_IMPLEMENTATION
 
@@ -138,7 +153,7 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file) {
   file->is_dir = (dir->file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) > 0;
   file->name = (char *) dir->file_data.cFileName;
 
-  int len = strlen(dir->name);
+  size_t len = strlen(dir->name);
   memcpy(file->abs_name, dir->name, len);
   int len2 = WideCharToMultiByte(CP_ACP, 0, dir->file_data.cFileName, -1, NULL, 0, NULL, NULL);
   WideCharToMultiByte(CP_ACP, 0, dir->file_data.cFileName, -1, file->abs_name + len, len2, NULL, NULL);
@@ -160,6 +175,132 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
     if(is_file) *is_file = !(attribs & FILE_ATTRIBUTE_DIRECTORY);
     return attribs != INVALID_FILE_ATTRIBUTES;
 }
+
+IO_DEF bool io_getenv(const char *name, char *buffer, size_t buffer_cap) {
+  DWORD buffer_size = GetEnvironmentVariable(name, NULL, 0);
+  if(buffer_size == 0) {
+    return false;
+  }
+
+  if(buffer_size > buffer_cap) {
+    return false;
+  }
+
+  DWORD result = GetEnvironmentVariable(name, buffer, (DWORD) buffer_cap);
+  if(result == 0) {
+    return false;
+  }
+  
+  return true;
+}
+
+IO_DEF bool io_slurp_file(const char *name, char **buffer, size_t *buffer_size) {
+  (void) name;
+  (void) buffer;
+  (void) buffer_size;
+  return false;
+}
+
+IO_DEF bool io_write_file_len(const char *name, char *buffer, size_t buffer_size) {
+  HANDLE handle = CreateFile(name,
+			     GENERIC_WRITE, 0, NULL,
+			     CREATE_ALWAYS,
+			     FILE_ATTRIBUTE_NORMAL,
+			     NULL);
+  if(handle == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+
+  bool result = true;
+  DWORD written;
+  if(!WriteFile(handle, buffer, (DWORD) buffer_size, &written, NULL)) {
+    result = false;
+  }
+
+  CloseHandle(handle);  
+  return result;}
+
+
+IO_DEF bool io_file_open(Io_File *file, const char *file_path) {
+
+  file->handle = CreateFile(
+			    file_path,                     // File name
+			    GENERIC_READ,                 // Desired access (read-only in this case)
+			    FILE_SHARE_READ,              // Share mode (other processes can read the file)
+			    NULL,                         // Security attributes
+			    OPEN_EXISTING,                // Creation disposition (open existing file)
+			    FILE_ATTRIBUTE_NORMAL,        // File attributes
+			    NULL                          // Template file handle
+			    );
+  if(file->handle == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+
+  file->size = GetFileSize(file->handle, NULL);
+  if(file->size == INVALID_FILE_SIZE) {
+    CloseHandle(file->handle);
+    return false;
+  }
+  file->pos = 0;
+  
+  return true;
+}
+
+IO_DEF bool io_file_close(Io_File *file) {
+  CloseHandle(file->handle);
+  return false;
+}
+
+IO_DEF size_t io_file_fread(void *ptr, size_t size, size_t count, Io_File *file) {
+  DWORD bytes_read;
+  DWORD bytes_to_read = (DWORD) (size * count);
+
+  if(!ReadFile(file->handle, ptr, bytes_to_read, &bytes_read, NULL)) {
+    return 0;
+  }
+  file->pos += bytes_read;
+
+  return (size_t) bytes_read / size;
+}
+
+IO_DEF int io_file_ferror(Io_File *file) {
+  (void) file;
+  DWORD lastError = GetLastError();
+  return (file->handle == INVALID_HANDLE_VALUE) || (lastError != ERROR_SUCCESS);
+}
+
+IO_DEF int io_file_feof(Io_File *file) {
+  return file->pos == file->size;
+}
+
+IO_DEF int io_file_fseek(Io_File *file, long offset, int whence) {
+  DWORD moveMethod;
+
+  switch (whence) {
+  case SEEK_SET:
+    moveMethod = FILE_BEGIN;
+    break;
+
+  case SEEK_CUR:
+    moveMethod = FILE_CURRENT;
+    break;
+
+  case SEEK_END:
+    moveMethod = FILE_END;
+    break;
+
+  default:
+    return -1;  // Invalid origin
+  }
+
+  file->pos = SetFilePointer(file->handle, offset, NULL, moveMethod);
+  return !(file->pos != INVALID_SET_FILE_POINTER);
+}
+
+IO_DEF long io_file_ftell(Io_File *file) {
+  return file->pos;
+}
+
 #endif //_WIN32
 
 IO_DEF bool io_delete(const char *file_path) {

@@ -37,10 +37,10 @@ PEN_DEF u32 rgba_mix(u32 color, u32 base) {
   u8 base_red = 0xff & base;
   u8 red = color_alpha * ((0xff & color) - base_red) / 0xff + base_red;
   
-  u8 base_green = (0xff00 & base) >> 8;
+  u8 base_green = (u8) ((0xff00 & base) >> 8);
   u8 green = color_alpha * (((0xff00 & color) >> 8) - base_green) / 0xff + base_green;
   
-  u8 base_blue = (0xff0000 & base) >> 16;
+  u8 base_blue = (u8) ((0xff0000 & base) >> 16);
   u16 blue = color_alpha * (((0xff0000 & color) >> 16) - base_blue) / 0xff + base_blue;
   
   return (color_alpha << 24) | (blue << 16) | (green << 8) | red;

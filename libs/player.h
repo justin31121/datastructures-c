@@ -16,9 +16,11 @@
 #define PLAYER_DEF static inline
 #endif //PLAYER_DEF
 
-#define PLAYER_BUFFER_SIZE 4096
-#define PLAYER_N 8
+#define PLAYER_BUFFER_SIZE 8192
+#define PLAYER_N 5
 #define PLAYER_VOLUME 0.1f
+
+#define DECODER_XAUDIO2_SAMPLES 64
 
 #define PLAYER_BUFFER_CAP 8192
 
@@ -44,14 +46,21 @@ typedef struct{
   
   char buffer[PLAYER_BUFFER_CAP];
   ssize_t nbytes_total;
-  int offset;
+  int64_t offset;
 
-  int len;
-  int pos;
+  int64_t len;
+  int64_t pos;
 }Player_Socket;
 
 PLAYER_DEF bool player_socket_init(Player_Socket *s, const char *url, int start, int end);
 PLAYER_DEF void player_socket_free(Player_Socket *s);
+
+typedef enum{
+  PLAYER_MEDIA_TYPE_NONE = 0,
+  PLAYER_MEDIA_TYPE_FILE,
+  PLAYER_MEDIA_TYPE_MEMORY,
+  PLAYER_MEDIA_TYPE_URL,
+}Player_Media_Type;
 
 typedef struct{
   Decoder_Fmt fmt;
@@ -71,7 +80,8 @@ typedef struct{
   Thread decoding_thread;
   int samples;
 
-  FILE *file;
+  Player_Media_Type media_type;
+  Io_File file;
   Player_Memory decoder_memory;
   Player_Socket decoder_socket;
 
@@ -138,7 +148,7 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
       return false;
     }
 
-    int directory_len = url_len - hostname - hostname_len;
+    size_t directory_len = url_len - hostname - hostname_len;
     const char *route = "/";
     if(directory_len>0) {
       route = url + hostname + hostname_len;
@@ -241,13 +251,11 @@ PLAYER_DEF bool player_init(Player *player, Decoder_Fmt fmt, int channels, int s
   player->fmt = fmt;
   player->channels = channels;
   player->sample_rate = 0;
-  player->file = NULL;
-  player->current_volume = PLAYER_VOLUME;
-  player->decoder_memory = (Player_Memory) {0};
-  player->decoder_socket.len = -1;
+  player->media_type = PLAYER_MEDIA_TYPE_NONE;
 
   player->decoder_used = false;
   player->playing = false;
+  player->current_volume = PLAYER_VOLUME;
 
 #ifdef _WIN32    
   player->samples = DECODER_XAUDIO2_SAMPLES;
@@ -343,31 +351,31 @@ PLAYER_DEF void player_init_stats(Player *player) {
 }
 
 PLAYER_DEF int player_decoder_file_read(void *opaque, uint8_t *buf, int buf_size) {
-  FILE *f = (FILE *)opaque;
+  Io_File *f = (Io_File *)opaque;
 
-  int bytes_read = fread(buf, 1, buf_size, f);
+  size_t bytes_read = io_file_fread(buf, 1, buf_size, f);
 
   if (bytes_read == 0) {
-    if(feof(f)) return AVERROR_EOF;
+    if(io_file_feof(f)) return AVERROR_EOF;
     else return AVERROR(errno);
   }
   
-  return bytes_read;
+  return (int) bytes_read;
 }
 
 PLAYER_DEF int64_t player_decoder_file_seek(void *opaque, int64_t offset, int whence) {
   
-  FILE *file = (FILE *)opaque;
+  Io_File *file = (Io_File *)opaque;
   
   if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
     return AVERROR_INVALIDDATA;
   }
 
-  if(fseek(file, offset, whence)) {
+  if(io_file_fseek(file, (long) offset, whence)) {
     return AVERROR(errno);
   }
 
-  return ftell(file);
+  return io_file_ftell(file);
 }
 
 PLAYER_DEF int player_decoder_memory_read(void *opaque, uint8_t *buf, int _buf_size) {
@@ -426,7 +434,7 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 
     if(socket->nbytes_total > 0) {
 
-      int len = (int) (socket->nbytes_total - (ssize_t) socket->offset);
+      int64_t len = (int64_t) (socket->nbytes_total - (ssize_t) socket->offset);
       if(socket->pos + len > socket->len) {
 	len = socket->len - socket->pos;
       }
@@ -452,8 +460,8 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
       }
 
       socket->pos += len;
-      buf_size -= len;
-      buf_off += len;
+      buf_size -= (int) len;
+      buf_off += (int) len;
       
     } else {
       socket->nbytes_total = http_read(&socket->http, socket->buffer, PLAYER_BUFFER_CAP);
@@ -477,7 +485,7 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence) {
     Player_Socket *socket = (Player_Socket *) opaque;
 
-    int pos = socket->pos;
+    int64_t pos = socket->pos;
 
     switch (whence) {
     case SEEK_SET:
@@ -499,13 +507,13 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
     if(pos < 0 || pos > socket->len) return AVERROR_EOF;
     if(pos - socket->pos > (10 * PLAYER_BUFFER_CAP) || pos < socket->pos) {
       player_socket_free(socket);
-      player_socket_init(socket, NULL, pos, socket->len);
+      player_socket_init(socket, NULL, (int) pos, (int) socket->len);
     }
 
     while(socket->pos < pos){
 	if(socket->nbytes_total > 0) {
 
-	    int len = (int) (socket->nbytes_total - (ssize_t) socket->offset);
+	    int64_t len = (int64_t) (socket->nbytes_total - (ssize_t) socket->offset);
 	    if(socket->pos + len > socket->len) {
 		len = socket->len - socket->pos;
 	    }
@@ -550,28 +558,27 @@ PLAYER_DEF bool player_open(Player *player, const char *path) {
 
 PLAYER_DEF bool player_open_file(Player *player, const char *filepath) {
 
-  player->file = fopen(filepath, "rb");
-  if(!player->file) {
+  if(!io_file_open(&player->file, filepath)) {
     return false;
   }
+  player->media_type = PLAYER_MEDIA_TYPE_FILE;
     
   if(!decoder_init(&player->decoder,
 		   player_decoder_file_read, player_decoder_file_seek,
-		   player->file,
+		   &player->file,
 		   player->fmt,
 		   player->channels,
 		   player->current_volume,
 		   player->samples)) {
-    fclose(player->file);
-    player->file = NULL;
+    io_file_close(&player->file);
+    player->media_type = PLAYER_MEDIA_TYPE_NONE;
     return false;
   }
-  player->current_volume = PLAYER_VOLUME;
 
   if(!player_device_init(player, player->decoder.sample_rate)) {
     decoder_free(&player->decoder);
-    fclose(player->file);
-    player->file = NULL;
+    io_file_close(&player->file);
+    player->media_type = PLAYER_MEDIA_TYPE_NONE;
     return false;
   }
   player->decoder_used = true;
@@ -586,15 +593,18 @@ PLAYER_DEF bool player_open_memory(Player *player, const char *memory,
   player->decoder_memory.memory = memory;
   player->decoder_memory.size = memory_size;
   player->decoder_memory.pos = 0;
+  player->media_type = PLAYER_MEDIA_TYPE_MEMORY;
+  
   if(!decoder_init(&player->decoder,
 		   player_decoder_memory_read,
 		   player_decoder_memory_seek, &player->decoder_memory,
 		   player->fmt, player->channels, player->current_volume, player->samples)) {
-    player->decoder_memory = (Player_Memory) {0};
+    player->media_type = PLAYER_MEDIA_TYPE_NONE;
     return false;
   }
 
   if(!player_device_init(player, player->decoder.sample_rate)) {
+    player->media_type = PLAYER_MEDIA_TYPE_NONE;
     return false;
   }
   player->decoder_used = true;
@@ -608,23 +618,25 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url) {
   if(!player_socket_init(&player->decoder_socket, url, 0, 0)) {
     return false;
   }
+  player->media_type = PLAYER_MEDIA_TYPE_URL;
 
   if(!decoder_init(&player->decoder,
 		   player_decoder_url_read,
 		   player_decoder_url_seek, &player->decoder_socket,
 		   player->fmt, player->channels, player->current_volume, player->samples)) {
     player_socket_free(&player->decoder_socket);
-    player->decoder_memory = (Player_Memory) {0};    
+    player->media_type = PLAYER_MEDIA_TYPE_NONE;
     return false;
   }
 
   if(!player_device_init(player, player->decoder.sample_rate)) {
+    player_socket_free(&player->decoder_socket);
+    player->media_type = PLAYER_MEDIA_TYPE_NONE;
     return false;
   }
   player->decoder_used = true;
 
-  player_init_stats(player);
-  
+  player_init_stats(player);  
   return true;
 }
 
@@ -636,18 +648,16 @@ PLAYER_DEF bool player_close(Player *player) {
   player_stop(player);    
   decoder_free(&player->decoder);
 
-  //FREE any kind of track ? 
-  if(player->file) {
-    fclose(player->file);
-    player->file = NULL;
-  }
-  player->decoder_memory = (Player_Memory) {0};
-
-  if(player->decoder_socket.len != -1) {
+  //FREE any kind of track ?
+  if(player->media_type == PLAYER_MEDIA_TYPE_FILE) {
+    io_file_close(&player->file);
+  } else if(player->media_type == PLAYER_MEDIA_TYPE_MEMORY) {
+    //pass
+  } else if(player->media_type == PLAYER_MEDIA_TYPE_URL) {
     player_socket_free(&player->decoder_socket);
-    player->decoder_socket.len = -1;
   }
-  
+  player->media_type = PLAYER_MEDIA_TYPE_NONE;
+    
   player->decoder_used = false;
 
   return true;
@@ -758,8 +768,6 @@ PLAYER_DEF bool player_set_volume(Player *player, float volume) {
     return false;
   }
   player->decoder.target_volume = volume;
-
-  //cache volume
   player->current_volume = volume;
 
   return true;
@@ -814,7 +822,7 @@ PLAYER_DEF bool player_seek(Player *player, float secs) {
   
   bool stopped = player_stop(player);
 
-  int64_t seek = player->den * (int) secs; //player->decoder.pts + player->den*secs
+  int64_t seek = player->den * (int64_t) secs; //player->decoder.pts + player->den*secs
   av_seek_frame(player->decoder.av_format_context, player->decoder.stream_index, seek, 0);
   player->decoder.pts = seek;
 

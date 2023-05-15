@@ -237,9 +237,9 @@ bool build_decoder(Decoder *decoder, Http *http, string response_string) {
     panic("regex_match");
   }
 
-  int k = len-1;
+  size_t k = len-1;
   while(k>=0 && decoder->buffer.data[offset+k] != '}') k--;
-  len = (size_t) k+2;
+  len = k+2;
 
   decoder->prefix = string_from(decoder->buffer.data + offset, len);
 
@@ -300,6 +300,7 @@ int main(int argc, char **argv) {
 
   State state = STATE_NONE;
   bool download = false;
+  bool pack = false;
   const char *out_name = NULL;
 
   string itag = {0};
@@ -308,7 +309,7 @@ int main(int argc, char **argv) {
   const char *in = next(&argc, &argv);  
   if(in == NULL) {
     fprintf(stderr, "ERROR: Please provide a searchterm or an url\n");
-    fprintf(stderr, "USAGE: %s [-o <output_name>] [-d] [ (-f <tag>) / (-audio/-video) ] <searchterm/url>\n", program);
+    fprintf(stderr, "USAGE: %s [-o <output_name>] (--pack / [-d] [ (-f <tag>) / (-audio/-video)]) <searchterm/url>\n", program);
     exit(1);
   }
 
@@ -317,12 +318,18 @@ int main(int argc, char **argv) {
     in = next(&argc, &argv);
   }
 
-  if(strcmp(in, "-d") == 0) {
+  if(strcmp(in, "--pack") == 0) {
+    pack = true;
+    state = STATE_AUDIO; //search for audio reguarly and video specially
+    in = next(&argc, &argv);
+  }
+
+  if(!pack && strcmp(in, "-d") == 0) {
     download = true;
     in = next(&argc, &argv);
   }
 
-  if(strcmp(in, "-f") == 0) {
+  if(!pack && strcmp(in, "-f") == 0) {
     itag = string_from_cstr(next(&argc, &argv));
     in = next(&argc, &argv);
   } else if(strcmp(in, "-audio") == 0) {
@@ -342,100 +349,160 @@ int main(int argc, char **argv) {
   const char *term = in;
 
   string videoId;
-  if(youtube_get_videoId(term, &videoId)) {
+  if(!youtube_get_videoId(term, &videoId)) {
+    search(term);
+    return 0;
+  }  
     
-    Http http;
-    if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
-      panic("http_init2");
-    }
+  Http http;
+  if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
+    panic("http_init2");
+  }
 
-    Player_Info info;
-    if(!get_streams(&info, &http, &sb, term)) {
-      panic("get_streams");
-    }
+  Player_Info info;
+  if(!get_streams(&info, &http, &sb, term)) {
+    panic("get_streams");
+  }
 
-    if(info.m3u8_source.len) {
-      printf(String_Fmt"\n", String_Arg(info.m3u8_source));
-      return 0;
-    } else if(info.dash_source.len) {
-      printf(String_Fmt"\n", String_Arg(info.dash_source));
-      return 0;      
-    }
-
-    if(!itag.len) {
-      
-      for(size_t i=info.strings->count-1;i>=3;i-=3) {
-	string tag = *(string *) arr_get(info.strings, i-2);
-	string type = *(string *) arr_get(info.strings, i-1);
-	if(state == STATE_NONE) {
-	  printf(String_Fmt" - "String_Fmt"\n", String_Arg(tag), String_Arg(type));
-	} else if(state == STATE_AUDIO) {
-	  if(string_index_of(type, "audio/") == 0) {
-	    itag = tag;
-	  }
-	} else if(state == STATE_VIDEO) {
-	  if(string_index_of(type, "video/") == 0) {
-	    itag = tag;
-	  }
+  if(info.m3u8_source.len) {
+    printf(String_Fmt"\n", String_Arg(info.m3u8_source));
+    return 0;
+  } else if(info.dash_source.len) {
+    printf(String_Fmt"\n", String_Arg(info.dash_source));
+    return 0;      
+  }
+  
+  string itag_video = {0}; // this is only used for pack==true
+  if(!itag.len) {      
+    for(size_t i=info.strings->count-1;i>=3;i-=3) {
+      string tag = *(string *) arr_get(info.strings, i-2);
+      string type = *(string *) arr_get(info.strings, i-1);
+      if(state == STATE_NONE) {
+	printf(String_Fmt" - "String_Fmt"\n", String_Arg(tag), String_Arg(type));
+      } else if(state == STATE_AUDIO) {
+	if(string_index_of(type, "audio/") == 0) {
+	  itag = tag;
+	}
+      } else if(state == STATE_VIDEO) {
+	if(string_index_of(type, "video/") == 0) {
+	  itag = tag;
 	}
       }
-      
-    }
 
-    if(!itag.len) {
-      
-      if(download) {
-	fprintf(stderr, "ERROR: Specifiy a stream or use -audio/-video tags, for downloading a resource\n");
-	return 1;
+      if(pack && string_index_of(type, "video/") == 0) {
+	itag_video = tag;
       }
-      
-      return 0;
     }
+      
+  }
 
-    const char *url;
-    string stream;
-    bool is_signature;
-    if(!find_stream(&info, itag, &stream, &is_signature)) {
+  if(!itag.len) {      
+    if(download) {
+      fprintf(stderr, "ERROR: Specifiy a stream or use -audio/-video tags, for downloading a resource\n");
+      return 1;
+    }
+      
+    return 0;
+  }
+
+  const char *url;
+  string stream;
+  bool is_signature = false;
+  if(!find_stream(&info, itag, &stream, &is_signature)) {
+    panic("find_stream");
+  }
+
+  const char *url_video;
+  string stream_video;
+  bool is_signature_video = false;
+  if(pack) {
+    if(!find_stream(&info, itag_video, &stream_video, &is_signature_video)) {
       panic("find_stream");
+    }    
+  }
+  
+  Decoder decoder;
+  char decoded_url[1024 * 2];
+  size_t decoded_url_size;
+  char decoded_url_video[1024 * 2];
+  size_t decoded_url_size_video;
+  if(is_signature || is_signature_video) {
+    if(!build_decoder(&decoder, &http, string_from(sb.data, sb.len))) {
+      panic("build decoder");
     }
+  }
 
-    if(!is_signature) {
-      char decoded_url[1024 * 2];
-      size_t decoded_url_size;
-      if(!http_decodeURI(stream.data, stream.len, decoded_url, 1023 * 2, &decoded_url_size)) {
-	panic("decoded_url overflow");
-      }
-      decoded_url[decoded_url_size] = 0;
+  if(is_signature) {
+    if(!decode(&decoder, stream, &url)) {
+      panic("decode");
+    }
+  } else {
+    if(!http_decodeURI(stream.data, stream.len, decoded_url, 1023 * 2, &decoded_url_size)) {
+      panic("decoded_url overflow");
+    }
+    decoded_url[decoded_url_size] = 0;
+    url = decoded_url;    
+  }
 
-      url = decoded_url;
-    } else {
-      Decoder decoder;
-      if(!build_decoder(&decoder, &http, string_from(sb.data, sb.len))) {
-	panic("build decoder");
-      }
-
-      if(!decode(&decoder, stream, &url)) {
+  if(pack) {
+    if(is_signature_video) {
+      if(!decode(&decoder, stream_video, &url_video)) {
 	panic("decode");
       }
+    } else {
+      if(!http_decodeURI(stream_video.data, stream_video.len, decoded_url_video, 1023 * 2, &decoded_url_size_video)) {
+	panic("decoded_url overflow");
+      }
+      decoded_url_video[decoded_url_size_video] = 0;
+      url_video = decoded_url_video;
     }
+  }
 
-    if(download) {
+  if(pack) {
+    //TODO: Multithreaded audio and video download
+    //And handle the logging somehow
+
+    {      
       char *out_buffer;
       size_t out_buffer_size;
-      printf("Downloading: '%s'\n", url);
-      download3(url, &out_buffer, &out_buffer_size);
+      printf("Url-Audio: '%s'\n", url);
+      
+      download3(url, true, &out_buffer, &out_buffer_size);
 
-      if(!out_name) {
-	out_name = "videoplayback.mp4";
-      }
-      write_file_len(out_name, out_buffer, out_buffer_size);
+      out_name = "temp_audio.m4a";
+      io_write_file_len(out_name, out_buffer, out_buffer_size);
       printf("Saved: '%s'\n", out_name);
-    } else {
-      printf("%s\n", url);
     }
-     
+
+    thread_sleep(500);
+
+    {      
+      char *out_buffer;
+      size_t out_buffer_size;
+      printf("Url-Video: '%s'\n", url_video);
+      
+      download3(url_video, true, &out_buffer, &out_buffer_size);
+
+      out_name = "temp_video.mp4";
+      io_write_file_len(out_name, out_buffer, out_buffer_size);
+      printf("Saved: '%s'\n", out_name);
+    }
+
+
+  } else if(download) {
+    char *out_buffer;
+    size_t out_buffer_size;
+    printf("Url: '%s'\n", url);
+      
+    download3(url, true, &out_buffer, &out_buffer_size);
+
+    if(!out_name) {
+      out_name = "videoplayback.mp4";
+    }
+    io_write_file_len(out_name, out_buffer, out_buffer_size);
+    printf("Saved: '%s'\n", out_name);
   } else {
-    search(term);
+    printf("%s\n", url);
   }
   
   return 0;

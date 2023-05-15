@@ -81,7 +81,7 @@ struct Decoder{
 
   AVPacket *packet;
   AVFrame *frame;
-  int pts;
+  int64_t pts;
 
   float volume;
   float target_volume;
@@ -238,7 +238,9 @@ DECODER_DEF bool decoder_buffer_fill(Decoder_Buffer *buffer, Decoder *decoder, i
   }
 
   bool could_decode = false;
-  while(data_size < buffer->buffer_size && (could_decode = decoder_decode(decoder, &out_samples))) {
+  while(data_size < buffer->buffer_size) {
+    could_decode = decoder_decode(decoder, &out_samples);
+    if(!could_decode) break;
     if(out_samples < 0) continue;
     int out_samples_size = out_samples * decoder->sample_size;
     
@@ -355,7 +357,8 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     av_codec_parameters = decoder->av_format_context->streams[i]->codecpar;
     if(av_codec_parameters->codec_type == AVMEDIA_TYPE_AUDIO) {
       decoder->stream_index = (int) i;
-      if(!(av_codec = avcodec_find_decoder(av_codec_parameters->codec_id))) {
+      av_codec = avcodec_find_decoder(av_codec_parameters->codec_id);
+      if(!av_codec) {
 	decoder_free(decoder);
 	return false;
       }
@@ -366,8 +369,9 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     decoder_free(decoder);
     return false;
   }
-    
-  if(!(decoder->av_codec_context = avcodec_alloc_context3(av_codec))) {
+  
+  decoder->av_codec_context = avcodec_alloc_context3(av_codec);
+  if(!decoder) {
     decoder_free(decoder);
     return false;
   }
@@ -394,12 +398,7 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     decoder_free(decoder);
     return false;
   }
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif //__GNUC__
-
+  
   int channel_layout;
   if(channels == 1) {
     channel_layout = AV_CH_LAYOUT_MONO;
@@ -409,23 +408,23 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     return false;
   }
 
-  if(!(decoder->swr_context = swr_alloc_set_opts(NULL, channel_layout,
-						 av_sample_format,
-						 decoder->av_codec_context->sample_rate,
-						 decoder->av_codec_context->channel_layout,
-						 decoder->av_codec_context->sample_fmt,
-						 decoder->av_codec_context->sample_rate,
-						 0, NULL))) {
+  decoder->swr_context = swr_alloc();
+  if(!decoder->swr_context) {
     decoder_free(decoder);
     return false;
   }
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif //__GNUC__
-  
+
+  av_opt_set_int(decoder->swr_context, "in_channel_layout", decoder->av_codec_context->channel_layout, 0);
+  av_opt_set_int(decoder->swr_context, "in_sample_fmt", decoder->av_codec_context->sample_fmt, 0);
+  av_opt_set_int(decoder->swr_context, "in_sample_rate", decoder->av_codec_context->sample_rate, 0);
+  av_opt_set_int(decoder->swr_context, "out_channel_layout", channel_layout, 0);
+  av_opt_set_int(decoder->swr_context, "out_sample_fmt", av_sample_format, 0);
+  av_opt_set_int(decoder->swr_context, "out_sample_rate", decoder->av_codec_context->sample_rate, 0);
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);
-  decoder->target_volume = volume;
   
+  decoder->target_volume = volume;
+  decoder->volume = volume;
+    
   if(swr_init(decoder->swr_context) < 0) {
     decoder_free(decoder);
     return false;
@@ -451,13 +450,15 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     decoder_free(decoder);
     return false;
   }
-
-  if(!(decoder->packet = av_packet_alloc())) {
+  
+  decoder->packet = av_packet_alloc();
+  if(!decoder->packet) {
     decoder_free(decoder);
     return false;
   }
-
-  if(!(decoder->frame = av_frame_alloc())) {
+  
+  decoder->frame = av_frame_alloc();
+  if(!decoder->frame) {
     decoder_free(decoder);
     return false;
   }
@@ -548,7 +549,7 @@ DECODER_DEF void *decoder_start_decoding_function(void *arg) {
     int p = buffer->fill_step % buffer->n;
     int q = buffer->play_step % buffer->n;
     int c = (buffer->play_step + 1) % buffer->n;
-    while( (buffer->play_step + 4 >= buffer->fill_step) &&
+    while( (buffer->play_step + 2 >= buffer->fill_step) &&
 	   (p != q) &&
 	   (p != c)) {
       decoder_buffer_fill(buffer, decoder, p);
@@ -636,9 +637,9 @@ DECODER_DEF void decoder_get_waveformat(WAVEFORMATEX *waveFormat,
   } break;
   }
 
-  waveFormat->nChannels = channels;
+  waveFormat->nChannels = (WORD) channels;
   waveFormat->nSamplesPerSec = sample_rate;
-  waveFormat->wBitsPerSample = decoder_fmt_to_bits_per_sample(fmt);
+  waveFormat->wBitsPerSample = (WORD) decoder_fmt_to_bits_per_sample(fmt);
   waveFormat->nBlockAlign = (waveFormat->nChannels * waveFormat->wBitsPerSample) / 8;
   waveFormat->nAvgBytesPerSec = waveFormat->nSamplesPerSec * waveFormat->nBlockAlign;
   waveFormat->cbSize = 0; 

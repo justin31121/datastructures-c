@@ -42,7 +42,6 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 YOUTUBE_DEF bool youtube_get_videoId(const char *url, string *videoId);
 YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, char **url, char **name);
 
-
 #ifdef YOUTUBE_IMPLEMENTATION
 
 YOUTUBE_DEF bool youtube_get_videoId(const char *url, string *videoId) {
@@ -101,7 +100,7 @@ YOUTUBE_DEF bool youtube_search(Youtube_Context *context, const char *keyword, J
     }
 
     const char *target = "ytInitialData = ";
-    u32 target_len = strlen(target);
+    size_t target_len = strlen(target);
     
     string s = string_from(context->sbs[0].data, context->sbs[0].len);
     s32 pos = string_index_of(s, target);
@@ -109,7 +108,7 @@ YOUTUBE_DEF bool youtube_search(Youtube_Context *context, const char *keyword, J
 	return false;
     }
 
-    s32 off = pos + target_len;
+    s32 off = pos + (s32) target_len;
     const char *target2 = "</script>";
 
     s32 _pos = string_index_of_offset(s, target2, off);
@@ -206,7 +205,7 @@ YOUTUBE_DEF bool youtube_initial_data(Youtube_Context *context, const char *vide
     }
 
     const char *target = "ytInitialData = ";
-    u32 target_len = strlen(target);
+    size_t target_len = strlen(target);
 
     string content = string_from(context->sbs[0].data, context->sbs[0].len);
     int start = string_index_of(content, target);
@@ -218,8 +217,6 @@ YOUTUBE_DEF bool youtube_initial_data(Youtube_Context *context, const char *vide
     if(end == -1) {
 	return false;
     }
-
-    write_file_len("compact.json", context->sbs[0].data + start + target_len, end - start - target_len - 1);
 
     Json initialData;
     if(!json_parse_len(context->sbs[0].data + start + target_len, end - start - target_len - 1, &initialData)) {
@@ -346,30 +343,34 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	string_buffer_append(buffer, sb->data + offset, len);
 	string_buffer_append(buffer, "\0", 1);
 
-	if(context->bases != NULL) {
-	    char *base_path = (char *) ht_get(context->bases, buffer->data);
-	    if(base_path != NULL) {
-		slurp_file2(base_path, string_buffer_callback, jsFile);
-	    } else {
-		if(!http_request(&context->http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
-		    return false;
-		}
-		string_buffer_append(jsFile, "\0", 1);
+	/*
+	  if(context->bases != NULL) {
+	  char *base_path = (char *) ht_get(context->bases, buffer->data);
+	  if(base_path != NULL) {
+	  slurp_file2(base_path, string_buffer_callback, jsFile);
+	  } else {
+	  if(!http_request(&context->http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
+	  return false;
+	  }
+	  string_buffer_append(jsFile, "\0", 1);
 
-		char filename[128];
-		if(snprintf(filename, 128, "base%zd.js", context->bases->count) >= 128) {
-		    return false;
-		}
+	  char filename[128];
+	  if(snprintf(filename, 128, "base%zd.js", context->bases->count) >= 128) {
+	  return false;
+	  }
 
-		write_file_len(filename, jsFile->data, jsFile->len);
-		ht_insert(context->bases, buffer->data, filename, strlen(filename));
-	    }
-	} else {
-	    if(!http_request(&context->http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
-		return false;
-	    }
-	    string_buffer_append(jsFile, "\0", 1);
+	  write_file_len(filename, jsFile->data, jsFile->len);
+	  ht_insert(context->bases, buffer->data, filename, strlen(filename));
+	  }
+	  } else {
+	*/
+	if(!http_request(&context->http, buffer->data, "GET", NULL, NULL, string_buffer_callback, jsFile, NULL, NULL)) {
+	  return false;
 	}
+	string_buffer_append(jsFile, "\0", 1);
+	/*
+	  }
+	*/
   
 	// -- decodeFunction
 	if(!regex_compile(&regexs[1], "function[:print:]*\\.split\\(\"\"\\)[:print:]*\\.join\\(\"\"\\)}")) {
@@ -413,7 +414,7 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	    panic("regex_match");
 	}
 
-	int k = len-1;
+	size_t k = len-1;
 	while(k>=0 && jsFile->data[offset+k] != '}') k--;
 	len = (size_t) k+2;
 
@@ -491,7 +492,7 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
     //FREE ALL, EXCEPT used FORMATS
     Ht_Entry *entry;
     int last = -1;
-    while(streamingData.type && ht_next(streamingData.objVal, &last, &entry)) {
+    while(streamingData.type && ht_next(streamingData.as.objVal, &last, &entry)) {
 	if( (strcmp("formats", entry->key) == 0) ||
 	    (strcmp("adaptiveFormats", entry->key) == 0)
 	    ) {
@@ -504,7 +505,7 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
   
     json_put_null(initialPlayerResponse, "videoDetails");
     if(streamingData.type) {
-	ht_free(streamingData.objVal);
+	ht_free(streamingData.as.objVal);
     }
     json_put_null(initialPlayerResponse, "streamingData");
     json_free_all(initialPlayerResponse);

@@ -13,9 +13,9 @@
 
 #endif //SPOTIFY_IMPLEMENTATION
 
-#include "../libs/http.h"
-#include "../libs/json.h"
-#include "../libs/base64.h"
+#include "http.h"
+#include "json.h"
+#include "base64.h"
 
 SPOTIFY_DEF bool spotify_bearer_token(char *output_buffer, u64 output_size);
 SPOTIFY_DEF bool spotify_by_id(const char *prefix, const char *id, Json *json);
@@ -29,16 +29,16 @@ SPOTIFY_DEF bool spotify_get_keyword(const Json track, char keyword[1024]);
 
 SPOTIFY_DEF bool spotify_bearer_token(char *output_buffer, u64 output_size) {
 
-  char *spotify_creds = getenv("SPOTIFY_CREDS");
-  if(!spotify_creds) {
+  char spotify_creds[1024];
+  if(!io_getenv("SPOTIFY_CREDS", spotify_creds, sizeof(spotify_creds))) {
     fprintf(stderr, "ERROR: The envorinment variable 'SPOTIFY_CREDS' is not set.\n");
     fprintf(stderr, "It should be set this way: 'clientId:clientSecrect'\n");
-    return false;
+    return false;    
   }
 
 #define BUFFER_SIZE 1024
   char buffer[2][BUFFER_SIZE];
-  u32 buffer_size = strlen(spotify_creds);
+  size_t buffer_size = strlen(spotify_creds);
   
   size_t out_buffer_size;
   if(!base64_encode(spotify_creds, buffer_size,
@@ -67,14 +67,14 @@ SPOTIFY_DEF bool spotify_bearer_token(char *output_buffer, u64 output_size) {
   }
 
   const char* bearerToken = json_get_string(json, "access_token");
-  u32 len = strlen(bearerToken);
+  size_t len = strlen(bearerToken);
   if(len < output_size - 1) {
     memcpy(output_buffer, bearerToken, len + 1);
   }
 
   string_buffer_free(&sb);
   json_free_all(json);
-  
+
   return len < (output_size - 1);
 }
 
@@ -129,9 +129,9 @@ SPOTIFY_DEF bool spotify_get_keyword(const Json track, char keyword[1024]) {
     return false;
   }
   const char *name = json_get_string(track, "name");
-  u32 name_len = strlen(name);
+  size_t name_len = strlen(name);
   
-  u32 pos = 0;
+  size_t pos = 0;
   if(name_len >= 1024) {
     return false;
   }
@@ -142,7 +142,7 @@ SPOTIFY_DEF bool spotify_get_keyword(const Json track, char keyword[1024]) {
   for(s32 j=0;j<json_size(artists);j++) {
     Json artist = json_opt(artists, j);
     const char* artist_name = json_get_string(artist, "name");
-    u32 artist_name_len = strlen(artist_name);
+    size_t artist_name_len = strlen(artist_name);
     if(pos + artist_name_len + 1 >= 1024) {
       return false;
     }

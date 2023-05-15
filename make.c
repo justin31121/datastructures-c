@@ -41,7 +41,8 @@ int main(int argc, char ** argv) {
   //DEFAULT GCC
   const char *flags = "-Wall -Wextra -Wshadow -pedantic -ggdb";
   if(msvc()) {
-    flags = "";
+    //flags = "-WX -W4";
+    flags = "-W4";
   }
 
   if(strcmp(arg, "player_demo") == 0) {
@@ -62,6 +63,8 @@ int main(int argc, char ** argv) {
   } else if(strcmp(arg, "gui_demo") == 0) {
     if(use_gcc) {
       ret = run("gcc", flags, "-o gui ./src/gui_demo.c", link_video);
+    } else {
+       ret = run("cl", flags, "/Fe:gui ./src/gui_demo.c");
     }
   } else if(strcmp(arg, "youtube") == 0) {
     if(use_gcc) {
@@ -77,6 +80,12 @@ int main(int argc, char ** argv) {
       }	    
       ret = run("cl", flags, "/Fe:youtube", obj_duktape, "./src/youtube.c");
     }
+  } else if(strcmp(arg, "twitch") == 0) {
+    if(use_gcc) {
+      
+    } else {
+      ret = run("cl", flags, "./src/twitch.c");
+    }
   } else if(strcmp(arg, "google") == 0) {
     if(use_gcc) {
       ret = run("gcc", flags, "-o google ./src/google.c", link_ssl);
@@ -88,6 +97,8 @@ int main(int argc, char ** argv) {
   } else if(strcmp(arg, "httpserver") == 0) {
     if(use_gcc) {
       ret = run("gcc", flags, "-o httpserver ./src/httpserver.c", link_sockets);
+    } else {
+      ret = run("cl", flags, "/Fe:httpserver ./src/httpserver.c");
     }
   } else if(strcmp(arg, "jjson") == 0) {
     if(use_gcc) {

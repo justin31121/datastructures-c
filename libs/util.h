@@ -16,7 +16,7 @@
 void util_unused(int n, ...) { (void) n; }
 
 #define not_null(ptr) do{ if(ptr==NULL) {fprintf(stderr, "%s:%d: error: %s: Expected a non NULL pointer\n", __FILE__, __LINE__, __func__); exit(1); }}while(0)
-#define panic(...) do{ fprintf(stderr, "%s:%d: error: %s: ", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); if(errno != 0) { fprintf(stderr, ": %s", strerror(errno));} fprintf(stderr, "\n"); exit(1);}while(0)
+#define panic(...) do{ fprintf(stderr, "%s:%d: error: %s: ", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); /* if(errno != 0) { fprintf(stderr, ": %s", strerror(errno));} */ fprintf(stderr, "\n"); exit(1);}while(0)
 #define warn(...) do{ fprintf(stderr, "%s:%d: warning: %s:", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); }while(0)
 
 
@@ -53,7 +53,12 @@ void print_bytes(void *_ptr, size_t number_of_bytes) {
   printf("\n");
 }
 
+//write_file
+//write_file_len
+//slurp_file
+//slurp_file2
 
+/*
 void write_file(const char *file_path, const char *data) {
   write_file_len(file_path, data, strlen(data));
 }
@@ -158,6 +163,7 @@ bool slurp_file2(const char* file_path, size_t (*write_callback)(const void *, s
   fclose(f);  
   return true;
 }
+*/
 
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -269,7 +275,7 @@ bool sendf2(bool (*send_callback)(const char *, size_t , void*), void *userdata,
 	  while(n > 0) {
 	    int m = n % 10;
 	    assert(digit_buffer_count < UTIL_SENDF_DIGIT_BUFFER_CAP );
-	    digit_buffer[UTIL_SENDF_DIGIT_BUFFER_CAP - digit_buffer_count++ - 1] = m + '0';
+	    digit_buffer[UTIL_SENDF_DIGIT_BUFFER_CAP - digit_buffer_count++ - 1] = (char) m + '0';
 	    n = n / 10;
 	  }
 	  if(was_negative) {

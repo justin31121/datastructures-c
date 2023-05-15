@@ -5,11 +5,11 @@
 
 #ifdef FONT_IMPLEMENTATION
 #define PEN_IMPLEMENTATION
-#define UTIL_IMPLEMENTATION
+#define IO_IMPLEMENTATION
 #endif //FONT_IMPLEMENTATION
 
 #include "./pen.h"
-#include "./util.h"
+#include "./io.h"
 
 #ifndef FONT_DEF
 #define FONT_DEF static inline
@@ -59,56 +59,6 @@ FONT_DEF void font_free2(Font2 *font);
 
 FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height);
 FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height);
-
-FONT_DEF char *font_slurp_file(const char* file_path, size_t *size) {
-  char *res = NULL;
-  
-  FILE *f = fopen(file_path, "rb");
-  if(!f) {
-    fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
-    return NULL;
-  }
-
-  if(fseek(f, 0, SEEK_END) < 0) {
-    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
-    fclose(f);
-    return NULL;
-  }
-
-  long m = ftell(f);
-  if(m < 0) {
-    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
-    fclose(f);
-    return NULL;
-  }  
-
-  if(fseek(f, 0, SEEK_SET) < 0) {
-    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
-    fclose(f);
-    return NULL;
-  }
-
-  res = (char *) malloc((size_t) m + 1);
-  if(!res) {
-    fprintf(stderr, "[WARNING]: Can not allocate enough memory for file '%s'\n", file_path);
-    fclose(f);
-    return NULL;
-  }
-
-  size_t _m = (size_t) m;
-  size_t n = fread(res, 1, _m, f);
-  if(n != _m) {
-    fprintf(stderr, "[WARNING]: Can not read file '%s' because: %s\n", file_path, strerror(errno));
-    fclose(f);
-    exit(1);    
-  }
-  res[n] = 0;
-
-  if(size) *size = n;
-
-  fclose(f);
-  return res;
-}
 
 #if 0
 
@@ -245,7 +195,7 @@ FONT_DEF bool font_init_from2(Font2 *font, char *ttf_buffer, int font_height) {
   stbtt_fontinfo font_info = {0};
   stbtt_InitFont(&font_info, (u8 *) ttf_buffer, 0);
   
-  float scale = stbtt_ScaleForPixelHeight(&font_info, font_height);
+  float scale = stbtt_ScaleForPixelHeight(&font_info, (float) font_height);
   int _font_height = (int) font_height;
 
   for(int c=32;c<=126;c++) {
@@ -284,12 +234,12 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
   if(!font) {
     return false;
   }
-  
-  char *content = font_slurp_file(font_path, NULL);
-  if(!content) {
+
+  char *content;
+  if(!io_slurp_file(font_path, &content, NULL)) {
     return false;
   }
-
+  
   unsigned int ascii_vals = 127 - 32;
   unsigned int ascii_width = ascii_vals * font_height;
   //data: ascii_vals * font_height * font_height * sizeof(u8)
@@ -315,7 +265,7 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
   stbtt_fontinfo font_info = {0};
   stbtt_InitFont(&font_info, (u8 *) content, 0);
   
-  float scale = stbtt_ScaleForPixelHeight(&font_info, font_height);
+  float scale = stbtt_ScaleForPixelHeight(&font_info, (float) font_height);
   int _font_height = (int) font_height;
 
   for(int c=32;c<=126;c++) {

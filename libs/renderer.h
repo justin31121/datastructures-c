@@ -358,8 +358,6 @@ static GLenum renderer_index_to_texture(unsigned int index) {
     fprintf(stderr, "ERROR: You uplaoded too many textures, or provided a bad value to open_renderer.image");
     exit(1);
   }
-  fprintf(stderr, "ERROR: unreachable");
-  exit(1);
 }
 
 RENDER_DEF unsigned int renderer_push_texture(Renderer *r, int width, int height, char *data, bool grey) {
@@ -403,7 +401,7 @@ RENDER_DEF unsigned int renderer_push_texture(Renderer *r, int width, int height
 }
 
 RENDER_DEF void renderer_set_shader(Renderer *r, Renderer_Shader shader) {
-  glViewport(0, 0, r->resolution.x, r->resolution.y);
+  glViewport(0, 0, (GLsizei) r->resolution.x, (GLsizei) r->resolution.y);
 
   glUseProgram(r->programs[shader]);
   glUniform1fv(glGetUniformLocation(r->programs[shader], "resolution_x"), 1, (float *) &r->resolution);

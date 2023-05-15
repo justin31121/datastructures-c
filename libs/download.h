@@ -18,12 +18,14 @@ typedef struct{
   int end;
 }_Thread;
 
+typedef _Thread Threads[NUMBER_OF_THREADS];
+
 size_t download_thread_callback(const void *data, size_t size, size_t memb, void *userdata);
 void *download_thread_function(void *arg);
 bool download_get_size(const char *url, size_t *data_size);
-bool download3(const char *url, char **buffer, size_t *buffer_size);
-bool download2(const char *url, char *buffer, size_t buffer_size, size_t *data_size);
-bool download(const char *url, char *buffer, size_t download_size);
+bool download3(const char *url, bool monitor, char **buffer, size_t *buffer_size);
+bool download2(const char *url, bool monitor, char *buffer, size_t buffer_size, size_t *data_size);
+bool download(const char *url, bool monitor, char *buffer, size_t download_size);
 
 #ifdef DOWNLOAD_IMPLEMENTATION
 
@@ -50,6 +52,34 @@ void *download_thread_function(void *arg) {
   return NULL;
 }
 
+void *download_monitor_thread(void *arg) {
+  _Thread *threads = (_Thread *) arg;
+  
+  while(true) {
+    bool got_all = true;
+    size_t need = 0;
+    size_t got  = 0;
+    
+    for(s32 i=0;i<NUMBER_OF_THREADS;i++) {
+      size_t cap = (size_t) (threads[i].end - threads[i].start);
+      size_t current = threads[i].memory_size;
+      if(current < cap) {
+	got_all = false;
+      }
+      need += cap;
+      got += current;
+    }
+
+    printf("\rDownloading: %zd / %zd (%2.2f%%)", got, need, 100.f * (float) got / (float) need);
+    if(got_all) break;
+    thread_sleep(10);
+  }
+
+  printf("\n");
+
+  return NULL;
+}
+
 bool download_get_size(const char *url, size_t *data_size) {
   HttpHeader header;
   if(!http_head(url, &header, NULL)) {
@@ -72,26 +102,36 @@ bool download_get_size(const char *url, size_t *data_size) {
   return true;
 }
 
-bool download(const char *url, char *buffer, size_t download_size) {
+bool download(const char *url, bool monitor, char *buffer, size_t download_size) {
   s32 number_of_threads = NUMBER_OF_THREADS;
-  s32 thread_portion = download_size / number_of_threads;
+  s32 thread_portion = (s32) (download_size / number_of_threads);
 
-  _Thread threads[NUMBER_OF_THREADS] = {0};
+  Threads threads = {0};
 
-
-  bool result = true;
+  //prepare
   for(s32 i=0;i<number_of_threads;i++) {
     threads[i].url = url;
 
     threads[i].start = thread_portion * i;
     threads[i].end = thread_portion * (i+1) - 1;
     if(i == NUMBER_OF_THREADS - 1) {
-      threads[i].end = download_size;
+      threads[i].end = (s32) download_size;
     }
 
     threads[i].memory = buffer + threads[i].start;
-    threads[i].memory_size = 0;
+    threads[i].memory_size = 0;    
+  }
 
+  Thread monitor_thread = {0};
+  if(monitor) {    
+    if(!thread_create(&monitor_thread, download_monitor_thread, &threads)) {
+      return false;
+    }
+  }
+  
+  bool result = true;
+  //start
+  for(s32 i=0;i<number_of_threads;i++) {
     if(!thread_create(&threads[i].id, download_thread_function, &threads[i])) {
       result = false;
       break;
@@ -102,10 +142,14 @@ bool download(const char *url, char *buffer, size_t download_size) {
     thread_join(threads[i].id);
   }
 
+  if(monitor) {
+    thread_join(monitor_thread);
+  }
+
   return result;
 }
 
-bool download2(const char *url, char *buffer, size_t buffer_size, size_t *data_size) {
+bool download2(const char *url, bool monitor, char *buffer, size_t buffer_size, size_t *data_size) {
 
   size_t content_length;
   if(!download_get_size(url, &content_length)) {
@@ -117,11 +161,11 @@ bool download2(const char *url, char *buffer, size_t buffer_size, size_t *data_s
   }
 
   *data_size = content_length;
-  
-  return download(url, buffer, content_length);
+
+  return download(url, monitor, buffer, content_length);
 }
 
-bool download3(const char *url, char **buffer, size_t *buffer_size) {
+bool download3(const char *url, bool monitor, char **buffer, size_t *buffer_size) {
   if(!download_get_size(url, buffer_size)) {
     return false;
   }
@@ -133,8 +177,8 @@ bool download3(const char *url, char **buffer, size_t *buffer_size) {
 
   *buffer = out_buffer;
 
-  return download(url, out_buffer, *buffer_size);
-}
+  return download(url, monitor, out_buffer, *buffer_size);
+ }
 
 #endif //DOWNLOAD_IMPLEMENTATION
 

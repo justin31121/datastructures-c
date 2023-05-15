@@ -46,7 +46,7 @@ typedef struct{
     char *stringVal;
     Ht *objVal;
     Arr *arrVal;
-  };
+  }as;
 }Json;
 
 Json json_init_object();
@@ -301,47 +301,47 @@ static inline void json_put_null(Json obj, const char *key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_NULL;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_put_bool(Json obj, const char *key, bool value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_BOOL;
-  json.boolVal = value;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  json.as.boolVal = value;
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_put_int(Json obj, const char *key, int value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_INT;
-  json.intVal = value;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  json.as.intVal = value;
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_put_float(Json obj, const char *key, float value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_FLOAT;
-  json.floatVal = value;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));  
+  json.as.floatVal = value;
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));  
 }
 
 static inline void json_put_double(Json obj, const char *key, double value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_DOUBLE;
-  json.doubleVal = value;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  json.as.doubleVal = value;
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_put_string(Json obj, const char *key, const char* value) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
   Json json;
   json.type = JSON_STRING;
-  json.stringVal = json_create_string(value);
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  json.as.stringVal = json_create_string(value);
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_put_object(Json obj, const char *key, Json *value) {
@@ -349,8 +349,8 @@ static inline void json_put_object(Json obj, const char *key, Json *value) {
   ASSERT_TYPE(value->type, JSON_OBJECT);
   Json json;
   json.type = JSON_OBJECT;
-  json.objVal = value->objVal;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  json.as.objVal = value->as.objVal;
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_put_array(Json obj, const char *key, Json *value) {
@@ -358,18 +358,18 @@ static inline void json_put_array(Json obj, const char *key, Json *value) {
   ASSERT_TYPE(value->type, JSON_ARRAY);
   Json json;
   json.type = JSON_ARRAY;
-  json.arrVal = value->arrVal;
-  ht_insert(obj.objVal, key, &json, sizeof(Json));
+  json.as.arrVal = value->as.arrVal;
+  ht_insert(obj.as.objVal, key, &json, sizeof(Json));
 }
 
 static inline void json_remove(Json obj, const char *key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
-  ht_remove(obj.objVal, key);
+  ht_remove(obj.as.objVal, key);
 }
 
 static inline Json json_get(Json obj, const char* key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
-  void *ptr = ht_get(obj.objVal, key);
+  void *ptr = ht_get(obj.as.objVal, key);
   
   if(!ptr) {
     fprintf(stderr, "ERROR:json.h:%d:Json does not have value for key: '%s'\n",
@@ -382,37 +382,37 @@ static inline Json json_get(Json obj, const char* key) {
 
 static inline bool json_has(Json obj, const char* key) {
   ASSERT_TYPE(obj.type, JSON_OBJECT);
-  return ht_has(obj.objVal, key);
+  return ht_has(obj.as.objVal, key);
 }
 
 static inline bool json_get_bool(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_BOOL);
-  return json.boolVal;
+  return json.as.boolVal;
 }
 
 static inline int json_get_int(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_INT);
-  return json.intVal;
+  return json.as.intVal;
 }
 
 static inline float json_get_float(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_FLOAT);
-  return json.floatVal;  
+  return json.as.floatVal;  
 }
 
 static inline double json_get_double(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_DOUBLE);
-  return json.doubleVal;    
+  return json.as.doubleVal;    
 }
 
 static inline char *json_get_string(Json obj, const char *key) {
   Json json = json_get(obj, key);
   ASSERT_TYPE(json.type, JSON_STRING);
-  return json.stringVal;
+  return json.as.stringVal;
 }
 
 static inline Json json_get_object(Json obj, const char *key) {
@@ -435,47 +435,47 @@ static inline void json_push_null(Json arr) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_NULL;
-  arr_push(arr.arrVal, &json);
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_push_bool(Json arr, bool value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_BOOL;
-  json.boolVal = value;
-  arr_push(arr.arrVal, &json);
+  json.as.boolVal = value;
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_push_int(Json arr, int value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_INT;
-  json.intVal = value;
-  arr_push(arr.arrVal, &json);
+  json.as.intVal = value;
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_push_float(Json arr, float value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_FLOAT;
-  json.floatVal = value;
-  arr_push(arr.arrVal, &json);
+  json.as.floatVal = value;
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_push_double(Json arr, double value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_DOUBLE;
-  json.doubleVal = value;
-  arr_push(arr.arrVal, &json);  
+  json.as.doubleVal = value;
+  arr_push(arr.as.arrVal, &json);  
 }
 
 static inline void json_push_string(Json arr, const char* value) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
   Json json;
   json.type = JSON_STRING;
-  json.stringVal = json_create_string(value);
-  arr_push(arr.arrVal, &json);
+  json.as.stringVal = json_create_string(value);
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_push_object(Json arr, Json *value) {
@@ -483,8 +483,8 @@ static inline void json_push_object(Json arr, Json *value) {
   ASSERT_TYPE(value->type, JSON_OBJECT);
   Json json;
   json.type = JSON_OBJECT;
-  json.objVal = value->objVal;
-  arr_push(arr.arrVal, &json);
+  json.as.objVal = value->as.objVal;
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_push_array(Json arr, Json *value) {
@@ -492,48 +492,48 @@ static inline void json_push_array(Json arr, Json *value) {
   ASSERT_TYPE(value->type, JSON_ARRAY);
   Json json;
   json.type = JSON_ARRAY;
-  json.arrVal = value->arrVal;
-  arr_push(arr.arrVal, &json);
+  json.as.arrVal = value->as.arrVal;
+  arr_push(arr.as.arrVal, &json);
 }
 
 static inline void json_pop(Json arr) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
-  arr_pop(arr.arrVal);
+  arr_pop(arr.as.arrVal);
 }
 
 static inline Json json_opt(Json arr, int i) {
   ASSERT_TYPE(arr.type, JSON_ARRAY);
-  return *(Json *) arr_get(arr.arrVal, (size_t) i);
+  return *(Json *) arr_get(arr.as.arrVal, (size_t) i);
 }
 
 static inline bool json_opt_bool(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_BOOL);
-  return json.boolVal;
+  return json.as.boolVal;
 }
 
 static inline int json_opt_int(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_INT);
-  return json.intVal;
+  return json.as.intVal;
 }
 
 static inline float json_opt_float(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_FLOAT);
-  return json.floatVal;  
+  return json.as.floatVal;  
 }
 
 static inline double json_opt_double(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_DOUBLE);
-  return json.doubleVal;
+  return json.as.doubleVal;
 }
 
 static inline char *json_opt_string(Json obj, int p) {
   Json json = json_opt(obj, p);
   ASSERT_TYPE(json.type, JSON_STRING);
-  return json.stringVal;
+  return json.as.stringVal;
 }
 
 static inline Json json_opt_object(Json obj, int p) {
@@ -556,18 +556,18 @@ void json_fprint(FILE *f, Json json) {
     fputc('{', f);
     int last = -1;
     Ht_Entry *entry;
-    while(ht_next(json.objVal, &last, &entry)) {
+    while(ht_next(json.as.objVal, &last, &entry)) {
       fprintf(f, "\"%s\":", entry->key);
       json_fprint(f, *(Json *) entry->value);
-      if(last != (int) json.objVal->count - 1) fprintf(f, ", ");
+      if(last != (int) json.as.objVal->count - 1) fprintf(f, ", ");
     }
     fputc('}', f);
     break;
   case JSON_ARRAY:
     fputc('[', f);
-    for(size_t i=0;i<json.arrVal->count;i++) {
-      json_fprint(f, * (Json *) arr_get(json.arrVal, i));
-      if(i!=json.arrVal->count-1) fprintf(f, ",");
+    for(size_t i=0;i<json.as.arrVal->count;i++) {
+      json_fprint(f, * (Json *) arr_get(json.as.arrVal, i));
+      if(i!=json.as.arrVal->count-1) fprintf(f, ",");
     }
     fputc(']', f);
     break;
@@ -575,19 +575,19 @@ void json_fprint(FILE *f, Json json) {
     fprintf(f, "null");
     break;
   case JSON_INT:
-    fprintf(f, "%d", json.intVal);
+    fprintf(f, "%d", json.as.intVal);
     break;
   case JSON_FLOAT:
-    fprintf(f, "%f", json.floatVal);
+    fprintf(f, "%f", json.as.floatVal);
     break;
   case JSON_DOUBLE:
-    fprintf(f, "%lf", json.doubleVal);
+    fprintf(f, "%lf", json.as.doubleVal);
     break;
   case JSON_BOOL:
-    fprintf(f, "%s", json.boolVal ? "true" : "false");
+    fprintf(f, "%s", json.as.boolVal ? "true" : "false");
     break;
   case JSON_STRING:
-    fprintf(f, "\"%s\"", json.stringVal);
+    fprintf(f, "\"%s\"", json.as.stringVal);
     break;
   default:
     fprintf(stderr, "ERROR: Unknown JSON_TYPE: %d\n", json.type);
@@ -597,7 +597,8 @@ void json_fprint(FILE *f, Json json) {
 }
 
 #define WRITE_CB(ptr, size) do{ \
-  if(!(temp = write_callback(ptr, size, userdata))) return acc; \
+  temp = write_callback(ptr, size, userdata);\
+  if(!temp) return acc; \
   acc += temp;							   \
   }while(0)
 
@@ -611,14 +612,14 @@ size_t json_write(Json json, size_t (*write_callback)(void *,size_t,void *), voi
     WRITE_CB(chars, 1);// {
     int last = -1;
     Ht_Entry *entry;
-    while(ht_next(json.objVal, &last, &entry)) {      
+    while(ht_next(json.as.objVal, &last, &entry)) {      
       WRITE_CB(chars + 5, 1);// "
       WRITE_CB(entry->key, entry->key_size - 1);// %s
       WRITE_CB(chars + 5, 1);// "
       WRITE_CB(chars + 6, 1);// :
 
       if(!json_write(*(Json *) entry->value, write_callback, userdata)) return acc;
-      if(last != (int) json.objVal->count - 1) {
+      if(last != (int) json.as.objVal->count - 1) {
 	WRITE_CB(chars + 4, 1);
       }
     }
@@ -626,9 +627,9 @@ size_t json_write(Json json, size_t (*write_callback)(void *,size_t,void *), voi
     break;
   case JSON_ARRAY:
     WRITE_CB(chars + 2, 1);// [
-    for(size_t i=0;i<json.arrVal->count;i++) {
-      if(!json_write(* (Json *) arr_get(json.arrVal, i), write_callback, userdata)) return acc;
-      if(i!=json.arrVal->count-1) {
+    for(size_t i=0;i<json.as.arrVal->count;i++) {
+      if(!json_write(* (Json *) arr_get(json.as.arrVal, i), write_callback, userdata)) return acc;
+      if(i!=json.as.arrVal->count-1) {
 	WRITE_CB(chars + 4, 1);
       }
     }
@@ -638,19 +639,22 @@ size_t json_write(Json json, size_t (*write_callback)(void *,size_t,void *), voi
     WRITE_CB(chars + 7, 4);// null
     break;
   case JSON_INT:
-    if(!(temp = snprintf(tmp_buf, 64, "%d", json.intVal))) return acc;
+    temp = snprintf(tmp_buf, 64, "%d", json.as.intVal);
+    if(!temp) return acc;
     WRITE_CB(tmp_buf, temp);
     break;
   case JSON_FLOAT:
-    if(!(temp = snprintf(tmp_buf, 64, "%f", json.floatVal))) return acc;
+    temp = snprintf(tmp_buf, 64, "%f", json.as.floatVal);
+    if(!temp) return acc;
     WRITE_CB(tmp_buf, temp);
     break;
   case JSON_DOUBLE:
-    if(!(temp = snprintf(tmp_buf, 64, "%lf", json.doubleVal))) return acc;
+    temp = snprintf(tmp_buf, 64, "%lf", json.as.doubleVal);
+    if(!temp) return acc;
     WRITE_CB(tmp_buf, temp);
     break;
   case JSON_BOOL:
-    if(json.boolVal) {
+    if(json.as.boolVal) {
       WRITE_CB(chars + 11, 4);// true
     } else {
       WRITE_CB(chars + 15, 5);// false
@@ -660,15 +664,14 @@ size_t json_write(Json json, size_t (*write_callback)(void *,size_t,void *), voi
     WRITE_CB(chars + 5, 1);// "
     // %s
     size_t size = 0;
-    while(json.stringVal[size++]!=0);
+    while(json.as.stringVal[size++]!=0);
     size--;
-    WRITE_CB(json.stringVal, size);
+    WRITE_CB(json.as.stringVal, size);
     WRITE_CB(chars + 5, 1);// "
     break;
   default:
     fprintf(stderr, "ERROR: Unknown JSON_TYPE: %d\n", json.type);
     exit(1);
-    return acc;
   }
   return acc;
 }
@@ -692,23 +695,23 @@ char *json_to_cstr(Json json) {
 Json json_init_object() {
   Json value;
   value.type = JSON_OBJECT;
-  value.objVal = ht_init();
+  value.as.objVal = ht_init();
   return value;
 }
 
 Json json_init_array() {
   Json value;
   value.type = JSON_ARRAY;  
-  value.arrVal = arr_init(sizeof(Json));
+  value.as.arrVal = arr_init(sizeof(Json));
   return value;
 }
 
 int json_size(Json json) {
   if(json.type==JSON_OBJECT) {
-    return (int) json.objVal->count;
+    return (int) json.as.objVal->count;
   }
   else if(json.type==JSON_ARRAY) {
-    return (int) json.arrVal->count;
+    return (int) json.as.arrVal->count;
   }
   else {
     return -1;
@@ -717,15 +720,15 @@ int json_size(Json json) {
 
 void json_free(Json json) {  
   if(json.type==JSON_OBJECT) {
-    if(!json.objVal) return;
-    ht_free(json.objVal);    
+    if(!json.as.objVal) return;
+    ht_free(json.as.objVal);    
   }
   else if(json.type==JSON_ARRAY) {
-    if(!json.arrVal) return;
-    arr_free(json.arrVal);
+    if(!json.as.arrVal) return;
+    arr_free(json.as.arrVal);
   }
   else if(json.type==JSON_STRING) {
-    if(json.stringVal) free(json.stringVal);
+    if(json.as.stringVal) free(json.as.stringVal);
   }
   else {
     
@@ -737,20 +740,20 @@ void json_free_all(Json json) {
     Ht_Entry *entry;
     int last = -1;
 
-    while(ht_next(json.objVal, &last, &entry)) {
+    while(ht_next(json.as.objVal, &last, &entry)) {
       json_free_all(*(Json *) entry->value);
     }
     
-    ht_free(json.objVal);
+    ht_free(json.as.objVal);
   }
   else if(json.type==JSON_ARRAY) {
-    for(size_t i=0;i<json.arrVal->count;i++) {
-      json_free_all(*(Json *) arr_get(json.arrVal, i));
+    for(size_t i=0;i<json.as.arrVal->count;i++) {
+      json_free_all(*(Json *) arr_get(json.as.arrVal, i));
     }
-    arr_free(json.arrVal);
+    arr_free(json.as.arrVal);
   }
   else if(json.type==JSON_STRING) {
-    if(json.stringVal) free(json.stringVal);
+    if(json.as.stringVal) free(json.as.stringVal);
   }
   else {
     
@@ -768,12 +771,12 @@ bool parseJsonNull(const char *buffer, size_t buffer_size, Json *json, size_t *m
 bool parseJsonBool(const char *buffer, size_t buffer_size, Json *json, size_t *m) {
   if((*m = parseString("true", 4, buffer, buffer_size)) != 0) {
     json->type = JSON_BOOL;
-    json->boolVal = true;
+    json->as.boolVal = true;
     return true;
   }
   if((*m = parseString("false", 5, buffer, buffer_size)) != 0) {
     json->type = JSON_BOOL;
-    json->boolVal = false;
+    json->as.boolVal = false;
     return true;
   }
 
@@ -795,13 +798,13 @@ bool parseJsonInt(const char *buffer, size_t buffer_size, Json *json, size_t *m)
     return false;
   }
   json->type = JSON_INT;
-  json->intVal = 0;
+  json->as.intVal = 0;
   for(size_t i=0;i<n;i++) {
-    json->intVal = json->intVal * 10;
+    json->as.intVal = json->as.intVal * 10;
     if(neg)
-      json->intVal -= (buffer[i+off+neg] - '0');
+      json->as.intVal -= (buffer[i+off+neg] - '0');
     else
-      json->intVal += (buffer[i+off+neg] - '0');
+      json->as.intVal += (buffer[i+off+neg] - '0');
   }
   (*m) = n + off;
   if(neg) (*m)+=1;
@@ -821,7 +824,7 @@ bool parseJsonFloat(const char *buffer, size_t buffer_size, Json *json, size_t *
     return false;
   }
   json->type = JSON_FLOAT;
-  json->floatVal = f;
+  json->as.floatVal = f;
   (*m) = n + off;
   if(neg) (*m)+=1;
   return true;
@@ -892,7 +895,7 @@ bool parseJsonString(const char *buffer, size_t buffer_size, Json *json, size_t 
   i++;
 
   json->type = JSON_STRING;
-  json->stringVal = escape_chars_count==0 
+  json->as.stringVal = escape_chars_count==0 
     ? json_create_cstr_from_parts(buffer+1, i-2) 
   	: json_create_cstr_from_parts_escape_chars(buffer+1, i-2, escape_chars_count);
 
@@ -908,7 +911,7 @@ bool parsePair(const char *buffer, size_t buffer_size, char **key, Json *value, 
     return false;
   }
 
-  *key = json.stringVal;
+  *key = json.as.stringVal;
 
   size_t i = n;
   i += skipCharIf(isSpace, buffer+i, buffer_size-i);
@@ -946,7 +949,7 @@ bool parseJsonArray(const char *buffer, size_t buffer_size,
   Json element;
   size_t n;  
   while(parseJson(buffer + i, buffer_size - i, &element, &n)) {
-    arr_push(arr.arrVal, &element);
+    arr_push(arr.as.arrVal, &element);
     i += n;
 
     //sepBy
@@ -967,7 +970,7 @@ bool parseJsonArray(const char *buffer, size_t buffer_size,
   i++;
 
   json->type = JSON_ARRAY;
-  json->arrVal = arr.arrVal;
+  json->as.arrVal = arr.as.arrVal;
 
   i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
@@ -992,7 +995,7 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
   while(parsePair(buffer + i, buffer_size - i, &key, &value, &n)) {
     //CSTR TO INSERT IN HASHTABLE
     
-    ht_insert(obj.objVal, key, &value, sizeof(Json));
+    ht_insert(obj.as.objVal, key, &value, sizeof(Json));
     i += n;
 
     free(key);
@@ -1018,7 +1021,7 @@ bool parseJsonObject(const char *buffer, size_t buffer_size, Json *json, size_t 
   i++;
 
   json->type = JSON_OBJECT;
-  json->objVal = obj.objVal;
+  json->as.objVal = obj.as.objVal;
 
   i += skipCharIf(isSpace, buffer+i, buffer_size-i);
 
@@ -1083,7 +1086,7 @@ bool parseXmlString(const char *buffer, size_t buffer_size, Json *json, size_t *
   }
 
   json->type = JSON_STRING;
-  json->stringVal = json_create_cstr_from_parts(buffer, end + 1);
+  json->as.stringVal = json_create_cstr_from_parts(buffer, end + 1);
 
   *m = i;  
   return true;
@@ -1148,7 +1151,7 @@ bool parseXmlPair(const char *buffer, size_t buffer_size, char **key, Json *valu
 
   *key = json_create_cstr_from_parts(buffer, key_len);
   value->type = JSON_STRING;
-  value->stringVal = json_create_cstr_from_parts(buffer + value_start, value_len);
+  value->as.stringVal = json_create_cstr_from_parts(buffer + value_start, value_len);
   *m = i;
 
   return true;
@@ -1196,7 +1199,7 @@ bool parseXmlTag(const char *buffer, size_t buffer_size, Json *json, size_t *m) 
   size_t n;  
   char *key;
   while(parseXmlPair(buffer + i, buffer_size - i, &key, &value, &n)) {
-    ht_insert(obj.objVal, key, &value, sizeof(Json));
+    ht_insert(obj.as.objVal, key, &value, sizeof(Json));
     i += n;
 
     free(key);
@@ -1214,14 +1217,14 @@ bool parseXmlTag(const char *buffer, size_t buffer_size, Json *json, size_t *m) 
   }
   i++;
   
-  Json arr;
+  Json arr = {0};
   arr.type = JSON_NULL;
   //SEP BY CHILDRENS
   while(parseXml(buffer + i, buffer_size - i, &value, &n)) {
     if(arr.type == JSON_NULL) {
       arr = json_init_array();
     }
-    arr_push(arr.arrVal, &value);
+    arr_push(arr.as.arrVal, &value);
     i += n;
 
     size_t temp = skipCharIf(isSpace, buffer + i, buffer_size - i);
@@ -1284,14 +1287,14 @@ bool parseXmlTag(const char *buffer, size_t buffer_size, Json *json, size_t *m) 
 
   Json json_string;
   json_string.type = JSON_STRING;
-  json_string.stringVal = json_create_cstr_from_parts(buffer + start, len);
+  json_string.as.stringVal = json_create_cstr_from_parts(buffer + start, len);
   
-  ht_insert(obj.objVal, "XML_NAME", &json_string, sizeof(Json));
-  if(arr.type != JSON_NULL) ht_insert(obj.objVal, "XML_CHILDREN", &arr, sizeof(Json));
-  if(val.type != JSON_NULL) ht_insert(obj.objVal, "XML_VALUE", &val, sizeof(Json));
+  ht_insert(obj.as.objVal, "XML_NAME", &json_string, sizeof(Json));
+  if(arr.type != JSON_NULL) ht_insert(obj.as.objVal, "XML_CHILDREN", &arr, sizeof(Json));
+  if(val.type != JSON_NULL) ht_insert(obj.as.objVal, "XML_VALUE", &val, sizeof(Json));
   
   json->type = JSON_OBJECT;
-  json->objVal = obj.objVal;
+  json->as.objVal = obj.as.objVal;
   
   *m = i;
 
@@ -1322,7 +1325,7 @@ bool parseXmlSelfClosingTag(const char *buffer, size_t buffer_size, Json *json, 
   Json value;
   size_t n;
   while(parseXmlPair(buffer + i, buffer_size - i, &key, &value, &n)) {
-    ht_insert(obj.objVal, key, &value, sizeof(Json));
+    ht_insert(obj.as.objVal, key, &value, sizeof(Json));
     i += n;
 
     free(key);
@@ -1353,12 +1356,12 @@ bool parseXmlSelfClosingTag(const char *buffer, size_t buffer_size, Json *json, 
 
   Json json_string;
   json_string.type = JSON_STRING;
-  json_string.stringVal = json_create_cstr_from_parts(buffer + start, len);
+  json_string.as.stringVal = json_create_cstr_from_parts(buffer + start, len);
   
-  ht_insert(obj.objVal, "XML_NAME", &json_string, sizeof(Json));
+  ht_insert(obj.as.objVal, "XML_NAME", &json_string, sizeof(Json));
   
   json->type = JSON_OBJECT;
-  json->objVal = obj.objVal;
+  json->as.objVal = obj.as.objVal;
   
   *m = i;
 

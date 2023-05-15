@@ -50,7 +50,7 @@ struct Regex_State{
 	char value;
 	Regex states;
 	Regex_Function function;
-    };
+    }as;
 };
 
 typedef struct{
@@ -199,7 +199,7 @@ REGEX_DEF void regex_state_print(Regex_State *state, int indent) {
 	REGEX_PRINT_IMPL_INDENT(indent+1);
 	if(state->type == REGEX_TYPE_FUNCTION) {
 	    printf("{ '%s', %s, %s }\n",
-		   regex_function_name(state->function),
+		   regex_function_name(state->as.function),
 		   regex_type_name(state->type),
 		   regex_kind_name(state->kind));	    
 	}
@@ -209,7 +209,7 @@ REGEX_DEF void regex_state_print(Regex_State *state, int indent) {
 		   regex_kind_name(state->kind));	
 	} else {
 	    printf("{ '%c', %s, %s }\n",
-		   state->value,
+		   state->as.value,
 		   regex_type_name(state->type),
 		   regex_kind_name(state->kind));	
 	}
@@ -218,7 +218,7 @@ REGEX_DEF void regex_state_print(Regex_State *state, int indent) {
 	printf("{ %s, %s,\n",
 	       regex_type_name(state->type),
 	       regex_kind_name(state->kind));
-	regex_print_impl(&state->states, indent+2);
+	regex_print_impl(&state->as.states, indent+2);
 	REGEX_PRINT_IMPL_INDENT(indent + 1);
 	printf("}\n");
     }
@@ -253,7 +253,7 @@ REGEX_DEF void regex_free(Regex *regex) {
     for(size_t i=0;i<regex->states->count;i++) {
 	Regex_State *state = (Regex_State *) arr_get(regex->states, i);
 	if(state->recursive) {
-	    regex_free(&state->states);
+	    regex_free(&state->as.states);
 	}
     }
     arr_free(regex->states);  
@@ -358,7 +358,7 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 	    Regex_State state = {0};
 	    state.type = REGEX_TYPE_ELEMENT;
 	    state.recursive = false;
-	    state.value = regex_cstr[i+1];
+	    state.as.value = regex_cstr[i+1];
 	    state.kind = REGEX_KIND_EXACTLY_ONE;
 
 	    if(!regex_append(last, state)) {
@@ -396,7 +396,7 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 	    Regex_State state = {0};
 	    state.type = REGEX_TYPE_GROUP_ELEMENT;
 	    state.recursive = true;
-	    state.states = states;
+	    state.as.states = states;
 	    state.kind = REGEX_KIND_EXACTLY_ONE;
 
 	    if(!regex_append(last, state)) {
@@ -438,7 +438,7 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 			    Regex_State state = {0};
 			    state.type = REGEX_TYPE_FUNCTION;
 			    state.recursive = false;
-			    state.function = regex_functions[k];
+			    state.as.function = regex_functions[k];
 			    state.kind = REGEX_KIND_EXACTLY_ONE;
 
 			    if(!regex_append(last, state)) {
@@ -461,7 +461,7 @@ REGEX_DEF bool regex_compile(Regex *out_regex, const char *regex_cstr) {
 	    Regex_State state = {0};
 	    state.type = REGEX_TYPE_ELEMENT;
 	    state.recursive = false;
-	    state.value = next;      
+	    state.as.value = next;      
 	    state.kind = REGEX_KIND_EXACTLY_ONE;
 
 	    if(!regex_append(last, state)) {
@@ -504,19 +504,19 @@ REGEX_DEF bool regex_state_matches_cstr_at(Regex_State *state,
     }
 
     if(state->type == REGEX_TYPE_ELEMENT) {
-	bool matched = state->value == cstr[i];
+	bool matched = state->as.value == cstr[i];
 	*consumed = matched ? 1 : 0;
 	return matched;
     }
 
     if(state->type == REGEX_TYPE_FUNCTION) {
-	bool matched = state->function(cstr[i]);
+	bool matched = state->as.function(cstr[i]);
 	*consumed = matched ? 1 : 0;
 	return matched;	
     }
 
     if(state->type == REGEX_TYPE_GROUP_ELEMENT) {
-	return regex_match_impl(&state->states, cstr + i, cstr_len - i, consumed);
+	return regex_match_impl(&state->as.states, cstr + i, cstr_len - i, consumed);
     }
  
     fprintf(stderr, "ERROR: Unsupported type\n");
