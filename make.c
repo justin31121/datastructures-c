@@ -82,7 +82,7 @@ int main(int argc, char ** argv) {
     }
   } else if(strcmp(arg, "twitch") == 0) {
     if(use_gcc) {
-      
+	ret = run("gcc", flags, "-o twitch ./src/twitch.c", link_ssl);
     } else {
       ret = run("cl", flags, "./src/twitch.c");
     }
