@@ -237,9 +237,9 @@ bool build_decoder(Decoder *decoder, Http *http, string response_string) {
     panic("regex_match");
   }
 
-  size_t k = len-1;
+  int k = (int) len-1;
   while(k>=0 && decoder->buffer.data[offset+k] != '}') k--;
-  len = k+2;
+  len = (size_t) k+2;
 
   decoder->prefix = string_from(decoder->buffer.data + offset, len);
 

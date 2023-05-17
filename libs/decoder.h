@@ -383,41 +383,36 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
 
   decoder->sample_rate = decoder->av_codec_context->sample_rate;
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif //__GNUC__
-  if(decoder->av_codec_context->channel_layout) {
-    decoder->av_codec_context->channel_layout = AV_CH_LAYOUT_STEREO;
-  }
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif //__GNUC__  
-
   if(avcodec_open2(decoder->av_codec_context, av_codec, NULL) < 0) {
     decoder_free(decoder);
     return false;
   }
   
-  int channel_layout;
-  if(channels == 1) {
-    channel_layout = AV_CH_LAYOUT_MONO;
-  } else if(channels == 2) {
-    channel_layout = AV_CH_LAYOUT_STEREO;
-  } else {
-    return false;
-  }
-
   decoder->swr_context = swr_alloc();
   if(!decoder->swr_context) {
     decoder_free(decoder);
     return false;
   }
 
-  av_opt_set_int(decoder->swr_context, "in_channel_layout", decoder->av_codec_context->channel_layout, 0);
+  const char *ch_layout;
+  if(channels == 1) {
+      ch_layout = "mono";
+  } else if(channels == 2) {
+      ch_layout = "stereo";
+  } else {
+      return false;
+  }
+
+  char chLayoutDescription[128];
+  int sts = av_channel_layout_describe(&av_codec_parameters->ch_layout, chLayoutDescription, sizeof(chLayoutDescription));
+  if(sts < 0) {
+      return false;
+  }
+
+  av_opt_set(decoder->swr_context, "in_channel_layout", chLayoutDescription, 0);
   av_opt_set_int(decoder->swr_context, "in_sample_fmt", decoder->av_codec_context->sample_fmt, 0);
   av_opt_set_int(decoder->swr_context, "in_sample_rate", decoder->av_codec_context->sample_rate, 0);
-  av_opt_set_int(decoder->swr_context, "out_channel_layout", channel_layout, 0);
+  av_opt_set(decoder->swr_context, "out_channel_layout", ch_layout, 0);
   av_opt_set_int(decoder->swr_context, "out_sample_fmt", av_sample_format, 0);
   av_opt_set_int(decoder->swr_context, "out_sample_rate", decoder->av_codec_context->sample_rate, 0);
   av_opt_set_double(decoder->swr_context, "rmvol", volume, 0);

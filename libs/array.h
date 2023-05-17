@@ -17,7 +17,7 @@ typedef struct{
 }Arr;
 
 ARRAY_DEF Arr *arr_init(size_t msize);
-ARRAY_DEF Arr *arr_init2(size_t n, size_t msize);
+ARRAY_DEF Arr *arr_init2(size_t msize, size_t n);
 
 ARRAY_DEF void *arr_push(Arr *arr, void *ptr);
 ARRAY_DEF void *arr_pop(Arr *arr);
@@ -47,7 +47,7 @@ ARRAY_DEF Arr *arr_init(size_t msize) {
   return arr_init2(8, msize);
 }
 
-ARRAY_DEF Arr *arr_init2(size_t n, size_t msize) {
+ARRAY_DEF Arr *arr_init2(size_t msize, size_t n) {
   Arr *arr = (Arr *) malloc(sizeof(Arr));
   if(!arr) {
     fprintf(stderr, "ERROR: Can not allocate enough memory: arr_init\n");

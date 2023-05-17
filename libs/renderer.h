@@ -67,6 +67,10 @@ RENDER_DEF void renderer_triangle(Renderer *renderer,
 				  Vec2f p1, Vec2f p2, Vec2f p3,
 				  Vec4f c1, Vec4f c2, Vec4f c3,
 				  Vec2f uv1, Vec2f uv2, Vec2f uv3);
+RENDER_DEF void renderer_quad(Renderer *r,
+			      Vec2f p1, Vec2f p2, Vec2f p3, Vec2f p4,
+			      Vec4f c1, Vec4f c2, Vec4f c3, Vec4f c4,
+			      Vec2f uv1, Vec2f uv2, Vec2f uv3, Vec2f uv4);
 RENDER_DEF void renderer_solid_triangle(Renderer *renderer,
 					Vec2f p1, Vec2f p2, Vec2f p3, Vec4f color);
 RENDER_DEF void renderer_solid_triangle3(Renderer *renderer,
@@ -362,7 +366,6 @@ static GLenum renderer_index_to_texture(unsigned int index) {
 
 RENDER_DEF unsigned int renderer_push_texture(Renderer *r, int width, int height, char *data, bool grey) {
   glActiveTexture(renderer_index_to_texture(r->images_count));
-
   
   glGenTextures(1, &r->textures);
   glBindTexture(GL_TEXTURE_2D, r->textures);

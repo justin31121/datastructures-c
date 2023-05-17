@@ -1898,7 +1898,7 @@ HTTP_DEF bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *
     unsigned long _m = 1;
     context->payload_len = 0;
     assert(buffer->len >= off + 2);
-    for(size_t n=off-1;n>=0;n--) {
+    for(int n=(int) off-1;n>=0;n--) {
       for(int i=0;i<8;i++) {
 	if((buffer->data[2+n] & (1 << i))) context->payload_len += _m;
 	_m = _m << 1;

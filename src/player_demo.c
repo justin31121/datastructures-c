@@ -5,7 +5,6 @@
 #include "../thirdparty/stb_truetype.h"
 
 #define GUI_OPENGL
-//#define GUI_LOOPLESS
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"
 
@@ -94,6 +93,14 @@ void *player_start(void *_arg) {
   return NULL;
 }
 
+const char *list_get(void *arg, size_t pos) {
+    return playlist_get_name((Playlist *) arg, pos);
+}
+
+bool list_is_enabled(void *arg, size_t pos) {
+    return playlist_is_enabled((Playlist *) arg, pos);
+}
+
 int main(int argc, char **argv) {
   av_log_set_level(AV_LOG_QUIET);
 
@@ -136,8 +143,8 @@ int main(int argc, char **argv) {
     .scroll_pos = 0.f,
     .off = -1.f,
     .len = playlist.len,
-    .get = playlist_get_name,
-    .enabled = playlist_is_enabled,
+    .get = list_get,
+    .enabled = list_is_enabled,
   };
 
   float width, height;

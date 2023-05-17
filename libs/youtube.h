@@ -414,7 +414,7 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	    panic("regex_match");
 	}
 
-	size_t k = len-1;
+	int k = (int) len-1;
 	while(k>=0 && jsFile->data[offset+k] != '}') k--;
 	len = (size_t) k+2;
 

@@ -13,11 +13,15 @@
 #define UTIL_IMPLEMENTATION
 #endif //STRING_IMPLEMENTATION
 
+#ifndef STRING_DEF
+#define STRING_DEF static inline
+#endif //STRING_DEF
+
 #include "util.h"
 
 typedef struct {
-  size_t len;
-  const char* data;
+    const char* data;
+    size_t len;    
 } string;
 
 #define STRING_STATIC(cstr_lit) {.len=sizeof(cstr_lit), .data=cstr_lit}
@@ -25,39 +29,41 @@ typedef struct {
 #define String_Fmt "%.*s"
 #define String_Arg(s) ((int) (s).len), (s).data
 
-string string_from(const char* data, size_t count);
-string string_from_cstr(const char* data);
-string string_trim_left(string s);
-string string_trim_right(string s);
-string string_trim(string s);
-string string_chop_by_delim(string *s, char delim);
-string string_chop_left(string *s, size_t n);
-string string_chop_right(string *s, size_t n);
-bool string_chop_string(string *s, string dst);
-bool string_chop_cstr(string *s, const char *dst);
-bool string_chop_int(string *s, int *n);
-bool string_chop_hex(string *s, uint64_t *n);
-bool string_chop_int64_t(string *s, int64_t *n);
+STRING_DEF string string_from(const char* data, size_t count);
+STRING_DEF string string_from_cstr(const char* data);
+STRING_DEF string string_trim_left(string s);
+STRING_DEF string string_trim_right(string s);
+STRING_DEF string string_trim(string s);
+STRING_DEF string string_chop_by_delim(string *s, char delim);
+STRING_DEF string string_chop_left(string *s, size_t n);
+STRING_DEF string string_chop_right(string *s, size_t n);
+STRING_DEF bool string_chop_string(string *s, string dst);
+STRING_DEF bool string_chop_cstr(string *s, const char *dst);
+STRING_DEF bool string_chop_int(string *s, int *n);
+STRING_DEF bool string_chop_hex(string *s, uint64_t *n);
+STRING_DEF bool string_chop_int64_t(string *s, int64_t *n);
 
-int string_index_of(string s, const char *cstr);
-int string_index_of_offset(string s, const char *cstr, size_t offset);
+STRING_DEF int string_index_of(string s, const char *cstr);
+STRING_DEF int string_index_of_offset(string s, const char *cstr, size_t offset);
 
-int string_index_of2(string s, string t);
-int string_index_of_offset2(string s, string t, size_t offset);
+STRING_DEF int string_index_of2(string s, string t);
+STRING_DEF int string_index_of_offset2(string s, string t, size_t offset);
 
-string string_substring(string s, size_t start, size_t end);
-bool string_eq(string s, string t);
-bool string_eq_cstr(string s, const char *cstr);
+STRING_DEF string string_substring(string s, size_t start, size_t end);
+STRING_DEF bool string_eq(string s, string t);
+STRING_DEF bool string_eq_cstr(string s, const char *cstr);
 
-char* string_to_cstr(string *s);
+STRING_DEF char* string_to_cstr(string *s);
+STRING_DEF string string_copy(string s);
+STRING_DEF string string_copy_cstr(const char *cstr);
 
-bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t val_size);
-int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size);
+STRING_DEF bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t val_size);
+STRING_DEF int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size);
 
 
 ///////////////////////////////////////
 
-bool string_replace(string s, const char *from, const char *to, char *buffer, size_t buffer_cap, size_t *buffer_size);
+STRING_DEF bool string_replace(string s, const char *from, const char *to, char *buffer, size_t buffer_cap, size_t *buffer_size);
 
 //STRING_BUFFER
 
@@ -67,24 +73,24 @@ typedef struct{
   size_t cap;
 }String_Buffer;
 
-bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size);
-bool string_buffer_append_string(String_Buffer *sb, string s);
-bool string_buffer_reserve(String_Buffer *sb, size_t data_size);
+STRING_DEF bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size);
+STRING_DEF bool string_buffer_append_string(String_Buffer *sb, string s);
+STRING_DEF bool string_buffer_reserve(String_Buffer *sb, size_t data_size);
 
-size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata);
+STRING_DEF size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata);
 
-void string_buffer_free(String_Buffer *sb);
+STRING_DEF void string_buffer_free(String_Buffer *sb);
 
-const char *tprintf(String_Buffer *sb, const char *format, ...);
-string tsprintf(String_Buffer *sb, const char *format, ...);
+STRING_DEF const char *tprintf(String_Buffer *sb, const char *format, ...);
+STRING_DEF string tsprintf(String_Buffer *sb, const char *format, ...);
 
 #ifdef STRING_IMPLEMENTATION
 
-bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t val_size) {
+STRING_DEF bool cstr_contains(const char *cstr, size_t cstr_size, const char *val, size_t val_size) {
   return cstr_index_of(cstr, cstr_size, val, val_size) >= 0;
 }
 
-int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
+STRING_DEF int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
   if(val_size > cstr_size) {
     return -1;
   }
@@ -103,7 +109,7 @@ int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t va
   return -1;
 }
 
-bool string_chop_int64_t(string *s, int64_t *n) {
+STRING_DEF bool string_chop_int64_t(string *s, int64_t *n) {
   size_t i=0;
   int64_t sum = 0;
   int negative = 0;
@@ -127,7 +133,7 @@ bool string_chop_int64_t(string *s, int64_t *n) {
   return i>0;
 }
 
-bool string_chop_int(string *s, int *n) {
+STRING_DEF bool string_chop_int(string *s, int *n) {
   size_t i=0;
   int sum = 0;
   int negative = 0;
@@ -151,7 +157,7 @@ bool string_chop_int(string *s, int *n) {
   return i>0;
 }
 
-bool string_chop_hex(string *s, uint64_t *n) {
+STRING_DEF bool string_chop_hex(string *s, uint64_t *n) {
   size_t i=0;
   uint64_t sum = 0;
 
@@ -188,18 +194,18 @@ bool string_chop_hex(string *s, uint64_t *n) {
   return i>0;
 }
 
-string string_from(const char* data, size_t len) {
+STRING_DEF string string_from(const char* data, size_t len) {
   string s;
   s.len = len;
   s.data = data;
   return s;
 }
 
-string string_from_cstr(const char* data) {
+STRING_DEF string string_from_cstr(const char* data) {
   return string_from(data, strlen(data));
 }
 
-string string_trim_left(string s) {
+STRING_DEF string string_trim_left(string s) {
   size_t i = 0;
   while(i<s.len && isspace(s.data[i])) {
     i++;
@@ -207,7 +213,7 @@ string string_trim_left(string s) {
   return string_from(s.data+i, s.len-i);
 }
 
-string string_trim_right(string s) {
+STRING_DEF string string_trim_right(string s) {
   size_t i = 0;
   while(i<s.len && isspace(s.data[s.len - 1 - i])) {
     i++;
@@ -215,34 +221,34 @@ string string_trim_right(string s) {
   return string_from(s.data, s.len-i);
 }
 
-string string_trim(string s) {
+STRING_DEF string string_trim(string s) {
   return string_trim_right(string_trim_left(s));
 }
 
-int string_index_of(string s, const char *cstr) {
+STRING_DEF int string_index_of(string s, const char *cstr) {
   return cstr_index_of(s.data, s.len, cstr, strlen(cstr));
 }
 
-int string_index_of_offset(string s, const char *cstr, size_t offset) {
+STRING_DEF int string_index_of_offset(string s, const char *cstr, size_t offset) {
   return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + (int) offset;
 }
 
-int string_index_of2(string s, string t) {
+STRING_DEF int string_index_of2(string s, string t) {
   return cstr_index_of(s.data, s.len, t.data, t.len);
 }
 
-int string_index_of_offset2(string s, string t, size_t offset) {
+STRING_DEF int string_index_of_offset2(string s, string t, size_t offset) {
   return cstr_index_of(s.data + offset, s.len - offset, t.data, t.len) + (int) offset;
 }
 
-string string_substring(string s, size_t start, size_t end) {
+STRING_DEF string string_substring(string s, size_t start, size_t end) {
   if(start >= s.len || end > s.len) {
     return (string) {0};
   }
   return (string) {.data = s.data + start, .len = end - start};
 }
 
-bool string_eq(string s, string t) {
+STRING_DEF bool string_eq(string s, string t) {
   if(s.len != t.len) {
     return false;
   }
@@ -255,12 +261,12 @@ bool string_eq(string s, string t) {
   return true;
 }
 
-bool string_eq_cstr(string s, const char *cstr) {
+STRING_DEF bool string_eq_cstr(string s, const char *cstr) {
   string cstr_string = string_from_cstr(cstr);
   return string_eq(s, cstr_string);
 }
 
-void string_in_cstr(string s, char* target) {
+STRING_DEF void string_in_cstr(string s, char* target) {
   for(size_t i=0;i<s.len;i++) {
     target[i]=s.data[i];
   }
@@ -268,8 +274,11 @@ void string_in_cstr(string s, char* target) {
   target[s.len]='\0';
 }
 
-char* string_to_cstr(string *s) {
+STRING_DEF char* string_to_cstr(string *s) {
   char* res = (char *) malloc( s->len * sizeof(char) );
+  if(!res) {
+      panic("Not enough memory");
+  }
   
   for(size_t i=0;i<s->len;i++) {
     res[i]=s->data[i];
@@ -278,7 +287,26 @@ char* string_to_cstr(string *s) {
   return res;
 }
 
-string string_chop_by_delim(string *s, char delim) {
+STRING_DEF string string_copy(string s) {
+    char * data = malloc(s.len);
+    if(!data) {
+	panic("Not enough memory");
+    }
+    memcpy(data, s.data, s.len);
+    return (string) {data, s.len};
+}
+
+STRING_DEF string string_copy_cstr(const char *cstr) {
+    size_t len = strlen(cstr);
+    char * data = malloc(len);
+    if(!data) {
+	panic("Not enough memory");
+    }
+    memcpy(data, cstr, len);
+    return (string) {data, len};
+}
+
+STRING_DEF string string_chop_by_delim(string *s, char delim) {
   size_t i = 0;
   while(i < s->len && s->data[i]!=delim) {
     i+=1;
@@ -298,7 +326,7 @@ string string_chop_by_delim(string *s, char delim) {
   return result;
 }
 
-string string_chop_left(string *s, size_t n) {
+STRING_DEF string string_chop_left(string *s, size_t n) {
   if(n > s->len) {
     n = s->len;
   }
@@ -311,7 +339,7 @@ string string_chop_left(string *s, size_t n) {
   return result;
 }
 
-string string_chop_right(string *s, size_t n) {
+STRING_DEF string string_chop_right(string *s, size_t n) {
   if(n > s->len) {
     n = s->len;
   }
@@ -323,7 +351,7 @@ string string_chop_right(string *s, size_t n) {
   return result;
 }
 
-bool string_chop_string(string *s, string dst) {
+STRING_DEF bool string_chop_string(string *s, string dst) {
   int pos = string_index_of2(*s, dst);
   if(pos != 0) {
     return false;
@@ -332,7 +360,7 @@ bool string_chop_string(string *s, string dst) {
   return true;
 }
 
-bool string_chop_cstr(string *s, const char *dst) {
+STRING_DEF bool string_chop_cstr(string *s, const char *dst) {
   string dst_string = string_from_cstr(dst);
   int pos = string_index_of2(*s, dst_string);
   if(pos != 0) {
@@ -342,16 +370,16 @@ bool string_chop_cstr(string *s, const char *dst) {
   return true;
 }
 
-size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata) {
+STRING_DEF size_t string_buffer_callback(const void *data, size_t size, size_t memb, void *userdata) {
   return string_buffer_append((String_Buffer *) userdata, data, size*memb) ? size : 0;
 }
 
-bool string_buffer_send_callback(const char *data, size_t data_size, void *_sb) {
+STRING_DEF bool string_buffer_send_callback(const char *data, size_t data_size, void *_sb) {
   String_Buffer *sb = (String_Buffer *) _sb;
   return string_buffer_append(sb, data, data_size);
 }
 
-bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size) {
+STRING_DEF bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size) {
   if(!sb) {
     return false;
   }
@@ -374,7 +402,7 @@ bool string_buffer_append(String_Buffer *sb, const char *data, size_t data_size)
   return true;
 }
 
-bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
+STRING_DEF bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
   if(!sb) {
     return false;
   }
@@ -398,25 +426,23 @@ bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
   return true;
 }
 
-bool string_buffer_append_string(String_Buffer *sb, string s) {
+STRING_DEF bool string_buffer_append_string(String_Buffer *sb, string s) {
   return string_buffer_append(sb, s.data, s.len);
 }
 
-void string_buffer_clear(String_Buffer *sb) {
+STRING_DEF void string_buffer_clear(String_Buffer *sb) {
   if(!sb) return;
   sb->data = NULL;
   sb->len = 0;
   sb->cap = 0;
 }
 
-void string_buffer_free(String_Buffer *sb) {
+STRING_DEF void string_buffer_free(String_Buffer *sb) {
   if(sb) free(sb->data);
   string_buffer_clear(sb);	
 }
 
-#define TPRINTF_BUFFER_SIZE 4096
-
-const char *tprintf(String_Buffer *sb, const char *format, ...) {
+STRING_DEF const char *tprintf(String_Buffer *sb, const char *format, ...) {
   
   va_list args;
   va_start(args, format);
@@ -436,7 +462,7 @@ const char *tprintf(String_Buffer *sb, const char *format, ...) {
   return sb->data + sb->len - len;
 }
 
-string tsprintf(String_Buffer *sb, const char *format, ...) {
+STRING_DEF string tsprintf(String_Buffer *sb, const char *format, ...) {
   (void) format;
   (void) sb;
 
@@ -458,7 +484,7 @@ string tsprintf(String_Buffer *sb, const char *format, ...) {
   return string_from(sb->data + sb->len - len, len);
 }
 
-bool string_replace(string s, const char *_from, const char *_to, char *buffer, size_t buffer_cap, size_t *buffer_size) {
+STRING_DEF bool string_replace(string s, const char *_from, const char *_to, char *buffer, size_t buffer_cap, size_t *buffer_size) {
   string from = string_from_cstr(_from);
   string to = string_from_cstr(_to);
 
