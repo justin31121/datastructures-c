@@ -32,7 +32,7 @@ void mutex_release(Mutex mutex);
 int thread_create(Thread *id, void* (*function)(void *), void *arg) {
     uintptr_t ret = _beginthread((_beginthread_proc_type) (void *) function, 0, arg);
 
-    if(ret == -1L) {
+    if((long int) ret == -1L) {
 	return 0;
     }
 
