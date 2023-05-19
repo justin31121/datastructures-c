@@ -489,7 +489,6 @@ HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
   //SEND
   char request_buffer[HTTP_BUFFER_CAP];
   if(!hasBody) {
-
     if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 	      "%s %s HTTP/1.1\r\n"
 	      "Host: %.*s\r\n"
@@ -514,7 +513,7 @@ HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
 
   //READ
   if(!http_read_body(http, write_callback, userdata, header)) {
-    warn("read failed");
+    warn("read failed"); fflush(stdout);
     return false;
   }
 
@@ -1681,7 +1680,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
   do{
     nbytes_total = http_read(http, buffer, HTTP_BUFFER_CAP);
 
-    if(nbytes_total == -1) {
+    if(nbytes_total == -1) {      
       return false;
     }
 
@@ -1698,7 +1697,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 	string key = string_trim(string_chop_by_delim(&line, ':'));
 	string value = string_trim(line);
 #ifdef HTTP_DEBUG
-	printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value));
+	printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value)); fflush(stdout);
 #endif	
 	if(string_eq(key, STRING("Content-Length")) ||
 	   string_eq(key, STRING("content-length"))) {
@@ -1740,7 +1739,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 	if(read >= (uint64_t) content_length) {
 	  break;
 	}
-      } else if(content_length == -2) { //TRANSFER_ENCODING: chunked
+      } else if(content_length == -2) { //TRANSFER_ENCODING: chunked	
 	bool bbreak = false;
 	size_t diff = (size_t) nbytes_total - offset;
 	if(diff==0) {
@@ -1754,6 +1753,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 	uint64_t n;
 	size_t size;
 	string word;
+	
 	for(;i<diff-1;i++) {
 	  if(buf[i]!='\r') continue;
 	  if(buf[i+1]!='\n') continue;

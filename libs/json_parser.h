@@ -278,7 +278,7 @@ JSON_PARSER_DEF bool json_parse_object(Tokenizer *t, const Json_Parse_Events *ev
   }
 
   if(events->on_elem != NULL) {
-    string empty_string = {0, token.content.data};
+    string empty_string = {token.content.data, 0};
     if(!events->on_elem(JSON_PARSE_TYPE_OBJECT,
 			empty_string,
 			events->arg, object)) {

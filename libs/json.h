@@ -559,15 +559,15 @@ void json_fprint(FILE *f, Json json) {
     while(ht_next(json.as.objVal, &last, &entry)) {
       fprintf(f, "\"%s\":", entry->key);
       json_fprint(f, *(Json *) entry->value);
-      if(last != (int) json.as.objVal->count - 1) fprintf(f, ", ");
+      if(last != (int) (json.as.objVal)->count - 1) fprintf(f, ",");
     }
     fputc('}', f);
     break;
   case JSON_ARRAY:
     fputc('[', f);
-    for(size_t i=0;i<json.as.arrVal->count;i++) {
+    for(size_t i=0;i<(json.as.arrVal)->count;i++) {
       json_fprint(f, * (Json *) arr_get(json.as.arrVal, i));
-      if(i!=json.as.arrVal->count-1) fprintf(f, ",");
+      if(i!=(json.as.arrVal)->count-1) fprintf(f, ",");
     }
     fputc(']', f);
     break;

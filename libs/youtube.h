@@ -137,6 +137,7 @@ YOUTUBE_DEF bool youtube_search(Youtube_Context *context, const char *keyword, J
 	    continue;
 	}
 
+
 	Json contents = json_get(itemSectionRenderer, "contents");
 	for(int j=0;j<json_size(contents);j++) {
 	    Json result = json_opt(contents, j);

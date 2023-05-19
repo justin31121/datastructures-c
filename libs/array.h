@@ -44,7 +44,7 @@ ARRAY_DEF void arr_free(Arr *arr);
 #endif 
 
 ARRAY_DEF Arr *arr_init(size_t msize) {
-  return arr_init2(8, msize);
+  return arr_init2(msize, 8);
 }
 
 ARRAY_DEF Arr *arr_init2(size_t msize, size_t n) {
@@ -93,12 +93,7 @@ ARRAY_DEF void *arr_push(Arr *arr, void *ptr) {
 ARRAY_DEF void *arr_get(const Arr *arr, size_t p) {
   ARRAY_CHECK_NOTNULL(arr);
   if(p>=arr->size) {
-#ifdef _WIN32
       fprintf(stderr, "ERROR: Index out of Bounce Exception. Requested index: '%d' but len(array) is '%d'\n", (int) p, (int) arr->size);
-#endif //_WIN32
-#ifdef linux
-      fprintf(stderr, "ERROR: Index out of Bounce Exception. Requested index: '%d' but len(array) is '%d'\n", (int) p, (int) arr->size);
-#endif //linu
     exit(1);
   }
 

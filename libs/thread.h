@@ -30,16 +30,9 @@ void mutex_release(Mutex mutex);
 #ifdef _WIN32 ////////////////////////////////////////////
 
 int thread_create(Thread *id, void* (*function)(void *), void *arg) {
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#endif //__GNUC___
     uintptr_t ret = _beginthread((_beginthread_proc_type) (void *) function, 0, arg);
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif //__GNUC___
 
-    if((long int) ret == -1L) {
+    if(ret == -1L) {
 	return 0;
     }
 

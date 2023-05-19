@@ -20,8 +20,8 @@
 #include "util.h"
 
 typedef struct {
-    const char* data;
-    size_t len;    
+  const char* data;
+  size_t len;
 } string;
 
 #define STRING_STATIC(cstr_lit) {.len=sizeof(cstr_lit), .data=cstr_lit}
@@ -293,7 +293,7 @@ STRING_DEF string string_copy(string s) {
 	panic("Not enough memory");
     }
     memcpy(data, s.data, s.len);
-    return (string) {data, s.len};
+    return (string) {.data = data, .len = s.len};
 }
 
 STRING_DEF string string_copy_cstr(const char *cstr) {
@@ -303,7 +303,7 @@ STRING_DEF string string_copy_cstr(const char *cstr) {
 	panic("Not enough memory");
     }
     memcpy(data, cstr, len);
-    return (string) {data, len};
+    return (string) {.data = data, .len = len};
 }
 
 STRING_DEF string string_chop_by_delim(string *s, char delim) {

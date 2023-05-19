@@ -2,10 +2,10 @@
 #define DOWNLOAD_H_H
 
 #define HTTP_IMPLEMENTATION
-#include <libs/http.h>
+#include "../libs/http.h"
 
 #define UTIL_IMPLEMENTATION
-#include <libs/util.h>
+#include "../libs/util.h"
 
 #define NUMBER_OF_THREADS (64)
 

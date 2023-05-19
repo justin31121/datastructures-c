@@ -25,7 +25,6 @@
 
 #include "../rsc/musik.h"
 #include "../rsc/atlas.h"
-#include "../rsc/segoeui.h"
 
 static String_Buffer temp = {0};
 static Player player;
@@ -127,8 +126,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  Font2 font = font2_segoeui_24;
+#include "../rsc/segoeui.h"
+  Font2 font = font2_segoeui_24; 
   imgui_set_font(&font);
+  
   int musik = imgui_add_img(musik_data, musik_width, musik_height);
   int atlas = imgui_add_img(atlas_data, atlas_width, atlas_height);
   imgui_set_background(0xff181818);
