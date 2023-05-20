@@ -510,7 +510,7 @@ int main(int argc, char **argv) {
 	    if(pack && string_index_of(type, "video/") == 0) {
 		int n;
 		string_chop_int(&width, &n);
-		if(n <= 1920 && n > best_width) {
+		if(n <= 480 && n > best_width) {
 		    itag_video = tag;
 		    best_width = n;
 		}
