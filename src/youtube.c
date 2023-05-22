@@ -235,7 +235,7 @@ bool get_streams(Player_Info *info, Http *http, String_Buffer *sb, const char *y
     if(!json_parse2(response.data, response.len, &events)) {
 	return false;
     }
-
+    
     return true;
 }
 
@@ -386,7 +386,55 @@ typedef enum{
     STATE_VIDEO,
 }State;
 
-int main(int argc, char **argv) {
+int main() {
+    av_log_set_level(AV_LOG_QUIET);
+
+    const char *url = "https://www.youtube.com/watch?v=mgSZsesfXOk&pp=ygUMcmVlenkgc3RlYWR5";    
+    string videoId;
+    if(!youtube_get_videoId(url, &videoId)) {
+	panic("youtube_get_videoId");
+    }
+
+    Http http;
+    if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
+	panic("http_init2");
+    }
+
+    string_buffer_reserve(&sb, 1024 * 4);
+    string response;
+    if(!youtube_get_response(videoId, &http, &sb, &response)) {
+	panic("youtube_get_response");
+    }
+
+    Youtube_Info info;
+    if(!youtube_info_init(response, &info)) {
+	panic("youtube_info_init");
+    }
+
+    string signature;
+    bool is_signature;
+    if(!youtube_info_find_stream(&info, STRING("140"), &signature, &is_signature)) {
+	panic("youtube_info_find_stream");
+    }
+    assert(is_signature);
+
+    String_Buffer temp = {0};
+    Youtube_Decoder decoder;
+    if(!youtube_decoder_init(response, &http, &temp, &decoder)) {
+	panic("decoder");
+    }
+    
+    const char* stream_url;
+    if(!youtube_decoder_decode(&decoder, &temp, signature, &stream_url)) {
+	panic("youtube_decoder_decode");
+    }
+
+    printf("%s\n", stream_url);
+    
+    return 0;
+}
+
+int main1(int argc, char **argv) {
     av_log_set_level(AV_LOG_QUIET);
 
     State state = STATE_NONE;

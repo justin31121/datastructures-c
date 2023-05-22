@@ -118,9 +118,9 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "spotify") == 0) {
       if(use_gcc) {
-	
+	  ret = run("gcc", flags, "-o spotify ./src/spotify.c", link_ssl);
       } else {
-	ret = run("cl", flags, "/Fe:spotify ./src/spotify.c");
+	  ret = run("cl", flags, "/Fe:spotify ./src/spotify.c");
       }
     } else if(strcmp(arg, "img") == 0) {
 	if(use_gcc) {

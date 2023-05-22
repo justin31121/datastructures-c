@@ -10,6 +10,8 @@
 #define HTTP_IMPLEMENTATION
 #define JSON_IMPLEMENTATION
 #define REGEX_IMPLEMENTATION
+#define HTML_PARSER_IMPLEMENTATION
+#define JSON_PARSER_IMPLEMENTATION
 
 // #include "../thirdparty/duktape.c"
 
@@ -19,8 +21,37 @@
 #include "./http.h"
 #include "./json.h"
 #include "./regex.h"
+#include "./html_parser.h"
+#include "./json_parser.h"
 
 #define YOUTUBE_HOSTNAME "www.youtube.com"
+
+typedef struct{
+    string dash_source;
+    string m3u8_source;
+    string prev;
+    string prev_prev;
+    int state;
+    Arr *strings;
+}Youtube_Info;
+
+YOUTUBE_DEF bool youtube_get_response(string videoId, Http * http, String_Buffer *sb, string *response);
+
+YOUTUBE_DEF bool youtube_info_init(string response_string, Youtube_Info *info);
+YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info);
+YOUTUBE_DEF bool youtube_info_find_stream(Youtube_Info *info, string tag, string *signature, bool *is_signature);
+YOUTUBE_DEF void youtube_info_free(Youtube_Info *info);
+
+typedef struct{
+    duk_context* duk_ctx;
+    const char *decodeFunction;
+    string prefix;
+}Youtube_Decoder;
+
+
+YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String_Buffer *sb, Youtube_Decoder *decoder);
+YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **url);
+YOUTUBE_DEF void youtube_decoder_free(Youtube_Decoder *decoder);
 
 typedef struct{
   Http http;
@@ -587,6 +618,284 @@ YOUTUBE_DEF void youtube_context_free(Youtube_Context *context) {
   duk_destroy_heap(context->duk_ctx);
 }
 
+////////////////////////////////////////////////////////////////////
+
+string YOUTUBE_INFO_FRAME = STRING_STATIC("YOUTUBE_INFO_FRAME");
+
+YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content, void *arg, void **elem) {
+    (void) type;
+    (void) elem;
+    Youtube_Info *foo = (Youtube_Info *) arg;
+
+    //printf(String_Fmt"\n", String_Arg(content));
+    
+    if(foo->state == 0) {
+	if( (string_index_of(content, "video/mp4") >= 0)  ||
+	    (string_index_of(content, "video/webm") >= 0) ||
+	    (string_index_of(content, "audio/mp4") >= 0)  ||
+	    (string_index_of(content, "audio/webm") >= 0) ) {
+	    if(string_index_of(foo->prev, "https://") == 0) {
+		arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
+		arr_push(foo->strings, &foo->prev_prev);
+		arr_push(foo->strings, &content);
+		arr_push(foo->strings, &foo->prev);
+	    } else {
+		foo->state = 1;
+		arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
+		arr_push(foo->strings, &foo->prev);
+		arr_push(foo->strings, &content);
+	    }      
+	}
+    } else if(foo->state == 1) {
+	if(string_index_of(content, "s=") == 0) {
+	    string sig = STRING("sig");
+	    arr_push(foo->strings, &sig);
+	    arr_push(foo->strings, &content);
+	    foo->state = 0;
+	}
+    }
+
+    foo->prev_prev = foo->prev;
+    foo->prev = content;
+    return true;
+}
+
+YOUTUBE_DEF void youtube_on_object_elem_info_init(void *object, string key, void *elem, void *arg) {
+    (void) object;
+    (void) key;
+    (void) elem;
+    Youtube_Info *foo = (Youtube_Info *) arg;
+
+    if(string_eq(key, STRING("hlsManifestUrl"))) {
+	foo->m3u8_source = foo->prev;
+    } else if(string_eq(key, STRING("dashManifestUrl"))) {
+	foo->dash_source = foo->prev;
+    }
+
+    if(foo->state == 1) {
+	arr_push(foo->strings, &key);
+	arr_push(foo->strings, &foo->prev);
+    }
+}
+
+typedef struct{
+    string content;
+    const char *prefix;
+}Youtube_JavaScript_Content;
+
+YOUTUBE_DEF void youtube_on_node_content_query_json(void *_node, string content, void *arg) {
+    (void) _node;
+    Youtube_JavaScript_Content *js_content = (Youtube_JavaScript_Content *) arg;
+    if(string_index_of(content, js_content->prefix) != 0) return;
+    js_content->content = content;
+}
+
+YOUTUBE_DEF bool youtube_get_response(string videoId, Http * http, String_Buffer *sb, string *response) {
+    size_t sb_len = sb->len;
+    const char *route = tprintf(sb, "/watch?v="String_Fmt, String_Arg(videoId));
+
+    sb->len = sb_len;
+    if(!http_request(http, route, "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
+	return false;
+    }
+
+    *response = string_from(sb->data + sb_len, sb->len - sb_len);
+    return true;
+}
+
+YOUTUBE_DEF bool youtube_info_init(string response_string, Youtube_Info *info) {
+    Youtube_JavaScript_Content js_content;
+    js_content.content = (string) {0};
+    js_content.prefix = "var ytInitialPlayerResponse = ";
+  
+    Html_Parse_Events events = {0};
+    events.on_node_content = youtube_on_node_content_query_json;
+    events.arg = &js_content;
+  
+    if(!html_parse(response_string.data, response_string.len, &events)) {
+	return false;
+    }
+    string json_string = js_content.content;
+    string_chop_left(&json_string, strlen(js_content.prefix));
+    string_chop_right(&json_string, 1);
+
+    info->state = 0;
+    info->strings = arr_init2(sizeof(string), 1024);
+    info->dash_source = (string) {0};
+    info->m3u8_source = (string) {0};
+
+    Json_Parse_Events json_events = {0};
+    json_events.on_elem = youtube_on_elem_info_init;
+    json_events.on_object_elem = youtube_on_object_elem_info_init;
+    json_events.arg = info;
+
+    if(!json_parse2(json_string.data, json_string.len, &json_events)) {
+	return false;
+    }
+    
+    return true;
+}
+
+YOUTUBE_DEF void youtube_info_free(Youtube_Info *info) {
+    UNUSED(info);
+    UNIMPLEMENTED();
+}
+
+YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info) {
+    const char *display[] = {"width", "height", "fps", "audioSampleRate"};
+
+    size_t i=1;
+    while(i<info->strings->count) {
+	string tag = *(string *) arr_get(info->strings, i++);
+	string type = *(string *) arr_get(info->strings, i++);
+
+	printf(String_Fmt" - "String_Fmt"\n", String_Arg(tag), String_Arg(type));
+
+	string next = *(string *) arr_get(info->strings, i++);
+	while(!string_eq(next, YOUTUBE_INFO_FRAME)) {
+	    string value = *(string *) arr_get(info->strings, i++);
+
+	    bool hide = true;
+	    size_t display_len = sizeof(display)/sizeof(display[0]);
+	    for(size_t j=0;j<display_len;j++) {
+		if(string_eq_cstr(next, display[j])) {
+		    hide = false; break;
+		}
+	    }
+	    if(!hide) {
+		printf("\t"String_Fmt":'"String_Fmt"'\n", String_Arg(next), String_Arg(value));
+	    }
+	
+	    if(i == info->strings->count) break;
+	    next = *(string *) arr_get(info->strings, i++);
+	}
+    }
+}
+
+YOUTUBE_DEF bool youtube_info_find_stream(Youtube_Info *info, string tag, string *signature, bool *is_signature) {
+    *signature = (string) {0};
+
+    size_t i=1;    
+    while(i<info->strings->count) {
+	string _tag = *(string *) arr_get(info->strings, i++);
+	i++; //string type = *(string *) arr_get(info->strings, i++);
+
+	string _signature = {0};
+	string next = *(string *) arr_get(info->strings, i++);
+	while(!string_eq(next, YOUTUBE_INFO_FRAME)) {
+	    string value = *(string *) arr_get(info->strings, i++);
+	    if(string_eq_cstr(next, "sig")) _signature = value;
+	    if(i == info->strings->count) break;
+	    next = *(string *) arr_get(info->strings, i++);
+	}
+
+	if(string_eq(_tag, tag)) {
+	    *signature = _signature;
+	    *is_signature = !(string_index_of(*signature, "https://") == 0);
+	}
+    }
+
+    return signature->len;
+}
+
+YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String_Buffer *sb, Youtube_Decoder *decoder) {
+    size_t sb_len = sb->len;
+    decoder->duk_ctx = duk_create_heap_default();
+
+    Regex regexs[4] = {0};
+    if(!regex_compile(&regexs[0], "/s/player/[:alnum:]+/[:alnum_.:]+/[:alnum_:]+/base\\.js")) {
+	panic("can not copmile regex");
+    }
+    if(!regex_compile(&regexs[1], "function[:print:]*\\.split\\(\"\"\\)[:print:]*\\.join\\(\"\"\\)}")) {
+	panic("can not copmile regex");
+    }
+    if(!regex_compile(&regexs[2], "\\.split\\(\"\"\\);[:alnum:]+\\.")) {
+	panic("can not copmile regex");
+    }
+
+    size_t offset, len;	
+    //file
+    if(!regex_match_len(&regexs[0], response_string.data, response_string.len, &offset, &len)) {
+	panic("regex_match");
+    }
+
+    const char *js_url = tprintf(sb, "%.*s", (int) len, response_string.data + offset);
+    sb->len = sb_len;
+    if(!http_request(http, js_url,
+		     "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
+	panic("http_get");
+    }
+    char *jsFile_data = sb->data + sb_len;
+    size_t jsFile_len = sb->len - sb_len;
+
+    //decode function
+    if(!regex_match_len(&regexs[1], jsFile_data, jsFile_len, &offset, &len)) {
+	panic("regex_match");
+    }
+
+    decoder->decodeFunction = tprintf(sb, "%.*s", (int) len,
+				      jsFile_data + offset);
+    // -- varNameMatches
+    if(!regex_match(&regexs[2], decoder->decodeFunction, &offset, &len)) {
+	panic("regex_match");
+    }
+    len -= 1 + 11;
+    offset += 11;
+
+    const char *varDeclareMatches = tprintf(sb, "var %.*s={.+}};[:alnum:]+\\.[:alnum:]+\\.prototype",
+					    (int) len, decoder->decodeFunction + offset);
+    if(!regex_compile(&regexs[3], varDeclareMatches)) {
+	panic("can not copmile regex");
+    }
+    if(!regex_match_len(&regexs[3], jsFile_data, jsFile_len, &offset, &len)) {
+	panic("regex_match");
+    }
+
+    int k = (int) len-1;
+    while(k>=0 && jsFile_data[offset+k] != '}') k--;
+    len = (size_t) k+2;
+
+    decoder->prefix = string_from(jsFile_data + offset, len);
+
+    return true;
+
+}
+
+YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **stream_url) {
+    string_chop_by_delim(&signature, '=');
+    string _s = string_chop_by_delim(&signature, '=');
+    string __s = string_from(_s.data, _s.len - 8);
+    string url = {0};
+
+    while(signature.len) {
+	string param = string_chop_by_delim(&signature, '=');
+	if(string_index_of(param, "https:") != 0) continue;
+	url = param;
+    }
+
+    if(!url.len) {
+	return false;
+    }
+
+    const char *expression = tprintf(sb, "\"use-strict\";"String_Fmt"encodeURIComponent((%s)(decodeURIComponent(\""String_Fmt"\")));",
+				     String_Arg(decoder->prefix), decoder->decodeFunction, String_Arg(__s));
+    duk_eval_string(decoder->duk_ctx, expression);
+
+    string decoded_url = tsmap(sb, url, http_decodeURI);
+
+    const char *suffix = duk_get_string(decoder->duk_ctx, -1);
+    
+    *stream_url = tprintf(sb, String_Fmt"&sig=%s",
+			   String_Arg(decoded_url),
+			   suffix);  
+    return true;
+
+}
+
+YOUTUBE_DEF void youtube_decoder_free(Youtube_Decoder *decoder) {
+    UNUSED(decoder);
+    UNIMPLEMENTED();
+}
 
 #endif //YOUTUBE_IMPLEMENTATION
 
