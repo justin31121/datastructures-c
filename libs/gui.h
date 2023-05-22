@@ -78,6 +78,7 @@ void (*glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const v
 #define GL_UNSIGNED_INT_8_8_8_8_REV 0x8367
 
 #define GL_BGRA 0x80E1
+#define GL_RGB 0x1907
 
 typedef ptrdiff_t GLsizeiptr;
 typedef ptrdiff_t GLintptr;

@@ -189,21 +189,24 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
 }
 
 IO_DEF bool io_getenv(const char *name, char *buffer, size_t buffer_cap) {
-    DWORD buffer_size = GetEnvironmentVariable(name, NULL, 0);
-    if(buffer_size == 0) {
-	return false;
-    }
+  buffer_cap -= 1;
+  DWORD buffer_size = GetEnvironmentVariable(name, NULL, 0);
+  if(buffer_size == 0) {
+    return false;
+  }
 
-    if(buffer_size > buffer_cap) {
-	return false;
-    }
+  if(buffer_size > buffer_cap) {
+    return false;
+  }
 
-    DWORD result = GetEnvironmentVariable(name, buffer, (DWORD) buffer_cap);
-    if(result == 0) {
-	return false;
-    }
+  DWORD result = GetEnvironmentVariable(name, buffer, (DWORD) buffer_cap);
+  if(result == 0) {
+    return false;
+  }
+
+  buffer[buffer_size] = 0;
   
-    return true;
+  return true;
 }
 
 IO_DEF bool io_slurp_file(const char *name, char **buffer, size_t *buffer_size) {

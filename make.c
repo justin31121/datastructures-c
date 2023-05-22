@@ -116,6 +116,12 @@ int main(int argc, char ** argv) {
 	} else {
 	    ret = run("cl", flags, "/Fe:imgui ./src/imgui_demo.c");
 	}
+    } else if(strcmp(arg, "spotify") == 0) {
+      if(use_gcc) {
+	
+      } else {
+	ret = run("cl", flags, "/Fe:spotify ./src/spotify.c");
+      }
     } else if(strcmp(arg, "img") == 0) {
 	if(use_gcc) {
 	    ret = run("gcc", flags, "-o img ./src/img.c", link_ssl);

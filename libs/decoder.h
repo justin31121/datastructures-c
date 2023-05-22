@@ -438,8 +438,8 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     samples,
     decoder->av_codec_context->sample_fmt, 1);
   */
-
-  int max_buffer_size = decoder->samples * decoder->sample_size;  
+  
+  int max_buffer_size = decoder->samples * decoder->sample_size;
   decoder->buffer = (unsigned char*) malloc(max_buffer_size);
   if(!(decoder->buffer)) {
     decoder_free(decoder);

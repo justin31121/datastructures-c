@@ -81,8 +81,11 @@ STRING_DEF size_t string_buffer_callback(const void *data, size_t size, size_t m
 
 STRING_DEF void string_buffer_free(String_Buffer *sb);
 
+typedef bool (*string_buffer_map)(const char *input, size_t input_size, char *buffer, size_t buffer_size, size_t *output_size);
+
 STRING_DEF const char *tprintf(String_Buffer *sb, const char *format, ...);
 STRING_DEF string tsprintf(String_Buffer *sb, const char *format, ...);
+STRING_DEF string tsmap(String_Buffer *sb, string input, string_buffer_map map);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -415,7 +418,7 @@ STRING_DEF bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
     return true;
   }
 
-  size_t new_cap = sb->cap == 0 ? 64 : sb->cap;
+  size_t new_cap = sb->cap == 0 ? 512 : sb->cap;
   while(data_size >= new_cap) new_cap*=2;
   sb->cap = new_cap;
   sb->data = (char *) realloc(sb->data, sb->cap);
@@ -528,6 +531,26 @@ STRING_DEF bool string_replace(string s, const char *_from, const char *_to, cha
   }
 
   return true;
+}
+
+//typedef bool (*string_buffer_map)(const char *input, size_t input_size, char *buffer, size_t buffer_size, size_t *output_size);
+
+//TODO: This is kinda try n error
+STRING_DEF string tsmap(String_Buffer *sb, string input, string_buffer_map map) {
+
+  string_buffer_reserve(sb, sb->len + input.len);
+  size_t cap = sb->cap;
+
+  size_t output_size;  
+  bool could_map = map(input.data, input.len, sb->data + sb->len, sb->cap - sb->len, &output_size);
+  while(!could_map) {
+    cap *= 2;
+    string_buffer_reserve(sb, cap);
+    could_map = map(input.data, input.len, sb->data + sb->len, sb->cap - sb->len, &output_size);
+  }
+  sb->len += output_size;
+  
+  return (string) {.data = sb->data + sb->len - output_size, .len = output_size};
 }
 
 #endif //STRING_IMPLEMENTATION
