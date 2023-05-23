@@ -27,6 +27,16 @@
 #define YOUTUBE_HOSTNAME "www.youtube.com"
 
 typedef struct{
+    string prev;
+    Arr *videoIds;
+    int state;
+}Youtube_Results;
+
+YOUTUBE_DEF bool youtube_results_init(string term, Http *http, String_Buffer *sb, Youtube_Results *results);
+YOUTUBE_DEF void youtube_results_dump(Youtube_Results *results);
+YOUTUBE_DEF void youtube_results_free(Youtube_Results *results);
+
+typedef struct{
     string dash_source;
     string m3u8_source;
     string prev;
@@ -40,14 +50,15 @@ YOUTUBE_DEF bool youtube_get_response(string videoId, Http * http, String_Buffer
 YOUTUBE_DEF bool youtube_info_init(string response_string, Youtube_Info *info);
 YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info);
 YOUTUBE_DEF bool youtube_info_find_stream(Youtube_Info *info, string tag, string *signature, bool *is_signature);
+YOUTUBE_DEF bool youtube_info_find_audio(Youtube_Info *info, string *signature, bool *is_signature);
+YOUTUBE_DEF bool youtube_info_find_video(Youtube_Info *info, string *signature, bool *is_signature);
 YOUTUBE_DEF void youtube_info_free(Youtube_Info *info);
 
 typedef struct{
     duk_context* duk_ctx;
-    const char *decodeFunction;
+    string decodeFunction;
     string prefix;
 }Youtube_Decoder;
-
 
 YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String_Buffer *sb, Youtube_Decoder *decoder);
 YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **url);
@@ -367,7 +378,8 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	    panic("can not copmile regex");
 	}
 	if(!regex_match(&regexs[0], sb->data, &offset, &len)) {
-	    panic("regex_match");
+	    //panic("regex_match");
+	    return false;
 	}
 	
 	//printf("jsFileUrlMatches: %.*s\n", (int) len, sb->data + offset);
@@ -409,7 +421,8 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	    panic("can not copmile regex");
 	}
 	if(!regex_match(&regexs[1], jsFile->data, &offset, &len)) {
-	    panic("regex_match");
+	    //panic("regex_match");
+	    return false;
 	}
 
 	//printf("decoderFunctionMatches: %.*s\n", (int) len, jsFile->data + offset);
@@ -423,7 +436,8 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	    panic("can not copmile regex");
 	}
 	if(!regex_match(&regexs[2], sb->data, &offset, &len)) {
-	    panic("regex_match");
+	    //panic("regex_match");
+	    return false;
 	}
 
 	len -= 1 + 11;
@@ -443,7 +457,8 @@ YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *o
 	    panic("can not copmile regex");
 	}
 	if(!regex_match(&regexs[3], jsFile->data, &offset, &len)) {
-	    panic("regex_match");
+	    //panic("regex_match");
+	    return false;
 	}
 
 	int k = (int) len-1;
@@ -737,8 +752,7 @@ YOUTUBE_DEF bool youtube_info_init(string response_string, Youtube_Info *info) {
 }
 
 YOUTUBE_DEF void youtube_info_free(Youtube_Info *info) {
-    UNUSED(info);
-    UNIMPLEMENTED();
+    arr_free(info->strings);
 }
 
 YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info) {
@@ -798,28 +812,271 @@ YOUTUBE_DEF bool youtube_info_find_stream(Youtube_Info *info, string tag, string
     return signature->len;
 }
 
+YOUTUBE_DEF bool youtube_info_find_audio(Youtube_Info *info, string *signature, bool *is_signature) {
+    *signature = (string) {0};
+
+    size_t i=1;    
+    while(i<info->strings->count) {
+	i++; //string _tag = *(string *) arr_get(info->strings, i++);
+	string type = *(string *) arr_get(info->strings, i++);
+
+	string _signature = {0};
+	string next = *(string *) arr_get(info->strings, i++);
+	while(!string_eq(next, YOUTUBE_INFO_FRAME)) {
+	    string value = *(string *) arr_get(info->strings, i++);
+	    if(string_eq_cstr(next, "sig")) _signature = value;
+	    if(i == info->strings->count) break;
+	    next = *(string *) arr_get(info->strings, i++);
+	}
+
+	if(string_index_of(type, "audio/") == 0) {
+	    *signature = _signature;
+	    *is_signature = !(string_index_of(*signature, "https://") == 0);
+	}
+    }
+
+    return signature->len;    
+}
+
+YOUTUBE_DEF bool youtube_info_find_video(Youtube_Info *info, string *signature, bool *is_signature) {
+    *signature = (string) {0};
+
+    size_t i=1;    
+    while(i<info->strings->count) {
+	i++; //string _tag = *(string *) arr_get(info->strings, i++);
+	string type = *(string *) arr_get(info->strings, i++);
+
+	string _signature = {0};
+	string next = *(string *) arr_get(info->strings, i++);
+	while(!string_eq(next, YOUTUBE_INFO_FRAME)) {
+	    string value = *(string *) arr_get(info->strings, i++);
+	    if(string_eq_cstr(next, "sig")) _signature = value;
+	    if(i == info->strings->count) break;
+	    next = *(string *) arr_get(info->strings, i++);
+	}
+
+	if(string_index_of(type, "video/") == 0) {
+	    *signature = _signature;
+	    *is_signature = !(string_index_of(*signature, "https://") == 0);
+	}
+    }
+
+    return signature->len;    
+}
+
+YOUTUBE_DEF string youtube_resposne_match_js_path(string response) {
+    string empty = {0};
+
+    const char *prefix = "/s/player/";
+    size_t prefix_len = strlen(prefix);
+    const char *suffix = "/base.js";
+    size_t suffix_len = strlen(suffix);
+
+    int pre_pos = string_index_of(response, prefix);
+    if(pre_pos < 0) return empty;
+
+    int suf_pos = string_index_of_offset(response, suffix, (size_t) pre_pos + prefix_len);
+    if(suf_pos < 0) return empty;
+
+    return (string) {.data = response.data + pre_pos, .len = suf_pos - pre_pos + suffix_len };
+}
+
+//function[:print:]*\\.split\\(\"\"\\)[:print:]*\\.join\\(\"\"\\)}
+YOUTUBE_DEF string youtube_response_match_decode_function(string response) {
+    string empty = {0};
+
+    const char *prefix = "function";
+    size_t prefix_len = strlen(prefix);
+    const char *midfix = "split(\"\")";
+    size_t midfix_len = strlen(midfix);
+    const char *suffix = ".join(\"\")}";
+    size_t suffix_len = strlen(suffix);
+
+    size_t offset = 0;
+
+    while(offset < response.len) {
+	int pre_pos = string_index_of_offset(response, prefix, offset);
+	if(pre_pos < 0) {
+	    return empty;
+	}	
+
+	offset = (size_t) pre_pos + prefix_len;
+	int mid_pos = string_index_of_offset(response, midfix, offset);
+	if(mid_pos < 0) {
+	    continue;
+	}
+
+	bool ok = true;
+	for(size_t i=offset;i<(size_t) mid_pos;i++) {
+	    if(!regex_printable(response.data[i])) {
+		ok = false;
+		break;
+	    }
+	}
+	if(!ok) {
+	    continue;
+	}
+	
+	offset = (size_t) mid_pos + midfix_len;
+	int suf_pos = string_index_of_offset(response, suffix, offset);
+	if(suf_pos < 0) {
+	    continue;	    
+	}
+
+	ok = true;
+	for(size_t i=offset;i<(size_t) suf_pos;i++) {
+	    if(!regex_printable(response.data[i])) {
+		ok = false;
+		break;
+	    }
+	}
+	if(!ok) {
+	    continue;
+	}
+
+	return (string) {.data = response.data + pre_pos, .len = suf_pos - pre_pos + suffix_len };
+    }
+    
+    return empty;
+}
+
+//\\.split\\(\"\"\\);[:alnum:]+\\.
+YOUTUBE_DEF string youtube_decode_function_match_var_name(string decodeFunction) {
+    string empty = {0};
+
+    const char *prefix = ".split(\"\");";
+    size_t prefix_len = strlen(prefix);
+    const char *suffix = ".";
+    size_t suffix_len = strlen(suffix);
+
+    size_t offset = 0;
+    while(offset < decodeFunction.len) {
+	int pre_pos = string_index_of_offset(decodeFunction, prefix, offset);
+	if(pre_pos < 0) {
+	    return empty;
+	}
+	
+	offset = (size_t) pre_pos + prefix_len;
+	int suf_pos = string_index_of_offset(decodeFunction, suffix, offset);
+	if(suf_pos < 0) {	    
+	    continue;
+	}
+	
+	bool ok = true;
+	for(size_t i=pre_pos+prefix_len;i<(size_t) suf_pos;i++) {
+	    if(!regex_alnum(decodeFunction.data[i])) {
+		ok = false;
+		break;
+	    }
+	}
+	if(!ok) {
+	    continue;
+	}
+
+	return (string) {.data = decodeFunction.data + pre_pos, .len = suf_pos - pre_pos + suffix_len };
+    }
+
+    return empty;
+}
+
+//var "String_Fmt"={.+}};[:alnum:]+\\.[:alnum:]+\\.prototype
+YOUTUBE_DEF string youtube_response_match_var_declare_matches(string var_name, string response) {
+    string empty = {0};
+
+    const char *prefix = "var ";
+    size_t prefix_len = strlen(prefix);
+    //var_name
+    //var_name_len
+    const char *midfix = "={";
+    size_t midfix_len = strlen(midfix);
+    const char *midfix2 = "}};";
+    size_t midfix2_len = strlen(midfix2);
+    const char *midfix3 = ".";
+    size_t midfix3_len = strlen(midfix3);
+    const char *suffix = ".prototype";
+    size_t suffix_len = strlen(suffix);
+
+    size_t offset = 0;
+    while(offset < response.len) {
+	int pre_pos = string_index_of_offset(response, prefix, offset);
+	if(pre_pos < 0) {
+	    return empty;
+	}
+
+	offset = (size_t) pre_pos + prefix_len;
+	int var_name_pos = string_index_of_offset2(response, var_name, offset);
+	if(var_name_pos < 0) {
+	    continue;
+	}
+	if((size_t) var_name_pos != offset) { // CHECK THIS
+	    continue;
+	}
+
+	offset = (size_t) var_name_pos + var_name.len;	
+	int mid_pos = string_index_of_offset(response, midfix, offset);
+	if(mid_pos < 0) {
+	    continue;
+	}
+	if((size_t) mid_pos != offset) {
+	    continue;
+	}
+
+	offset = (size_t) mid_pos + midfix_len;
+	int mid2_pos = string_index_of_offset(response, midfix2, offset);
+	if(mid2_pos < 0) {
+	    continue;
+	}
+
+	offset = (size_t) mid2_pos + midfix2_len;
+	int mid3_pos = string_index_of_offset(response, midfix3, offset);
+	if(mid3_pos < 0) {
+	    continue;
+	}
+	
+	bool ok = true;
+	for(size_t i=offset;i<(size_t) mid3_pos;i++) {
+	    if(!regex_alnum(response.data[i])) {
+		ok = false;
+		break;
+	    }
+	}
+	if(!ok) {
+	    continue;
+	}
+
+	offset = (size_t) mid3_pos + midfix3_len;
+	int suf_pos = string_index_of_offset(response, suffix, offset);
+	if(suf_pos < 0) {
+	    continue;
+	}
+
+	ok = true;
+	for(size_t i=offset;i<(size_t) suf_pos;i++) {
+	    if(!regex_alnum(response.data[i])) {
+		ok = false;
+		break;
+	    }
+	}
+	if(!ok) {
+	    continue;
+	}
+
+	return (string) {.data = response.data + pre_pos, .len = suf_pos - pre_pos + suffix_len };	
+    }
+    
+    return empty;
+}
+
 YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String_Buffer *sb, Youtube_Decoder *decoder) {
     size_t sb_len = sb->len;
-    decoder->duk_ctx = duk_create_heap_default();
-
-    Regex regexs[4] = {0};
-    if(!regex_compile(&regexs[0], "/s/player/[:alnum:]+/[:alnum_.:]+/[:alnum_:]+/base\\.js")) {
-	panic("can not copmile regex");
+    
+    string js_file_path = youtube_resposne_match_js_path(response_string);
+    if(!js_file_path.len) {
+	panic("youtube_resposne_match_js_path");
+	return false;
     }
-    if(!regex_compile(&regexs[1], "function[:print:]*\\.split\\(\"\"\\)[:print:]*\\.join\\(\"\"\\)}")) {
-	panic("can not copmile regex");
-    }
-    if(!regex_compile(&regexs[2], "\\.split\\(\"\"\\);[:alnum:]+\\.")) {
-	panic("can not copmile regex");
-    }
-
-    size_t offset, len;	
-    //file
-    if(!regex_match_len(&regexs[0], response_string.data, response_string.len, &offset, &len)) {
-	panic("regex_match");
-    }
-
-    const char *js_url = tprintf(sb, "%.*s", (int) len, response_string.data + offset);
+    
+    const char *js_url = tprintf(sb, String_Fmt, String_Arg(js_file_path));
     sb->len = sb_len;
     if(!http_request(http, js_url,
 		     "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
@@ -829,39 +1086,39 @@ YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String
     size_t jsFile_len = sb->len - sb_len;
 
     //decode function
-    if(!regex_match_len(&regexs[1], jsFile_data, jsFile_len, &offset, &len)) {
-	panic("regex_match");
+    string decodeFunction_string = youtube_response_match_decode_function( string_from(jsFile_data, jsFile_len) );
+    if(!decodeFunction_string.len) {
+	panic("youtube_response_match_decode_function");
+	return false;
     }
 
-    decoder->decodeFunction = tprintf(sb, "%.*s", (int) len,
-				      jsFile_data + offset);
     // -- varNameMatches
-    if(!regex_match(&regexs[2], decoder->decodeFunction, &offset, &len)) {
-	panic("regex_match");
+    string varNameMatches_string = youtube_decode_function_match_var_name(decodeFunction_string);
+    if(!varNameMatches_string.len) {
+	printf("decodeFunction: '"String_Fmt"'\n", String_Arg(decodeFunction_string) );
+	panic("youtube_decode_function_match_var_name");
+	return false;
     }
-    len -= 1 + 11;
-    offset += 11;
+    string_chop_left(&varNameMatches_string, 11);
+    string_chop_right(&varNameMatches_string, 1);
 
-    const char *varDeclareMatches = tprintf(sb, "var %.*s={.+}};[:alnum:]+\\.[:alnum:]+\\.prototype",
-					    (int) len, decoder->decodeFunction + offset);
-    if(!regex_compile(&regexs[3], varDeclareMatches)) {
-	panic("can not copmile regex");
-    }
-    if(!regex_match_len(&regexs[3], jsFile_data, jsFile_len, &offset, &len)) {
-	panic("regex_match");
-    }
+    string var_name_match = youtube_response_match_var_declare_matches(varNameMatches_string, string_from(sb->data + sb_len, jsFile_len) );
 
-    int k = (int) len-1;
-    while(k>=0 && jsFile_data[offset+k] != '}') k--;
-    len = (size_t) k+2;
+    int k = (int) var_name_match.len - 1;
+    while(k>=0 && var_name_match.data[k] != '}') k--;
+    var_name_match.len = (size_t) k+2;
 
-    decoder->prefix = string_from(jsFile_data + offset, len);
+    decoder->prefix = var_name_match;
+    decoder->decodeFunction = decodeFunction_string;
 
     return true;
-
 }
 
 YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **stream_url) {
+    if(!decoder->duk_ctx) {
+	decoder->duk_ctx = duk_create_heap_default();	
+    }
+    
     string_chop_by_delim(&signature, '=');
     string _s = string_chop_by_delim(&signature, '=');
     string __s = string_from(_s.data, _s.len - 8);
@@ -877,8 +1134,8 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
 	return false;
     }
 
-    const char *expression = tprintf(sb, "\"use-strict\";"String_Fmt"encodeURIComponent((%s)(decodeURIComponent(\""String_Fmt"\")));",
-				     String_Arg(decoder->prefix), decoder->decodeFunction, String_Arg(__s));
+    const char *expression = tprintf(sb, "\"use-strict\";"String_Fmt"encodeURIComponent(("String_Fmt")(decodeURIComponent(\""String_Fmt"\")));",
+				     String_Arg(decoder->prefix), String_Arg(decoder->decodeFunction), String_Arg(__s));
     duk_eval_string(decoder->duk_ctx, expression);
 
     string decoded_url = tsmap(sb, url, http_decodeURI);
@@ -893,8 +1150,100 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
 }
 
 YOUTUBE_DEF void youtube_decoder_free(Youtube_Decoder *decoder) {
-    UNUSED(decoder);
-    UNIMPLEMENTED();
+    duk_destroy_heap(decoder->duk_ctx);
+}
+
+YOUTUBE_DEF bool youtube_on_elem_results_init(Json_Parse_Type type, string content, void *arg, void **elem) {
+    (void) type;
+    (void) content;
+    (void) elem;
+  
+    Youtube_Results *results = (Youtube_Results *) arg;
+    results->prev = content;
+  
+    return true;
+}
+
+YOUTUBE_DEF void youtube_on_object_elem_results_init(void *object, string key, void *elem, void *arg) {
+    (void) object;
+    (void) elem;
+    Youtube_Results *results = (Youtube_Results *) arg;
+  
+    //printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(results->prev));
+
+    if(results->state == 0) {
+	if(!string_eq_cstr(key, "videoId")) return;
+	if(results->videoIds->count == 0) {
+	    arr_push(results->videoIds, &results->prev);
+	    results->state = 1;
+	}
+	else {
+	    string last_videoId = *(string *) arr_get(results->videoIds, results->videoIds->count-2);
+	    if(string_eq(results->prev, last_videoId)) return;
+	    arr_push(results->videoIds, &results->prev);
+	    results->state = 1;
+	}    
+    } else if(results->state == 1) {
+	if(!string_eq_cstr(key, "title")) return;
+	arr_push(results->videoIds, &results->prev);
+	results->state = 0;
+    }
+  
+}
+
+YOUTUBE_DEF bool youtube_results_init(string term, Http *http, String_Buffer *sb, Youtube_Results *results) {
+
+    size_t sb_len = sb->len;
+    string encoded_term = tsmap(sb, term, http_encodeURI);
+    const char *route = tprintf(sb, "/results?search_query="String_Fmt, String_Arg(encoded_term));
+
+    sb->len = sb_len;
+    if(!http_request(http, route, "GET", NULL, NULL, string_buffer_callback, sb, NULL, NULL)) {
+	return false;
+    }
+    string response_string = string_from(sb->data + sb_len, sb->len - sb_len);
+
+    Youtube_JavaScript_Content js_content;
+    js_content.content = (string) {0};
+    js_content.prefix = "var ytInitialData = ";
+  
+    Html_Parse_Events events = {0};
+    events.on_node_content = youtube_on_node_content_query_json;
+    events.arg = &js_content;
+  
+    if(!html_parse(response_string.data, response_string.len, &events)) {
+	return false;
+    }
+    string json_string = js_content.content;
+    string_chop_left(&json_string, strlen(js_content.prefix));
+    string_chop_right(&json_string, 1);
+
+    *results = (Youtube_Results) {0};
+    results->videoIds = arr_init2(sizeof(string), 1024);
+
+    Json_Parse_Events json_events = {0};
+    json_events.on_elem = youtube_on_elem_results_init;
+    json_events.on_object_elem = youtube_on_object_elem_results_init;
+    json_events.arg = results;
+
+    if(!json_parse2(json_string.data, json_string.len, &json_events)) {
+	return false;
+    }
+
+
+    return true;
+}
+
+YOUTUBE_DEF void youtube_results_dump(Youtube_Results *results) {
+    for(size_t i=0;i<results->videoIds->count;i+=2) {
+	string videoId = *(string *) arr_get(results->videoIds, i);
+	string title = *(string *) arr_get(results->videoIds, i+1);
+	printf(String_Fmt" - https://www.youtube.com/watch?v="String_Fmt"\n", String_Arg(title), String_Arg(videoId));
+    }
+}
+
+YOUTUBE_DEF void youtube_results_free(Youtube_Results *results) {
+    arr_free(results->videoIds);
 }
 
 #endif //YOUTUBE_IMPLEMENTATION

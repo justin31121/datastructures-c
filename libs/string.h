@@ -233,7 +233,9 @@ STRING_DEF int string_index_of(string s, const char *cstr) {
 }
 
 STRING_DEF int string_index_of_offset(string s, const char *cstr, size_t offset) {
-  return cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr)) + (int) offset;
+    int pos = cstr_index_of(s.data + offset, s.len - offset, cstr, strlen(cstr));
+    if(pos < 0) return pos;
+    else return pos + (int) offset;
 }
 
 STRING_DEF int string_index_of2(string s, string t) {
@@ -241,7 +243,9 @@ STRING_DEF int string_index_of2(string s, string t) {
 }
 
 STRING_DEF int string_index_of_offset2(string s, string t, size_t offset) {
-  return cstr_index_of(s.data + offset, s.len - offset, t.data, t.len) + (int) offset;
+    int pos = cstr_index_of(s.data + offset, s.len - offset, t.data, t.len);
+    if(pos < 0) return pos;
+    else return pos + (int) offset;
 }
 
 STRING_DEF string string_substring(string s, size_t start, size_t end) {
@@ -419,7 +423,7 @@ STRING_DEF bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
   }
 
   size_t new_cap = sb->cap == 0 ? 512 : sb->cap;
-  while(data_size >= new_cap) new_cap*=2;
+  while(data_size > new_cap) new_cap*=2;
   sb->cap = new_cap;
   sb->data = (char *) realloc(sb->data, sb->cap);
   if(!sb->data) {

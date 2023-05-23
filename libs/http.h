@@ -220,6 +220,7 @@ HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
 HTTP_DEF bool http_read_len(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
 
 HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_file);
+HTTP_DEF void http_free_external_libs();
 //----------END SOCKET----------
 
 //----------BEGIN WEBSOCKET----------
@@ -1852,6 +1853,15 @@ HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_fil
 #ifdef linux
   (void) http_global_wsa_startup;
 #endif //linux
+}
+
+HTTP_DEF void http_free_external_libs() {
+    SSL_CTX_free(http_global_ssl_server_ctx);
+    SSL_CTX_free(http_global_ssl_client_ctx);
+
+#ifdef _WIN32
+    WSACleanup();
+#endif //_WIN32
 }
 //----------END SOCKET----------
 
