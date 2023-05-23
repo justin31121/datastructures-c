@@ -641,16 +641,16 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *u
     if(!youtube_decoder_init(response, &http, sb, &decoder)) {
 	panic("youtube_decoder_init");
     }
-    printf(String_Fmt"\n", String_Arg(signature)); 
-    printf("here\n");fflush(stdout);
 
     String_Buffer temp = {0};
     const char *stream_url;
     if(!youtube_decoder_decode(&decoder, &temp, signature, &stream_url)) {
 	panic("youtube_decoder_decode");
     }
+
+    *url = string_from_cstr(stream_url);
     
-    return false;
+    return true;
 }
 
 YOUTUBE_DEF bool youtube_context_init(Youtube_Context *context) {  
@@ -1005,7 +1005,7 @@ YOUTUBE_DEF string youtube_decode_function_match_var_name(string decodeFunction)
 	
 	bool ok = true;
 	for(size_t i=pre_pos+prefix_len;i<(size_t) suf_pos;i++) {
-	    if(!regex_alnum(decodeFunction.data[i]) && decodeFunction.data[i]!='$') {
+	    if(!regex_alnum(decodeFunction.data[i]) && decodeFunction.data[i]!='$') {	      
 		ok = false;
 		break;
 	    }
