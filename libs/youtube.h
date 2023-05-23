@@ -83,6 +83,7 @@ YOUTUBE_DEF bool youtube_initial_data(Youtube_Context *context, const char *vide
 YOUTUBE_DEF bool youtube_video(Youtube_Context *context, string videoId, Json *out);
 YOUTUBE_DEF bool youtube_get_videoId(const char *url, string *videoId);
 YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, char **url, char **name);
+YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *url, string *name);
 
 #ifdef YOUTUBE_IMPLEMENTATION
 
@@ -612,6 +613,46 @@ YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, cha
   return url_is_valid;
 }
 
+YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *url, string *name) {
+    Http http;
+    if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
+	panic("http_init2");
+    }
+
+    string_buffer_reserve(sb, 4 * 1024 * 1024);
+    string response;
+    if(!youtube_get_response(videoId, &http, sb, &response)) {
+	panic("youtube_get_response");
+    }
+
+    Youtube_Info info;
+    if(!youtube_info_init(response, &info)) {
+	panic("youtube_info_init");
+    }
+    youtube_info_dump(&info);
+
+    string signature;
+    bool is_signature;
+    if(!youtube_info_find_audio(&info, &signature, &is_signature)) {
+	panic("youtube_info_find_stream");
+    }
+
+    Youtube_Decoder decoder;
+    if(!youtube_decoder_init(response, &http, sb, &decoder)) {
+	panic("youtube_decoder_init");
+    }
+    printf(String_Fmt"\n", String_Arg(signature)); 
+    printf("here\n");fflush(stdout);
+
+    String_Buffer temp = {0};
+    const char *stream_url;
+    if(!youtube_decoder_decode(&decoder, &temp, signature, &stream_url)) {
+	panic("youtube_decoder_decode");
+    }
+    
+    return false;
+}
+
 YOUTUBE_DEF bool youtube_context_init(Youtube_Context *context) {  
   for(size_t i=0;i<3;i++) context->sbs[i] = (String_Buffer) {0};
   context->bases = NULL;
@@ -964,7 +1005,7 @@ YOUTUBE_DEF string youtube_decode_function_match_var_name(string decodeFunction)
 	
 	bool ok = true;
 	for(size_t i=pre_pos+prefix_len;i<(size_t) suf_pos;i++) {
-	    if(!regex_alnum(decodeFunction.data[i])) {
+	    if(!regex_alnum(decodeFunction.data[i]) && decodeFunction.data[i]!='$') {
 		ok = false;
 		break;
 	    }

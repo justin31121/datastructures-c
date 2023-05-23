@@ -35,7 +35,20 @@ void foo(string videoId, string tag, Http *http, String_Buffer *sb, Youtube_Info
     printf("url: %s\n", url);
 }
 
+String_Buffer sb = {0};
+
 int main() {
+    string url, name;
+    if(!youtube_get_audio2(STRING("g3dmARjiaBc"), &sb, &url, &name)) {
+	return 1;
+    }
+    
+    printf(String_Fmt"\n", String_Arg(url));
+    
+    return 0;
+}
+
+int main1() {
 
     string tag = STRING("140");
     Youtube_Info info;
@@ -43,7 +56,7 @@ int main() {
     decoder.duk_ctx = NULL;
     String_Buffer sb = {0};
     Http http;
-
+    
     char buf[1024];
     while(1) {
 	scanf("%s", buf);
