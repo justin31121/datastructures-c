@@ -54,15 +54,13 @@ YOUTUBE_DEF bool youtube_info_find_audio(Youtube_Info *info, string *signature, 
 YOUTUBE_DEF bool youtube_info_find_video(Youtube_Info *info, string *signature, bool *is_signature);
 YOUTUBE_DEF void youtube_info_free(Youtube_Info *info);
 
-typedef struct{
-    duk_context* duk_ctx;
+typedef struct{    
     string decodeFunction;
     string prefix;
 }Youtube_Decoder;
 
 YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String_Buffer *sb, Youtube_Decoder *decoder);
-YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **url);
-YOUTUBE_DEF void youtube_decoder_free(Youtube_Decoder *decoder);
+YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, duk_context* duk_ctx, string signature, const char **url);
 
 typedef struct{
   Http http;
@@ -614,6 +612,8 @@ YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, cha
 }
 
 YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *url, string *name) {
+    (void) name;
+    
     Http http;
     if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
 	panic("http_init2");
@@ -629,7 +629,6 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *u
     if(!youtube_info_init(response, &info)) {
 	panic("youtube_info_init");
     }
-    youtube_info_dump(&info);
 
     string signature;
     bool is_signature;
@@ -641,16 +640,16 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *u
     if(!youtube_decoder_init(response, &http, sb, &decoder)) {
 	panic("youtube_decoder_init");
     }
-    printf(String_Fmt"\n", String_Arg(signature)); 
-    printf("here\n");fflush(stdout);
 
-    String_Buffer temp = {0};
+    duk_context* duk_ctx = duk_create_heap_default();
     const char *stream_url;
-    if(!youtube_decoder_decode(&decoder, &temp, signature, &stream_url)) {
+    if(!youtube_decoder_decode(&decoder, sb, duk_ctx, signature, &stream_url)) {
 	panic("youtube_decoder_decode");
     }
+
+    *url = string_from_cstr(stream_url);
     
-    return false;
+    return true;
 }
 
 YOUTUBE_DEF bool youtube_context_init(Youtube_Context *context) {  
@@ -694,6 +693,8 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
 		arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
 		arr_push(foo->strings, &foo->prev_prev);
 		arr_push(foo->strings, &content);
+		string sig = STRING("sig");
+		arr_push(foo->strings, &sig);
 		arr_push(foo->strings, &foo->prev);
 	    } else {
 		foo->state = 1;
@@ -1155,10 +1156,7 @@ YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String
     return true;
 }
 
-YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **stream_url) {
-    if(!decoder->duk_ctx) {
-	decoder->duk_ctx = duk_create_heap_default();	
-    }
+YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, duk_context* duk_ctx, string signature, const char **stream_url) {
     
     string_chop_by_delim(&signature, '=');
     string _s = string_chop_by_delim(&signature, '=');
@@ -1176,22 +1174,18 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
     }
 
     const char *expression = tprintf(sb, "\"use-strict\";"String_Fmt"encodeURIComponent(("String_Fmt")(decodeURIComponent(\""String_Fmt"\")));",
-				     String_Arg(decoder->prefix), String_Arg(decoder->decodeFunction), String_Arg(__s));
-    duk_eval_string(decoder->duk_ctx, expression);
+				     String_Arg(decoder->prefix), String_Arg(decoder->decodeFunction), String_Arg(__s));    
+    duk_eval_string(duk_ctx, expression);
 
     string decoded_url = tsmap(sb, url, http_decodeURI);
 
-    const char *suffix = duk_get_string(decoder->duk_ctx, -1);
+    const char *suffix = duk_get_string(duk_ctx, -1);
     
     *stream_url = tprintf(sb, String_Fmt"&sig=%s",
 			   String_Arg(decoded_url),
 			   suffix);  
     return true;
 
-}
-
-YOUTUBE_DEF void youtube_decoder_free(Youtube_Decoder *decoder) {
-    duk_destroy_heap(decoder->duk_ctx);
 }
 
 YOUTUBE_DEF bool youtube_on_elem_results_init(Json_Parse_Type type, string content, void *arg, void **elem) {

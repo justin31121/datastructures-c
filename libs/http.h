@@ -1856,8 +1856,10 @@ HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_fil
 }
 
 HTTP_DEF void http_free_external_libs() {
+#ifndef HTTP_NO_SSL
     SSL_CTX_free(http_global_ssl_server_ctx);
     SSL_CTX_free(http_global_ssl_client_ctx);
+#endif //HTTP_NO_SSL
 
 #ifdef _WIN32
     WSACleanup();
