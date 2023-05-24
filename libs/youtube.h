@@ -1006,7 +1006,7 @@ YOUTUBE_DEF string youtube_decode_function_match_var_name(string decodeFunction)
 	
 	bool ok = true;
 	for(size_t i=pre_pos+prefix_len;i<(size_t) suf_pos;i++) {
-	    if(!regex_alnum(decodeFunction.data[i]) && decodeFunction.data[i]!='$') {
+	    if(!regex_alnum(decodeFunction.data[i]) && decodeFunction.data[i]!='$') {	      
 		ok = false;
 		break;
 	    }
