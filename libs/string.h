@@ -399,7 +399,7 @@ STRING_DEF bool string_buffer_append(String_Buffer *sb, const char *data, size_t
     while(sb->len + data_size >= new_cap) new_cap *=2;
     if(new_cap != sb->cap) {
 #ifdef STRING_DEBUG
-	size_t old_cap;
+	size_t old_cap = sb->cap;
 	sb->cap = new_cap;
 	void *before = sb->data;
 	sb->data = (char *) realloc(sb->data, sb->cap);    

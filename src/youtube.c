@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
 	    panic("youtube_info_find_stream");
 	}
     } else if(state == STATE_AUDIO) {
-	if(!youtube_info_find_audio(&info, &signature, &is_signature)) {
+      if(!youtube_info_find_stream(&info, STRING("140"), &signature, &is_signature)) {
 	    panic("youtube_info_find_audio");
 	}
     } else if(state == STATE_VIDEO) {

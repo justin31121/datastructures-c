@@ -112,15 +112,25 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "imgui_demo") == 0) {
 	if(use_gcc) {
-	    ret = run("gcc", flags, "-o imgui ./src/imgui_demo.c", link_video);
+	  ret = run("gcc", flags, "-o imgui ./src/imgui_demo.c", link_video);
 	} else {
-	    ret = run("cl", flags, "/Fe:imgui ./src/imgui_demo.c");
+	  ret = run("cl", flags, "/Fe:imgui ./src/imgui_demo.c");
 	}
     } else if(strcmp(arg, "spotify") == 0) {
       if(use_gcc) {
-	  ret = run("gcc", flags, "-o spotify ./src/spotify.c", link_ssl);
+	if(!io_exists(obj_duktape, NULL)) {
+	  ret = run("gcc ", "-o", obj_duktape,"-c ./thirdparty/duktape.c");
+	  if(ret) return ret;
+	}	    
+
+	ret = run("gcc", flags, "-o spotify", obj_duktape, "./src/spotify.c", link_ssl);
       } else {
-	  ret = run("cl", flags, "/Fe:spotify ./src/spotify.c");
+	if(!io_exists(obj_duktape, NULL)) {
+	  ret = run("cl /Fe:", obj_duktape,"/c ./thirdparty/duktape.c");
+	  if(ret) return ret;
+	}	    
+
+	ret = run("cl", flags, "/Fe:spotify", obj_duktape,"./src/spotify.c");
       }
     } else if(strcmp(arg, "img") == 0) {
 	if(use_gcc) {
