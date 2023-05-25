@@ -52,6 +52,7 @@ IO_DEF void io_dir_close(Io_Dir *dir);
 
 IO_DEF bool io_exists(const char *file_path, bool *is_file);
 IO_DEF bool io_delete(const char *file_path);
+IO_DEF bool io_mkdir(const char *file_path);
 
 IO_DEF bool io_file_open(Io_File *file, const char *file_path);
 IO_DEF bool io_file_close(Io_File *file);
@@ -355,6 +356,10 @@ IO_DEF int io_file_fseek(Io_File *file, long offset, int whence) {
 
 IO_DEF long io_file_ftell(Io_File *file) {
     return file->pos;
+}
+
+IO_DEF bool io_mkdir(const char *file_path) {
+  return CreateDirectoryA(file_path, NULL);
 }
 
 #endif //_WIN32

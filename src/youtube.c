@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
 	    panic("youtube_info_find_stream");
 	}
     } else if(state == STATE_AUDIO) {
-	if(!youtube_info_find_audio(&info, &signature, &is_signature)) {
+      if(!youtube_info_find_stream(&info, STRING("140"), &signature, &is_signature)) {
 	    panic("youtube_info_find_audio");
 	}
     } else if(state == STATE_VIDEO) {
@@ -142,9 +142,10 @@ int main(int argc, char **argv) {
     if(!youtube_decoder_init(response, &http, &temp, &decoder)) {
 	panic("decoder");
     }
-    
+
+    duk_context *duk_ctx = duk_create_heap_default();
     const char* url;
-    if(!youtube_decoder_decode(&decoder, &temp, signature, &url)) {
+    if(!youtube_decoder_decode(&decoder, &temp, duk_ctx, signature, &url)) {
 	panic("youtube_decoder_decode");
     }
 
