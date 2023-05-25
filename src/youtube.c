@@ -110,11 +110,10 @@ int main(int argc, char **argv) {
 
     if(pack) {
 	UNIMPLEMENTED();
-	return 0;
     }
 
-    string signature;
-    bool is_signature;
+    string signature = {0};
+    bool is_signature = false;
     
     if(itag.len) {	
 	if(!youtube_info_find_stream(&info, itag, &signature, &is_signature)) {
