@@ -403,7 +403,7 @@ STRING_DEF bool string_buffer_append(String_Buffer *sb, const char *data, size_t
 	sb->cap = new_cap;
 	void *before = sb->data;
 	sb->data = (char *) realloc(sb->data, sb->cap);    
-	printf("reallocation from %p (%zd) to %p (%zd)\n", before, old_cap, sb->data, new_cap); fflush(stdout);
+	fprintf(stderr, "reallocation from %p (%zd) to %p (%zd)\n", before, old_cap, sb->data, new_cap); fflush(stdout);
 #else
 	sb->cap = new_cap;
 	sb->data = (char *) realloc(sb->data, sb->cap);           	
@@ -437,7 +437,7 @@ STRING_DEF bool string_buffer_reserve(String_Buffer *sb, size_t data_size) {
     sb->cap = new_cap;
     void *before = sb->data;;
     sb->data = (char *) realloc(sb->data, sb->cap);
-    printf("reallocation from %p (%zd) to %p (%zd)\n", before, old_cap, sb->data, new_cap); fflush(stdout);
+    fprintf(stderr, "reallocation from %p (%zd) to %p (%zd)\n", before, old_cap, sb->data, new_cap); fflush(stdout);
 #else
     sb->cap = new_cap;
     sb->data = (char *) realloc(sb->data, sb->cap);

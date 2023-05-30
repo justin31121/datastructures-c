@@ -171,30 +171,37 @@ PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, cons
     if(!youtube_get_videoId(link, &videoId)) {
 	return false;
     }
+    printf("got '"String_Fmt"'\n", String_Arg(videoId) ); fflush(stdout);
 
-    if(!playlist->using_yt_context) {
-	if(!youtube_context_init(&playlist->yt_context)) {
-	    return false;
-	}
-	playlist->using_yt_context = true;
+    Http http;
+    if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
+	panic("http_init2");
     }
-    youtube_context_start(&playlist->yt_context);
+    String_Buffer temp = {0};
+    string_buffer_reserve(&temp, 1024 * 1024 * 4);
+    duk_context* duk_ctx = duk_create_heap_default();
 
-    char *url, *name = NULL;
-    if(!youtube_get_audio(&playlist->yt_context, videoId, &url, &name)) {
-	return false;
+    printf("initialized everything\n"); fflush(stdout);
+
+    string _url;
+    if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
+	panic("youtube_get_audio2");
     }
+    printf( "got: '"String_Fmt"'\n", String_Arg(_url) ); fflush(stdout);
 
-    if(!player_open_url(player, url)) {
+    // TODO: add a string version of this
+    // This only works because of youtueb_get_audio2`s way of
+    // querying the url    
+    if(!player_open_url(player, _url.data)) {
 	return false;
     }
     player_close(player);
 
-    PLAYLIST_APPEND(playlist, name, url);  
-    free(name);
-    free(url);
+    PLAYLIST_APPEND(playlist, "youtube video ...", _url.data);
 
-    youtube_context_stop(&playlist->yt_context);
+    duk_destroy_heap(duk_ctx);
+    string_buffer_free(&temp);
+    http_free(&http);
   
     return true;
 }

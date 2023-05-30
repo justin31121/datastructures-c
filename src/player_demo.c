@@ -1,10 +1,12 @@
 #define PLAYER_IMPLEMENTATION
+#define STRING_DEBUG
 #include "../libs/player.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../thirdparty/stb_truetype.h"
 
 #define GUI_OPENGL
+#define GUI_CONSOLE
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"
 

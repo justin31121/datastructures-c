@@ -622,7 +622,7 @@ YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, cha
 YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *sb, duk_context *duk_ctx, string *url, string *name) {
   (void) name;
 
-  string_buffer_reserve(sb, 4 * 1024 * 1024);
+  string_buffer_reserve(sb, sb->cap + 4 * 1024 * 1024);
   
   string signature = {0};
   bool is_signature = false;
@@ -630,32 +630,46 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *s
   Youtube_Decoder decoder;
 
   size_t sb_len = sb->len;
-  for(int i=0;i<3;i++) {
+  for(int i=0;i<4;i++) {
       sb->len = sb_len;
+      fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") %d/%d\n", String_Arg(videoId), i+1, 4);
       
       string response;
       if(!youtube_get_response(videoId, http, sb, &response)) {
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not get youtube response\n", String_Arg(videoId) );
 	  continue;
       }
   
       if(!youtube_info_first_stream(response, STRING("140"), &signature, &is_signature)) {
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not find stream \"140\"\n", String_Arg(videoId) );
 	  continue;
+      }
+      
+      //TODO: this does not work
+      if(!is_signature) {
+	  *url = tsmap(sb, signature, http_decodeURI);
+	  string_buffer_append(sb, "\0", 1);
+	  return true;
       }
 
       if(!youtube_decoder_init(response, http, sb, &decoder)) {
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not init decoder\n", String_Arg(videoId) );
 	  continue;
       }
 
       const char *stream_url;
       if(!youtube_decoder_decode(&decoder, sb, duk_ctx, signature, &stream_url)) {
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not decode\n", String_Arg(videoId) );
 	  continue;
       }
 
       if(!http_head(stream_url, &header, NULL)) {
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
 	  continue;
       }
 
       if(200 != http_header_response_code(&header)) {
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
 	  continue;
       }
 
@@ -847,6 +861,10 @@ YOUTUBE_DEF bool youtube_info_first_stream(string response_string, string tag, s
   json_events.arg = &info;
 
   if(!json_parse2(json_string.data, json_string.len, &json_events)) {
+      return false;
+  }
+
+  if(!info.signature.len) {
       return false;
   }
 
@@ -1239,6 +1257,7 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
   }
 
   if(!url.len) {
+      fprintf(stderr, "INFO: youtube_decoder_decode: Can not find url in '"String_Fmt"'\n", String_Arg(signature) );
     return false;
   }
 
@@ -1287,6 +1306,7 @@ YOUTUBE_DEF void youtube_on_object_elem_results_init(void *object, string key, v
 	}    
     } else if(results->state == 1) {
 	if(!string_eq_cstr(key, "title")) return;
+	if(string_eq_cstr(results->prev, "Nutzer haben auch gesehen")) return;
 	arr_push(results->videoIds, &results->prev);
 	results->state = 0;
     } else if(results->state == 2) {
@@ -1326,6 +1346,7 @@ YOUTUBE_DEF bool youtube_results_init(string term, Http *http, String_Buffer *sb
 
   *results = (Youtube_Results) {0};
   results->videoIds = arr_init2(sizeof(string), 1024);
+  results->state = 0;
 
   Json_Parse_Events json_events = {0};
   json_events.on_elem = youtube_on_elem_results_init;
