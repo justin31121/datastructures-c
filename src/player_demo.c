@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 
   Gui gui;
   //Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
-  Gui_Canvas canvas = {WIDTH*2, HEIGHT, NULL};
+  Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
   Gui_Event event;
   if(!gui_init(&gui, &canvas, "JPlayer")) {
     return 1;
