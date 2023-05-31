@@ -22,6 +22,13 @@
 #include "./spotify.h"
 
 typedef struct{
+    Http http;
+    String_Buffer sb;
+    duk_context *duk_ctx;
+    Spotify_Tracks tracks;
+}Playlist_From_Spotify_Context;
+
+typedef struct{
     String_Buffer sources;
     Arr *sources_offsets;  
     String_Buffer names;
@@ -33,6 +40,7 @@ typedef struct{
     Youtube_Context yt_context;
     bool using_yt_context;
 
+    Playlist_From_Spotify_Context context;
     Json spotify_tracks;
 }Playlist;
 
@@ -71,9 +79,23 @@ PLAYLIST_DEF void playlist_free(Playlist *playlist);
 	(playlist)->len++;						\
     }while(0)
 
+#define PLAYLIST_NAME_LEN_APPEND(playlist, name, name_len) do{		\
+	arr_push((playlist)->names_offsets, &(playlist)->names.len);	\
+	string_buffer_append(&(playlist)->names, (name), (name_len));	\
+	string_buffer_append(&(playlist)->names, "\0", 1);		\
+	(playlist)->len++;						\
+    }while(0)
+
 #define PLAYLIST_SOURCE_APPEND(playlist, source) do{			\
 	arr_push((playlist)->sources_offsets, &(playlist)->sources.len); \
 	string_buffer_append(&(playlist)->sources, (source), strlen((source))+1); \
+	(playlist)->available++;					\
+    }while(0)
+
+#define PLAYLIST_SOURCE_LEN_APPEND(playlist, source, source_len) do{	\
+	arr_push((playlist)->sources_offsets, &(playlist)->sources.len); \
+	string_buffer_append(&(playlist)->sources, (source), (source_len)); \
+	string_buffer_append(&(playlist)->sources, "\0", 1);		\
 	(playlist)->available++;					\
     }while(0)
 
@@ -86,6 +108,9 @@ PLAYLIST_DEF void playlist_init(Playlist *playlist) {
     playlist->pos = 0;
     playlist->len = 0;
     playlist->available = 0;
+
+    string_buffer_reserve(&playlist->sources, 1024);
+    string_buffer_reserve(&playlist->names, 1024);
 }
 
 PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *arg) {
@@ -164,40 +189,32 @@ PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const ch
 }
 
 PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, const char *link) {
-    playlist->sources.len = 0;
-    playlist->names.len = 0;
 
     string videoId;
     if(!youtube_get_videoId(link, &videoId)) {
 	return false;
     }
-    printf("got '"String_Fmt"'\n", String_Arg(videoId) ); fflush(stdout);
 
     Http http;
     if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
 	panic("http_init2");
     }
     String_Buffer temp = {0};
-    string_buffer_reserve(&temp, 1024 * 1024 * 4);
+    string_buffer_reserve(&temp, 1024 * 1024 * 5);
     duk_context* duk_ctx = duk_create_heap_default();
-
-    printf("initialized everything\n"); fflush(stdout);
 
     string _url;
     if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
 	panic("youtube_get_audio2");
     }
-    printf( "got: '"String_Fmt"'\n", String_Arg(_url) ); fflush(stdout);
 
-    // TODO: add a string version of this
-    // This only works because of youtueb_get_audio2`s way of
-    // querying the url    
-    if(!player_open_url(player, _url.data)) {
+    PLAYLIST_NAME_APPEND(playlist, "youtube video ...");
+    PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
+
+    if(!player_open_url(player, playlist_get_source(playlist, 0) )) {
 	return false;
     }
     player_close(player);
-
-    PLAYLIST_APPEND(playlist, "youtube video ...", _url.data);
 
     duk_destroy_heap(duk_ctx);
     string_buffer_free(&temp);
@@ -262,7 +279,164 @@ PLAYLIST_DEF bool playlist_track_from_keyword(Playlist *playlist, Player *player
     return true;
 }
 
+PLAYLIST_DEF void *playlist_from_spotify_thread(void *arg) {
+    Playlist *playlist = (Playlist *) arg;
+    Playlist_From_Spotify_Context* context = &playlist->context;
+    (void) context;
+
+    size_t sb_len = context->sb.len;
+
+    bool first = true;
+    char name_buf[1024];
+    size_t name_size, name_off;
+    while(spotify_tracks_next(&context->tracks, name_buf, sizeof(name_buf), &name_size, &name_off) ) {
+	context->sb.len = sb_len;
+	if(first) {
+	    first = false;
+	    continue;
+	}
+	string name = string_from(name_buf, name_size);
+	string short_name = string_from(name_buf + name_off, name_size - name_off);
+	printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
+	//PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
+
+	string videoId;
+	if(!youtube_results_first(name, &context->http, &context->sb, &videoId)) {
+	    panic("youtube_results_first");
+	}
+	printf(String_Fmt"\n", String_Arg(videoId));
+
+	string _url;
+	if(!youtube_get_audio2(videoId, &context->http, &context->sb, context->duk_ctx, &_url, NULL)) {
+	    panic("youtube_get_audio2");
+	}
+	
+	PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
+    }
+
+
+    spotify_track_names_free(&context->tracks);
+    duk_destroy_heap(context->duk_ctx);
+    string_buffer_free(&context->sb);
+    http_free(&context->http);
+    return NULL;
+}
+
 PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, const char *_link) {
+    string_buffer_reserve(&playlist->sources, 1024 * 4);
+
+    string link = string_from_cstr(_link);
+    if(!string_chop_string(&link, STRING("https://open.spotify.com/"))) {
+	return false;
+    }
+    string_chop_string(&link, STRING("intl-de/"));
+
+    string prefix = {0};
+    bool is_track = string_chop_string(&link, STRING("track/"));
+    if(!is_track) {
+	prefix = string_chop_by_delim(&link, '/');
+    }
+
+    char spotify_creds[1024];
+    if(!io_getenv("SPOTIFY_CREDS", spotify_creds, sizeof(spotify_creds))) {
+	fprintf(stderr, "ERROR: The envorinment variable 'SPOTIFY_CREDS' is not set.\n");
+	fprintf(stderr, "It should be set this way: 'clientId:clientSecrect'\n");
+	return false;
+    }
+
+    playlist->context = (Playlist_From_Spotify_Context) {0};
+    if(!http_init2(&playlist->context.http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
+	panic("http_init2");
+    }
+    playlist->context.duk_ctx = duk_create_heap_default();
+    string_buffer_reserve(&playlist->context.sb, 1024 * 1024 * 5);
+    
+    string access_token;
+    if(!spotify_get_access_token(spotify_creds, &playlist->context.sb, &access_token)) {
+	panic("get_access_token");
+    }
+
+    if(is_track) {
+	string name;
+	if(!spotify_get_track_name(access_token, link, &playlist->context.sb, &name)) {
+	    panic("get_track_name");
+	}
+	printf(String_Fmt"\n", String_Arg(name));
+	PLAYLIST_NAME_LEN_APPEND(playlist, name.data, name.len);
+
+	string videoId;
+	if(!youtube_results_first(name, &playlist->context.http, &playlist->context.sb, &videoId)) {
+	    panic("youtube_results_first");
+	}
+	printf(String_Fmt"\n", String_Arg(videoId));
+
+	string _url;
+	if(!youtube_get_audio2(videoId, &playlist->context.http, &playlist->context.sb, playlist->context.duk_ctx, &_url, NULL)) {
+	    panic("youtube_get_audio2");
+	}
+	
+	PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
+	
+	duk_destroy_heap(playlist->context.duk_ctx);
+	string_buffer_free(&playlist->context.sb);
+	http_free(&playlist->context.http);
+
+	return true;
+    } else {
+	if(!spotify_get_track_names(access_token, prefix, link, &playlist->context.sb, &playlist->context.tracks)) {
+	    panic("get_track_names");
+	}
+
+	size_t tracks_pos = playlist->context.tracks.pos;
+
+	char name_buf[1024];
+	size_t name_size, name_off;
+	if(!spotify_tracks_next(&playlist->context.tracks, name_buf, sizeof(name_buf), &name_size, &name_off) ) {
+	    return false;
+	}
+	string name = string_from(name_buf, name_size);
+	string short_name = string_from(name_buf + name_off, name_size - name_off);
+	printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
+	
+	PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
+
+	string videoId;
+	if(!youtube_results_first(name, &playlist->context.http, &playlist->context.sb, &videoId)) {
+	    panic("youtube_results_first");
+	}
+	printf(String_Fmt"\n", String_Arg(videoId));
+
+	string _url;
+	if(!youtube_get_audio2(videoId, &playlist->context.http, &playlist->context.sb, playlist->context.duk_ctx, &_url, NULL)) {
+	    panic("youtube_get_audio2");
+	}
+	
+	PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
+
+	bool first = true;
+	playlist->context.tracks.pos = tracks_pos;
+	while(spotify_tracks_next(&playlist->context.tracks, name_buf, sizeof(name_buf), &name_size, &name_off) ) {
+	    if(first) {
+		first = false;
+		continue;
+	    }
+	    short_name = string_from(name_buf + name_off, name_size - name_off);
+	    PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
+	}
+
+	playlist->context.tracks.pos = tracks_pos;
+	Thread spotify_thread;
+	if(!thread_create(&spotify_thread, playlist_from_spotify_thread, playlist)) {
+	    return false;
+	}
+
+	return true;
+    }
+    
+    return false;
+}
+
+PLAYLIST_DEF bool playlist_from_spotify2(Playlist *playlist, Player *player, const char *_link) {
     string_buffer_reserve(&playlist->sources, 1024 * 4);
     playlist->sources.len = 0;
     playlist->names.len = 0;

@@ -20,208 +20,8 @@
 #define DOWNLOAD_IMPLEMENTATION
 #include "../libs/download.h"
 
-typedef struct{
-    Arr *names;
-    string prev;
-}Spotify_Tracks;
-
-string SPOTIFY_TRACKS_FRAME = STRING_STATIC("==SPTFRAME==");
-
-bool on_elem_tracks(Json_Parse_Type type, string content, void *arg, void **elem) {
-    (void) type;
-    (void) elem;
-
-    Spotify_Tracks *tracks = (Spotify_Tracks *) arg;
-    tracks->prev = content;
-  
-    return true;
-}
-
-void on_object_elem_tracks(void *object, string key, void *elem, void *arg) {
-    (void) object;
-    (void) elem;
-    (void) key;
-
-    Spotify_Tracks *tracks = (Spotify_Tracks *) arg;
-    if( string_eq_cstr(key, "name") ) {
-	arr_push(tracks->names, &tracks->prev);
-    }
-
-    if( tracks->names->count > 0 && (string_eq_cstr(key, "track_number") ||
-				     string_eq_cstr(key, "total_tracks")) ) {
-	arr_push(tracks->names, &SPOTIFY_TRACKS_FRAME);
-    }
-}
-
-bool get_track_names(string access_token, string prefix, string id, String_Buffer *sb, Arr *names) {
-  
-    size_t sb_len = sb->len;
-    const char *url = tprintf(sb, "https://api.spotify.com/v1/"String_Fmt"s/"String_Fmt, String_Arg(prefix), String_Arg(id));
-    const char *auth = tprintf(sb, "Authorization: Bearer "String_Fmt"\r\n", String_Arg(access_token));
-
-    sb->len = sb_len;
-    if(!http_get(url, string_buffer_callback, sb, NULL, auth)) {
-	return false;
-    }
-    string response = string_from(sb->data + sb_len, sb->len - sb_len);
-
-    Spotify_Tracks tracks = {0};
-    tracks.names = names;
-  
-    Json_Parse_Events events = {0};
-    events.on_elem = on_elem_tracks;
-    events.on_object_elem = on_object_elem_tracks;
-    events.arg = &tracks;
-    if(!json_parse2(response.data, response.len, &events)) {
-	return false;
-    }
-  
-    return true;
-}
-
-typedef struct{
-    string prev;
-    bool in_artist;
-    string name;
-    Arr *artists;
-}Spotify_Name;
-
-bool on_elem_name(Json_Parse_Type type, string content, void *arg, void **elem) {
-    (void) type;
-    (void) elem;
-  
-    Spotify_Name *name = (Spotify_Name *) arg;
-    name->prev = content;
-    
-    return true;
-}
-
-void on_object_elem_name(void *object, string key, void *elem, void *arg) {
-    (void) object;
-    (void) elem;
-
-    Spotify_Name *name = (Spotify_Name *) arg;
-    if(string_eq_cstr(key, "artists")) {
-	name->in_artist = true;
-    }
-    if(string_eq_cstr(key, "is_local")) {
-	name->in_artist = false;
-    }
-
-    if(name->in_artist && string_eq_cstr(key, "name")) {
-	arr_push(name->artists, &name->prev);
-    }
-
-    if(string_eq_cstr(key, "name")) {
-	name->name = name->prev;
-    }
-}
-
-bool get_track_name(string access_token, string id, String_Buffer *sb, string *name) {
-
-    size_t sb_len = sb->len;
-    const char *url = tprintf(sb, "https://api.spotify.com/v1/tracks/"String_Fmt, String_Arg(id));
-    const char *auth = tprintf(sb, "Authorization: Bearer "String_Fmt"\r\n", String_Arg(access_token));
-
-    sb->len = sb_len;
-    if(!http_get(url, string_buffer_callback, sb, NULL, auth)) {
-	return false;
-    }
-    string response = string_from(sb->data + sb_len, sb->len - sb_len);
-
-    Spotify_Name spotify_name = {0};
-    spotify_name.artists = arr_init(sizeof(string)); //TODO: this leaks memory
-  
-    Json_Parse_Events events = {0};
-    events.on_elem = on_elem_name;
-    events.on_object_elem = on_object_elem_name;
-    events.arg = &spotify_name;
-    if(!json_parse2(response.data, response.len, &events)) {
-	return false;
-    }
-
-    char *data = sb->data + sb->len;
-    size_t size = spotify_name.name.len;
-    string_buffer_append(sb, spotify_name.name.data, spotify_name.name.len);
-
-    for(size_t i=1;i<spotify_name.artists->count;i++) {
-	size += 1;
-	string_buffer_append(sb, " ", 1);
-    
-	string artist = *(string *) arr_get(spotify_name.artists, i);
-	string_buffer_append(sb, artist.data, artist.len);
-	size += artist.len;
-    }
-
-    string keyword = string_from(data, size);
-  
-    sb->len = sb_len;
-    string_buffer_append(sb, keyword.data, keyword.len);
-  
-    *name = string_from(sb->data + sb->len - keyword.len, keyword.len);
-  
-
-    return true;
-}
-
-typedef struct{
-    string prev;
-    string token;
-}Spotify_Auth;
-
-bool on_elem(Json_Parse_Type type, string content, void *arg, void **elem) {
-    (void) type;
-    (void) elem;
-  
-    Spotify_Auth *auth = (Spotify_Auth *) arg;
-    auth->prev = content;
-    return true;
-}
-
-void on_object_elem(void *object, string key, void *elem, void *arg) {
-    (void) object;
-    (void) elem;
-  
-    Spotify_Auth *auth = (Spotify_Auth *) arg;  
-    if(string_eq_cstr(key, "access_token")) {
-	auth->token = auth->prev;
-    }
-}
-
-bool get_access_token(char *spotify_creds, String_Buffer *sb, string *access_token) {
-
-    size_t sb_len = sb->len;
-    string key = tsmap(sb, string_from_cstr(spotify_creds), base64_encode);
-    const char *auth = tprintf(sb, "Authorization: Basic "String_Fmt"\r\n", String_Arg( key ));
-
-    sb->len = sb_len;
-    if(!http_post("https://accounts.spotify.com/api/token",
-		  "grant_type=client_credentials",
-		  "application/x-www-form-urlencoded",
-		  string_buffer_callback, sb, NULL, auth)) {
-	return false;
-    }
-    string response = string_from(sb->data + sb_len, sb->len - sb_len);
-
-    Spotify_Auth spotify_auth = {0};
-    Json_Parse_Events events = {0};
-    events.on_elem = on_elem;
-    events.on_object_elem = on_object_elem;
-    events.arg = &spotify_auth;
-    if(!json_parse2(response.data, response.len, &events)) {
-	return false;
-    }
-  
-    if(!spotify_auth.token.len) {
-	return false;
-    }
-    sb->len = sb_len;
-    string_buffer_append(sb, spotify_auth.token.data, spotify_auth.token.len);
-
-    *access_token = string_from(sb->data + sb->len - spotify_auth.token.len, spotify_auth.token.len);
-  
-    return true;
-}
+#define SPOTIFY_IMPLEMENTATION
+#include "../libs/spotify.h"
 
 char *next(int *argc, char ***argv) {
     if((*argc) == 0) return NULL;
@@ -273,7 +73,7 @@ int main(int argc, char **argv) {
     string_buffer_reserve(&temp, 1024 * 1024 * 5);
 
     string access_token;
-    if(!get_access_token(spotify_creds, &temp, &access_token)) {
+    if(!spotify_get_access_token(spotify_creds, &temp, &access_token)) {
 	panic("get_access_token");
     }
 
@@ -291,7 +91,7 @@ int main(int argc, char **argv) {
 
     if(is_track) {
 	string name;
-	if(!get_track_name(access_token, link, &temp, &name)) {
+	if(!spotify_get_track_name(access_token, link, &temp, &name)) {
 	    panic("get_track_name");
 	}
 	printf(String_Fmt"\n", String_Arg(name));
@@ -306,6 +106,7 @@ int main(int argc, char **argv) {
 	    panic("youtube_results_first");
 	}
 	duk_context* duk_ctx = duk_create_heap_default();
+	printf(String_Fmt"\n", String_Arg(videoId));
 
 	string _url;
 	if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
@@ -332,9 +133,51 @@ int main(int argc, char **argv) {
 	printf(String_Fmt"\n", String_Arg(_url));
     } else {
 
+	//TODO: add download support back
+	Http http;
+	if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
+	    panic("http_init2");
+	}
+	duk_context* duk_ctx = duk_create_heap_default();
+	
+
+	Spotify_Tracks tracks;
+	if(!spotify_get_track_names(access_token, prefix, link, &temp, &tracks)) {
+	    panic("get_track_names");
+	}
+
+	string folder = spotify_tracks_get_folder(&tracks);
+	printf( String_Fmt"\n", String_Arg(folder) );
+
+	size_t temp_len = temp.len;
+	char name_buf[1024];
+	size_t name_size, name_off;
+	while( spotify_tracks_next(&tracks, name_buf, sizeof(name_buf), &name_size, &name_off) ) {
+	    temp.len = temp_len;
+
+	    string name = string_from(name_buf, name_size);
+	    string short_name = string_from(name_buf + name_off, name_size - name_off);
+	    printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
+	    
+	    string videoId;
+	    if(!youtube_results_first(name, &http, &temp, &videoId)) {
+		panic("youtube_results_first");
+	    }
+
+	    string _url;
+	    if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
+		panic("youtube_get_audio2");
+	    }
+
+	    const char *url = tprintf(&temp, String_Fmt, String_Arg(_url) );
+
+	    printf("Url: '%s'\n", url); fflush(stdout);
+	}
+
+	/*
 	Arr *names = arr_init2(sizeof(string), 32);
     
-	if(!get_track_names(access_token, prefix, link, &temp, names)) {
+	if(!spotify_get_track_names(access_token, prefix, link, &temp, names)) {
 	    panic("get_track_names");
 	}
 
@@ -477,6 +320,7 @@ int main(int argc, char **argv) {
 	    next = *(string *) arr_get(names, i++);
 	    album_name = false;	
 	}
+	*/
     }
   
     return 0;

@@ -621,8 +621,6 @@ YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, cha
 
 YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *sb, duk_context *duk_ctx, string *url, string *name) {
   (void) name;
-
-  string_buffer_reserve(sb, sb->cap + 4 * 1024 * 1024);
   
   string signature = {0};
   bool is_signature = false;
@@ -645,10 +643,9 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *s
 	  continue;
       }
       
-      //TODO: this does not work
       if(!is_signature) {
 	  *url = tsmap(sb, signature, http_decodeURI);
-	  string_buffer_append(sb, "\0", 1);
+	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") No Signature. Pure Stream\n", String_Arg(videoId) );
 	  return true;
       }
 
@@ -1232,6 +1229,9 @@ YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String
   string_chop_right(&varNameMatches_string, 1);
 
   string var_name_match = youtube_response_match_var_declare_matches(varNameMatches_string, string_from(sb->data + sb_len, jsFile_len) );
+  if(!var_name_match.len) {
+      panic("youtube_response_match_var_declare_matches");
+  }
 
   int k = (int) var_name_match.len - 1;
   while(k>=0 && var_name_match.data[k] != '}') k--;
