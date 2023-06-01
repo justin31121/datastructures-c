@@ -22,7 +22,7 @@
 
 #define DECODER_XAUDIO2_SAMPLES 64
 
-#define PLAYER_BUFFER_CAP 8192
+#define PLAYER_BUFFER_CAP 1024
 
 #ifdef linux
 #include <alsa/asoundlib.h>

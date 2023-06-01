@@ -1,10 +1,12 @@
 #define PLAYER_IMPLEMENTATION
+#define STRING_DEBUG
 #include "../libs/player.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../thirdparty/stb_truetype.h"
 
 #define GUI_OPENGL
+#define GUI_CONSOLE
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"
 
@@ -105,7 +107,7 @@ int main(int argc, char **argv) {
 
   Gui gui;
   //Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
-  Gui_Canvas canvas = {WIDTH*2, HEIGHT, NULL};
+  Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
   Gui_Event event;
   if(!gui_init(&gui, &canvas, "JPlayer")) {
     return 1;

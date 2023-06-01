@@ -136,6 +136,10 @@ int main(int argc, char ** argv) {
 	if(use_gcc) {
 	    ret = run("gcc", flags, "-o img ./src/img.c", link_ssl);
 	}
+    } else if(strcmp(arg, "browser") == 0) {
+	if(use_gcc) {
+	    ret = run("gcc", flags, "-o browser ./src/browser.c", link_ssl, link_video);
+	}
     } else {	
 	fprintf(stderr, "ERROR: Unknown target: '%s'\n", arg);
 	return 1;
