@@ -93,19 +93,31 @@ STRING_DEF bool cstr_contains(const char *cstr, size_t cstr_size, const char *va
     return cstr_index_of(cstr, cstr_size, val, val_size) >= 0;
 }
 
-STRING_DEF int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
+STRING_DEF int cstr_index_of2(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
     if(val_size > cstr_size) {
 	return -1;
     }
     for(size_t i=0;i<=cstr_size - val_size;i++) {
-	int found = 1;
-	for(size_t j=0;j<val_size;j++) {
+	if(memcmp(cstr + i, val, val_size) == 0) {
+	    return (int) i;
+	}
+    }
+    return -1;
+}
+
+STRING_DEF int cstr_index_of(const char* cstr, size_t cstr_size, const char *val, size_t val_size) {
+    if(val_size > cstr_size) {
+	return -1;
+    }
+    cstr_size -= val_size;
+    size_t i, j;
+    for(i=0;i<=cstr_size;i++) {
+	for(j=0;j<val_size;j++) {
 	    if(cstr[i+j] != val[j]) {
-		found = 0;
 		break;
 	    }
 	}
-	if(found) {
+	if(j == val_size) {
 	    return (int) i;
 	}
     }

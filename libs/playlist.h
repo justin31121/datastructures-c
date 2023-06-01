@@ -349,7 +349,7 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
 	panic("http_init2");
     }
     playlist->context.duk_ctx = duk_create_heap_default();
-    string_buffer_reserve(&playlist->context.sb, 1024 * 1024 * 5);
+    string_buffer_reserve(&playlist->context.sb, 1024 * 1024 * 16);
     
     string access_token;
     if(!spotify_get_access_token(spotify_creds, &playlist->context.sb, &access_token)) {

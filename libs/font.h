@@ -235,7 +235,7 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
     return false;
   }
 
-  int padding = 0;
+  int padding = 1;
   font_height += padding;
 
   char *content;
@@ -269,7 +269,7 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
   stbtt_fontinfo font_info = {0};
   stbtt_InitFont(&font_info, (u8 *) content, 0);
   
-  float scale = stbtt_ScaleForPixelHeight(&font_info, (float) (font_height - padding) );
+  float scale = stbtt_ScaleForPixelHeight(&font_info, (float) (font_height + padding) );
   int _font_height = (int) font_height;
 
   for(int c=32;c<=126;c++) {
@@ -277,7 +277,7 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
     
     int w, h, x ,y;
     u8 *bitmap =
-	stbtt_GetCodepointSDF(&font_info, scale, c, padding, 128, 384.0, &w, &h, &x, &y);
+	stbtt_GetCodepointSDF(&font_info, scale, c, padding, 128, 64.0, &w, &h, &x, &y);
     //stbtt_GetCodepointBitmap(&font_info, 0, scale, c, &w, &h, &x, &y);
 
     font->xs[c - 32] = x;
