@@ -55,8 +55,8 @@ YOUTUBE_DEF bool youtube_info_find_video(Youtube_Info *info, string *signature, 
 YOUTUBE_DEF void youtube_info_free(Youtube_Info *info);
 
 typedef struct{    
-    string decodeFunction;
-    string prefix;
+  string decodeFunction;
+  string prefix;
 }Youtube_Decoder;
 
 YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String_Buffer *sb, Youtube_Decoder *decoder);
@@ -611,77 +611,59 @@ YOUTUBE_DEF bool youtube_get_audio(Youtube_Context *context, string videoId, cha
   return url_is_valid;
 }
 
-<<<<<<< HEAD
-YOUTUBE_DEF bool youtube_get_audio2(string videoId, String_Buffer *sb, string *url, string *name) {
-  (void) name;
-  Http http;
-  if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {
-    panic("http_init2");
-  }
-
-  string_buffer_reserve(sb, 4 * 1024 * 1024);
-  string response;
-  if(!youtube_get_response(videoId, &http, sb, &response)) {
-    panic("youtube_get_response");
-  }
-
-  Youtube_Info info;
-  if(!youtube_info_init(response, &info)) {
-    panic("youtube_info_init");
-  }
-  youtube_info_dump(&info);
-
-  string signature;
-  bool is_signature;
-  if(!youtube_info_find_audio(&info, &signature, &is_signature)) {
-    panic("youtube_info_find_stream");
-  }
-
-  Youtube_Decoder decoder;
-  if(!youtube_decoder_init(response, &http, sb, &decoder)) {
-    panic("youtube_decoder_init");
-  }
-
-  String_Buffer temp = {0};
-  const char *stream_url;
-  if(!youtube_decoder_decode(&decoder, &temp, signature, &stream_url)) {
-    panic("youtube_decoder_decode");
-  }
-=======
 YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *sb, duk_context *duk_ctx, string *url, string *name) {
-    (void) name;   
+  (void) name;
 
-    string_buffer_reserve(sb, 4 * 1024 * 1024);
+  size_t sb_len = sb->len;
+  string_buffer_reserve(sb, 4 * 1024 * 1024);
+  
+  for(int i=0;i<3;i++) {
+    sb->len = sb_len;
+
     string response;
     if(!youtube_get_response(videoId, http, sb, &response)) {
-	panic("youtube_get_response");
+      panic("youtube_get_response");
     }
 
+    //TODO: info leaks memory right now
+    
+    //Here would be a good oppurtunity to implement a version that only
+    //gets the desired stream
     Youtube_Info info;
     if(!youtube_info_init(response, &info)) {
-	panic("youtube_info_init");
+      panic("youtube_info_init");
     }
 
     string signature;
     bool is_signature;
     if(!youtube_info_find_stream(&info, STRING("140"), &signature, &is_signature)) {
-	panic("youtube_info_find_stream");
+      panic("youtube_info_find_stream");
     }
 
     Youtube_Decoder decoder;
     if(!youtube_decoder_init(response, http, sb, &decoder)) {
-	panic("youtube_decoder_init");
+      panic("youtube_decoder_init");
     }
 
     const char *stream_url;
     if(!youtube_decoder_decode(&decoder, sb, duk_ctx, signature, &stream_url)) {
-	panic("youtube_decoder_decode");
+      panic("youtube_decoder_decode");
     }
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
 
-  *url = string_from_cstr(stream_url);
+    //TODO: do this with "http" variable
+    HttpHeader header = {0};
+    if(!http_head(stream_url, &header, NULL)) {
+      panic("http_head");
+    }
+    int response_code = http_header_response_code(&header);
+    if(response_code == 200) {
+      *url = string_from_cstr(stream_url);
+      return true;
+    }
+  } 
+
     
-  return true;
+  return false;
 }
 
 YOUTUBE_DEF bool youtube_context_init(Youtube_Context *context) {  
@@ -716,7 +698,6 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
 
   //printf(String_Fmt"\n", String_Arg(content));
     
-<<<<<<< HEAD
   if(foo->state == 0) {
     if( (string_index_of(content, "video/mp4") >= 0)  ||
 	(string_index_of(content, "video/webm") >= 0) ||
@@ -726,6 +707,8 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
 	arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
 	arr_push(foo->strings, &foo->prev_prev);
 	arr_push(foo->strings, &content);
+	string sig = STRING("sig");
+	arr_push(foo->strings, &sig);
 	arr_push(foo->strings, &foo->prev);
       } else {
 	foo->state = 1;
@@ -740,34 +723,6 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
       arr_push(foo->strings, &sig);
       arr_push(foo->strings, &content);
       foo->state = 0;
-=======
-    if(foo->state == 0) {
-	if( (string_index_of(content, "video/mp4") >= 0)  ||
-	    (string_index_of(content, "video/webm") >= 0) ||
-	    (string_index_of(content, "audio/mp4") >= 0)  ||
-	    (string_index_of(content, "audio/webm") >= 0) ) {
-	    if(string_index_of(foo->prev, "https://") == 0) {
-		arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
-		arr_push(foo->strings, &foo->prev_prev);
-		arr_push(foo->strings, &content);
-		string sig = STRING("sig");
-		arr_push(foo->strings, &sig);
-		arr_push(foo->strings, &foo->prev);
-	    } else {
-		foo->state = 1;
-		arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
-		arr_push(foo->strings, &foo->prev);
-		arr_push(foo->strings, &content);
-	    }      
-	}
-    } else if(foo->state == 1) {
-	if(string_index_of(content, "s=") == 0) {
-	    string sig = STRING("sig");
-	    arr_push(foo->strings, &sig);
-	    arr_push(foo->strings, &content);
-	    foo->state = 0;
-	}
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
     }
   }
 
@@ -858,15 +813,10 @@ YOUTUBE_DEF void youtube_info_free(Youtube_Info *info) {
 
 YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info) {
 
-  size_t i = 0;
-  while(i<info->strings->count) {
-    string tag = *(string *) arr_get(info->strings, i++);
 
-    printf(String_Fmt"\n", String_Arg(tag));
-  }
-  
   const char *display[] = {"width", "height", "fps", "audioSampleRate"};
 
+  size_t i = 0;
   i=1;
   while(i<info->strings->count) {
     string tag = *(string *) arr_get(info->strings, i++);
@@ -1219,15 +1169,7 @@ YOUTUBE_DEF bool youtube_decoder_init(string response_string, Http *http, String
 
   return true;
 }
-
-<<<<<<< HEAD
-YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, string signature, const char **stream_url) {
-  if(!decoder->duk_ctx) {
-    decoder->duk_ctx = duk_create_heap_default();	
-  }
-=======
 YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer *sb, duk_context* duk_ctx, string signature, const char **stream_url) {
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
     
   string_chop_by_delim(&signature, '=');
   string _s = string_chop_by_delim(&signature, '=');
@@ -1244,23 +1186,14 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
     return false;
   }
 
-<<<<<<< HEAD
   const char *expression = tprintf(sb, "\"use-strict\";"String_Fmt"encodeURIComponent(("String_Fmt")(decodeURIComponent(\""String_Fmt"\")));",
-				   String_Arg(decoder->prefix), String_Arg(decoder->decodeFunction), String_Arg(__s));
-  duk_eval_string(decoder->duk_ctx, expression);
-=======
-    const char *expression = tprintf(sb, "\"use-strict\";"String_Fmt"encodeURIComponent(("String_Fmt")(decodeURIComponent(\""String_Fmt"\")));",
-				     String_Arg(decoder->prefix), String_Arg(decoder->decodeFunction), String_Arg(__s));    
-    duk_eval_string(duk_ctx, expression);
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
+				   String_Arg(decoder->prefix), String_Arg(decoder->decodeFunction), String_Arg(__s));    
+  duk_eval_string(duk_ctx, expression);
+
 
   string decoded_url = tsmap(sb, url, http_decodeURI);
 
-<<<<<<< HEAD
-  const char *suffix = duk_get_string(decoder->duk_ctx, -1);
-=======
-    const char *suffix = duk_get_string(duk_ctx, -1);
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
+  const char *suffix = duk_get_string(duk_ctx, -1);
     
   *stream_url = tprintf(sb, String_Fmt"&sig=%s",
 			String_Arg(decoded_url),
@@ -1269,13 +1202,6 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
 
 }
 
-<<<<<<< HEAD
-YOUTUBE_DEF void youtube_decoder_free(Youtube_Decoder *decoder) {
-  duk_destroy_heap(decoder->duk_ctx);
-}
-
-=======
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
 YOUTUBE_DEF bool youtube_on_elem_results_init(Json_Parse_Type type, string content, void *arg, void **elem) {
   (void) type;
   (void) content;
@@ -1358,19 +1284,12 @@ YOUTUBE_DEF bool youtube_results_init(string term, Http *http, String_Buffer *sb
 }
 
 YOUTUBE_DEF void youtube_results_dump(Youtube_Results *results) {
-<<<<<<< HEAD
   for(size_t i=0;i<results->videoIds->count;i+=2) {
     string videoId = *(string *) arr_get(results->videoIds, i);
     string title = *(string *) arr_get(results->videoIds, i+1);
     printf(String_Fmt" - https://www.youtube.com/watch?v="String_Fmt"\n", String_Arg(title), String_Arg(videoId));
   }
-=======
-    for(size_t i=0;i<results->videoIds->count;i+=2) {
-      string videoId = *(string *) arr_get(results->videoIds, i);
-      string title = *(string *) arr_get(results->videoIds, i+1);
-      printf(String_Fmt" - https://www.youtube.com/watch?v="String_Fmt"\n", String_Arg(title), String_Arg(videoId));
-    }
->>>>>>> 637be01e67db10b09096a9ed81f477efbf0512ea
+
 }
 
 YOUTUBE_DEF void youtube_results_free(Youtube_Results *results) {

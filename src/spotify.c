@@ -345,7 +345,7 @@ int main(int argc, char **argv) {
     char keyword[2][1024];
     size_t keyword_size = 0;
     
-    char *out_buffer;
+    char *out_buffer = NULL;
     size_t out_buffer_size = 0;
     size_t data_size;
 
@@ -368,8 +368,11 @@ int main(int argc, char **argv) {
 	while( !string_eq(next, SPOTIFY_TRACKS_FRAME) ) {
 
 	  if(keyword_size) keyword[0][keyword_size++] = ' ';
-	  memcpy(keyword[0] + keyword_size, next.data, next.len );
-	  keyword_size += next.len;
+	  for(size_t j=0;j<next.len;j++) {
+	    char c = next.data[j];
+	    if(c == '/' || c == '\\') keyword[0][keyword_size++] = ' ';
+	    else keyword[0][keyword_size++] = c;
+	  }	  
 	  keyword[0][keyword_size] = 0;
 	  
 	  next = *(string *) arr_get(names, i++);	  
@@ -418,11 +421,13 @@ int main(int argc, char **argv) {
 	  //////////////////////////////////////////	  
 
 	  Youtube_Results results;
-	  if(!youtube_results_init(string_from_cstr(keyword[1]), &http, &temp, &results)) {
+	  if(!youtube_results_init(string_from_cstr(keyword[0]), &http, &temp, &results)) {
 	    panic("youtube_results_init");
 	  }
 	  string videoId = *(string *) arr_get(results.videoIds, 0);
+	  string name = *(string *) arr_get(results.videoIds, 1);
 
+	  printf("Downloading: '"String_Fmt"' ("String_Fmt")\n", String_Arg(name), String_Arg(videoId) );
 	  string _url;
 	  if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
 	    panic("youtube_get_audio2");
