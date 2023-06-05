@@ -2,6 +2,7 @@
 #define IO_H_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifdef _WIN32
 # include <windows.h>
@@ -12,6 +13,7 @@
 # include <limits.h>
 # include <dirent.h>
 # include <sys/stat.h>
+# include <string.h>
 #endif //linux
 
 #ifndef IO_DEF
