@@ -158,6 +158,7 @@ IMGUI_DEF bool imgui_peek() {
     
   imgui_instance.pos = vec2f((float) imgui_instance.event->mousex,
 			     (float) imgui_instance.event->mousey);
+
   gui_mouse_to_screenf(imgui_instance.size.x, imgui_instance.size.y,
 		       &imgui_instance.pos.x,
 		       &imgui_instance.pos.y);
