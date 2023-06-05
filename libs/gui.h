@@ -480,11 +480,11 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       event->type = e->type == ButtonPress ?
 	GUI_EVENT_MOUSEPRESS : GUI_EVENT_MOUSERELEASE;
       if(e->xbutton.button == Button1) {
-	event->key = 'L';
+	event->as.key = 'L';
       } else if(e->xbutton.button == Button2) {
-	event->key = 'M';
+	event->as.key = 'M';
       } else if(e->xbutton.button == Button3) {
-	event->key = 'R';
+	event->as.key = 'R';
       } 
     } else if(e->type == MotionNotify) {
       event->type = GUI_EVENT_MOUSEMOTION;
@@ -496,7 +496,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       if(e->type == KeyRelease) {
 	event->type = GUI_EVENT_KEYRELEASE;
       }
-      event->key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
+      event->as.key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
     }
     return true;
   }
