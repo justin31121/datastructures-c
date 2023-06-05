@@ -1,4 +1,3 @@
-#define STBI_NO_SIMD
 #define STB_IMAGE_IMPLEMENTATION
 #include "../thirdparty/stb_image.h"
 
@@ -25,6 +24,8 @@
 #define STRING_IMPLEMENTATION
 #include "../libs/string.h"
 
+#include "../rsc/img.h"
+
 int main() {
     
     Gui gui;
@@ -42,11 +43,7 @@ int main() {
     //u32 font_tex = renderer_push_texture(&renderer, font.width, font.height, (char *) font.data, true);
     //(void) font_tex;
 
-    s32 background_width, background_height;
-    s8 *background_data = (s8 *) stbi_load("./img.jpg", &background_width,
-					       &background_height, 0, 4);
-    u32 background = renderer_push_texture(&renderer, background_width, background_height, background_data, false);
-    stbi_image_free(background_data);
+    u32 background = renderer_push_texture(&renderer, img_width, img_height, (char *) img_data, false);
 
     Gui_Time timer;
     gui_time_capture(&timer);

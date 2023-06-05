@@ -67,6 +67,7 @@ encode
 google
 player
 gui
+*.mp4
 *.m4a
 *.mp3
 *.png

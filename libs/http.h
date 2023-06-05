@@ -19,6 +19,7 @@
 #ifdef _WIN32
 #  include <winsock2.h>
 #  include <windows.h>
+#  include <ws2tcpip.h>
 typedef SSIZE_T ssize_t;
 #  include <malloc.h> // _malloca
 #endif //_WIN32
@@ -30,6 +31,7 @@ typedef SSIZE_T ssize_t;
 #  include <fcntl.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
+typedef int SOCKET;
 #endif //
 
 #ifdef HTTP_IMPLEMENTATION
@@ -38,6 +40,7 @@ typedef SSIZE_T ssize_t;
 #define BASE64_IMPLEMENTATION
 #define STRING_IMPLEMENTATION
 #define THREAD_IMPLEMENTATION
+#define IO_IMPLEMENTATION
 
 #endif //HTTP_IMPLEMENTATION
 
@@ -48,6 +51,7 @@ typedef SSIZE_T ssize_t;
 #include "./base64.h"
 #include "./sha1.h"
 #include "./thread.h"
+#include "./io.h"
 
 #ifndef HTTP_DEF
 #define HTTP_DEF static inline
@@ -66,6 +70,8 @@ typedef struct{
     SSL* conn;
 #endif //HTTP_NO_SSL
 }Http;
+
+typedef size_t (*HttpWriteCallback)(const void *data, size_t size, size_t memb, void *userdata);
 
 typedef struct {
     char data[HTTP_BUFFER_CAP];
@@ -101,6 +107,9 @@ typedef struct{
   
 }HttpServerThread;
 
+typedef void (*HttpHandler)(const HttpRequest *request, Http *client, void *arg);
+typedef void (*HttpWebsocketHandler)(const char *message, size_t message_len, Http *client, void *arg);
+
 struct HttpServer {
 #ifdef _WIN32
     SOCKET socket;
@@ -111,8 +120,9 @@ struct HttpServer {
 #endif //linux
     bool running;
     HttpServerThread *threads;
-    void (*handle_request)(const HttpRequest *request, Http *client, void *arg);
-    void (*handle_websocket)(const char *message, size_t message_len, Http *client, void *arg);
+
+    HttpHandler handle_request;
+    HttpWebsocketHandler handle_websocket;
     size_t threads_count;
     bool ssl;
 };
@@ -125,7 +135,7 @@ typedef enum {
 
 typedef struct {
     char xormask[4];
-    void (*handle_websocket)(const char *message, size_t message_len, Http *client, void *arg);
+    HttpWebsocketHandler handle_websocket;
     unsigned long payload_len;
     Http *http;
     void *arg;
@@ -146,12 +156,12 @@ HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
 			     char* output, size_t output_cap,
 			     size_t *output_size);
 
-HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header);
+HTTP_DEF bool http_read_body(Http *http, HttpWriteCallback write_callback, void *userdata, HttpHeader *header);
 
 // -- HTTP1 API
-HTTP_DEF bool http_request(Http *http, const char *route, const char *method, const char* body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
-HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
-HTTP_DEF bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra);
+HTTP_DEF bool http_request(Http *http, const char *route, const char *method, const char* body, const char *content_type, HttpWriteCallback write_callback, void *userdata, HttpHeader *header, const char *headers_extra);
+HTTP_DEF bool http_get(const char *url, HttpWriteCallback write_callback, void *userdata, HttpHeader *header, const char *headers_extra);
+HTTP_DEF bool http_post(const char *url, const char *body, const char *content_type, HttpWriteCallback write_callback, void *userdata, HttpHeader *header, const char *headers_extra);
 HTTP_DEF bool http_head(const char *url, HttpHeader *header, const char *headers_extra);
 HTTP_DEF void http_free(Http *http);
 
@@ -162,7 +172,7 @@ HTTP_DEF int http_header_response_code(const HttpHeader *header);
 
 //----------BEGIN HTTP_SERVER----------
 HTTP_DEF bool http_server_init(HttpServer *server, size_t port, const char *cert_file, const char *key_file);
-HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, void (*handle_request)(const HttpRequest *request, Http *client, void *arg), size_t number_of_threads, void *args, size_t arg_size_bytes);
+HTTP_DEF bool http_server_listen_and_serve(HttpServer *server, HttpHandler handle_request, size_t number_of_threads, void *args, size_t arg_size_bytes);
 HTTP_DEF void http_server_stop(HttpServer *server);
 HTTP_DEF void http_server_free(HttpServer *server);
 
@@ -179,43 +189,44 @@ HTTP_DEF bool http_send_websocket_accept(Http *http, string websocket_key);
 HTTP_DEF const char* http_server_content_type_from_name(string file_name);
 HTTP_DEF void http_send_files(Http *client, const char *dir, const char *home, string file_path);
 
-HTTP_DEF bool http_open_file(FILE **f, const char* file_path);
-HTTP_DEF bool http_open_file2(FILE **f, string file_path);
-HTTP_DEF bool http_open_file3(FILE **f, const char *dir, string file_path);
-HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *add_headers);
-HTTP_DEF void http_close_file(FILE **f);
+HTTP_DEF bool http_open_file(Io_File *file, const char* file_path);
+HTTP_DEF bool http_open_file2(Io_File *file, string file_path);
+HTTP_DEF bool http_open_file3(Io_File *file, const char *dir, string file_path);
+HTTP_DEF bool http_send_file(Io_File *file, Http *http, const char *add_headers);
+HTTP_DEF void http_close_file(Io_File *file);
 
 HTTP_DEF void http_server_simple_file_handler(const HttpRequest *request, Http *client, void *arg);
 //----------END HTTP_SERVER----------
 
 
 //----------BEGIN SOCKET----------
-HTTP_DEF int http_open();
-HTTP_DEF bool http_bind(int socket, int port);
-HTTP_DEF void http_shutdown(int socket);
-HTTP_DEF void http_close(int socket);
+HTTP_DEF SOCKET http_open();
+HTTP_DEF bool http_bind(SOCKET socket, int port);
+HTTP_DEF void http_shutdown(SOCKET socket);
+HTTP_DEF void http_close(SOCKET socket);
 
-HTTP_DEF ssize_t http_send(Http *http, const void *buf, size_t len);
-HTTP_DEF ssize_t http_read(Http *http, void *buf, size_t count);
+HTTP_DEF ssize_t http_send(Http *http, const void *buf, int len);
+HTTP_DEF ssize_t http_read(Http *http, void *buf, int count);
 
-HTTP_DEF bool http_valid(int socket);
-HTTP_DEF void http_make_blocking(int socket);
-HTTP_DEF void http_make_nonblocking(int socket);
+HTTP_DEF bool http_valid(SOCKET socket);
+HTTP_DEF void http_make_blocking(SOCKET socket);
+HTTP_DEF void http_make_nonblocking(SOCKET socket);
 
-HTTP_DEF HttpAccept http_accept(int server, int *client);
-HTTP_DEF HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout);
-HTTP_DEF bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len);
-HTTP_DEF bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len);
+HTTP_DEF HttpAccept http_accept(SOCKET server, SOCKET *client);
+HTTP_DEF HttpAccept http_select(SOCKET client, fd_set *read_fds, struct timeval *timeout);
+HTTP_DEF bool http_connect(SOCKET socket, bool ssl, const char *hostname, size_t hostname_len);
+HTTP_DEF bool http_connect2(SOCKET socket, int port, const char *hostname, size_t hostname_len);
 HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_type, const void *body, size_t body_size_bytes);
 
-HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nbytes_total, int *offset);
+HTTP_DEF bool http_skip_headers(Http *http, char *buf, int count, ssize_t *nbytes_total, int64_t *offset);
 
 HTTP_DEF bool http_send_len(const char *buffer, size_t buffer_len, Http *http);
 HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http);
 
-HTTP_DEF bool http_read_len(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata);
+HTTP_DEF bool http_read_len(Http *http, HttpWriteCallback write_callback, void *userdata);
 
 HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_file);
+HTTP_DEF void http_free_external_libs();
 //----------END SOCKET----------
 
 //----------BEGIN WEBSOCKET----------
@@ -295,7 +306,7 @@ HTTP_DEF bool http_init3(Http *http, const char *hostname, size_t hostname_len, 
 	if(!http->conn) {
 	    return false;
 	}
-	SSL_set_fd(http->conn, http->socket);
+	SSL_set_fd(http->conn, (int) http->socket);
     } else {
 	http->conn = NULL;
     }
@@ -338,16 +349,16 @@ HTTP_DEF int http_find_hostname(const char *url, size_t url_len,
     if(start<0) {
 	start = cstr_index_of(url, url_len, https, https_len);
 	if(start<0) return -1;
-	start += https_len;
+	start += (int) https_len;
 	if(ssl) *ssl = true;
     }
     else {
-	start += http_len;
+	start += (int) http_len;
 	if(ssl) *ssl = false;
     }
 
     int end = cstr_index_of(url + start, url_len - start + 1, "/", 1);
-    if(end<0) end = url_len;
+    if(end<0) end = (int) url_len;
     else end += start;
 
     if(hostname_len) *hostname_len = end - start;
@@ -364,7 +375,7 @@ HTTP_DEF const char *http_get_route(const char *url) {
 	return NULL;
     }
 
-    int directory_len = url_len - hostname - hostname_len;
+    size_t directory_len = url_len - hostname - hostname_len;
     const char *route = "/";
     if(directory_len>0) {
 	route = url + hostname + hostname_len;
@@ -455,16 +466,16 @@ HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
 	    output[pos++] = (hi << 4) | (lo & 0xf);
 	    i+=2;
 	} else if(c == '\\' && i+5 < input_size) {
-	  bool replace_with_and = true;
-	  if(input[i+1] != 'u') replace_with_and = false;
-	  if(input[i+2] != '0') replace_with_and = false;
-	  if(input[i+3] != '0') replace_with_and = false;
-	  if(input[i+4] != '2') replace_with_and = false;
-	  if(input[i+5] != '6') replace_with_and = false;
-	  if(replace_with_and) {
-	    output[pos++] = '&';
-	    i += 5;
-	  }
+	    bool replace_with_and = true;
+	    if(input[i+1] != 'u') replace_with_and = false;
+	    if(input[i+2] != '0') replace_with_and = false;
+	    if(input[i+3] != '0') replace_with_and = false;
+	    if(input[i+4] != '2') replace_with_and = false;
+	    if(input[i+5] != '6') replace_with_and = false;
+	    if(replace_with_and) {
+		output[pos++] = '&';
+		i += 5;
+	    }
 	} else {
 	    output[pos++] = c;
 	}
@@ -477,7 +488,7 @@ HTTP_DEF bool http_decodeURI(const char *input, size_t input_size,
 
 HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
 			   const char* body, const char *content_type,
-			   size_t (*write_callback)(const void*, size_t, size_t, void *),
+			   HttpWriteCallback write_callback,
 			   void *userdata, HttpHeader *header, const char *headers_extra)
 {
     bool hasBody = body != NULL && content_type != NULL;
@@ -485,7 +496,6 @@ HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
     //SEND
     char request_buffer[HTTP_BUFFER_CAP];
     if(!hasBody) {
-
 	if(!sendf(http_send_len2, http, request_buffer, HTTP_BUFFER_CAP,
 		  "%s %s HTTP/1.1\r\n"
 		  "Host: %.*s\r\n"
@@ -510,15 +520,14 @@ HTTP_DEF bool http_request(Http *http, const char *route, const char *method,
 
     //READ
     if(!http_read_body(http, write_callback, userdata, header)) {
-	warn("read failed");
+	warn("read failed"); fflush(stdout);
 	return false;
     }
 
     return true;
 }
 
-HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, size_t,size_t, void *), void *userdata, HttpHeader *header, const char *headers_extra) {
-  
+HTTP_DEF bool http_get(const char *url, HttpWriteCallback write_callback, void *userdata, HttpHeader *header, const char *headers_extra) {  
     size_t url_len = strlen(url);
     bool ssl;
     size_t hostname_len;
@@ -529,7 +538,7 @@ HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, s
 	return false;
     }
 
-    int directory_len = url_len - hostname - hostname_len;
+    size_t directory_len = url_len - hostname - hostname_len;
     const char *route = "/";
     if(directory_len>0) {
 	route = url + hostname + hostname_len;
@@ -551,7 +560,7 @@ HTTP_DEF bool http_get(const char *url, size_t (*write_callback)(const void *, s
     return true;
 }
 
-HTTP_DEF bool http_post(const char *url, const char *body, const char *content_type, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata, HttpHeader *header, const char *headers_extra) {
+HTTP_DEF bool http_post(const char *url, const char *body, const char *content_type, HttpWriteCallback write_callback, void *userdata, HttpHeader *header, const char *headers_extra) {
     size_t url_len = strlen(url);
     bool ssl;
     size_t hostname_len;
@@ -561,7 +570,7 @@ HTTP_DEF bool http_post(const char *url, const char *body, const char *content_t
 	return false;
     }
 
-    int directory_len = url_len - hostname - hostname_len;
+    size_t directory_len = url_len - hostname - hostname_len;
     const char *route = "/";
     if(directory_len>0) {
 	route = url + hostname + hostname_len;
@@ -621,7 +630,7 @@ HTTP_DEF bool http_head(const char *url, HttpHeader *header, const char *headers
 	return false;
     }
 
-    int directory_len = url_len - hostname - hostname_len;
+    size_t directory_len = url_len - hostname - hostname_len;
     const char *route = "/";
     if(directory_len>0) {
 	route = url + hostname + hostname_len;
@@ -701,7 +710,7 @@ HTTP_DEF bool http_server_init(HttpServer *server, size_t port, const char *cert
     }
 #endif //linux
 
-    if(!http_bind(server->socket, port)) {
+    if(!http_bind(server->socket, (int) port)) {
 	return false;
     }
 
@@ -827,7 +836,7 @@ HTTP_DEF void *http_server_listen_function(void *arg) {
     bool *running = &(server->threads[0].used);
 
     while(*running) {
-	int client;
+	SOCKET client;
 	HttpAccept accept = http_accept(server->socket, &client);
 	if(accept == HTTP_ACCEPT_AGAIN) {
 	    http_sleep_ms(50);
@@ -850,7 +859,7 @@ HTTP_DEF void *http_server_listen_function(void *arg) {
 		ioctlsocket(client, FIONBIO, &mode);
 #endif //_WIN32
 
-		SSL_set_fd(http.conn, client);
+		SSL_set_fd(http.conn, (int) client);
 		int accept_res = SSL_accept(http.conn);
 		if(accept_res <= 0) {
 		    ERR_print_errors_fp(stderr);
@@ -892,8 +901,8 @@ HTTP_DEF void *http_server_serve_function(void *_arg) {
     Http client = thread->client;
     bool *used = &(thread->used);
     String_Buffer *buffer = &(thread->buffer);
-    void (*handle_request)(const HttpRequest *, Http *, void *) = thread->server->handle_request;
-    void (*handle_websocket)(const char *, size_t, Http *, void *) = thread->server->handle_websocket;
+    HttpHandler handle_request = thread->server->handle_request;
+    HttpWebsocketHandler handle_websocket = thread->server->handle_websocket;
     HttpRequest *request = &(thread->request);
     *request = (HttpRequest) {0};
     void* arg = thread->arg;
@@ -1049,8 +1058,8 @@ HTTP_DEF bool http_send_websocket_accept(Http *http, string ws_key) {
 
     _SHA1_CTX ctx;
     _SHA1Init(&ctx);
-    _SHA1Update(&ctx, (unsigned char *) ws_key.data, ws_key.len);
-    _SHA1Update(&ctx, (unsigned char *) guid, strlen(guid));
+    _SHA1Update(&ctx, (unsigned char *) ws_key.data, (int) ws_key.len);
+    _SHA1Update(&ctx, (unsigned char *) guid, (int) strlen(guid));
     _SHA1Final((unsigned char *) result, &ctx);
 
     size_t size;
@@ -1104,33 +1113,29 @@ HTTP_DEF const char* http_server_content_type_from_name(string file_name) {
 }
 
 HTTP_DEF void http_send_files(Http *client, const char *dir, const char *home, string file_path) {
+  
     if(string_eq(file_path, STRING("/"))) {
 	file_path = string_from_cstr(home);
     }
 
-    FILE *f;
-    if(!http_open_file3(&f, dir, file_path)) {
+    Io_File file;
+    if(!http_open_file3(&file, dir, file_path)) {
 	http_send_not_found(client);
 	return;
     }
-    http_send_file(&f, client, http_server_content_type_from_name(file_path));
-    http_close_file(&f);
+    http_send_file(&file, client, http_server_content_type_from_name(file_path));
+    http_close_file(&file);
 }
 
-HTTP_DEF bool http_open_file(FILE **f, const char *file_path) {
-    FILE *file = fopen(file_path, "rb");
-    if(!file) {
-	fprintf(stderr, "[WARNING]: Can not open file '%s' because: %s\n", file_path, strerror(errno));
+HTTP_DEF bool http_open_file(Io_File *file, const char *file_path) {
+    if(!io_file_open(file, file_path)) {
 	return false;
     }
-    clearerr(file);
-
-    if(f) *f = file;
 
     return true;
 }
 
-HTTP_DEF bool http_open_file2(FILE **f, string file_path) {
+HTTP_DEF bool http_open_file2(Io_File *file, string file_path) {
 #ifdef _WIN32
     char buffer[MAX_PATH+1];
     assert(file_path.len < MAX_PATH);
@@ -1141,10 +1146,10 @@ HTTP_DEF bool http_open_file2(FILE **f, string file_path) {
 #endif //linux  
     memcpy(buffer, file_path.data, file_path.len);
     buffer[file_path.len] = 0;
-    return http_open_file(f, buffer);
+    return http_open_file(file, buffer);
 }
 
-HTTP_DEF bool http_open_file3(FILE **f, const char *dir, string file_path) {
+HTTP_DEF bool http_open_file3(Io_File *file, const char *dir, string file_path) {
     size_t dir_len = strlen(dir);
     if(dir_len == 0) {
 	return false;
@@ -1163,19 +1168,19 @@ HTTP_DEF bool http_open_file3(FILE **f, const char *dir, string file_path) {
     memcpy(buffer + dir_len, file_path.data, file_path.len);
     buffer[dir_len + file_path.len] = 0;
 
-    return http_open_file(f, buffer);
+    return http_open_file(file, buffer);
 }
 
-HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
+HTTP_DEF bool http_send_file(Io_File *file, Http *http, const char *content_type) {
     if(!http_valid(http->socket)) {
-	return false;
-    }
-    if(!f) {
 	return false;
     }
     if(!content_type) {
 	return false;
     }
+
+  
+  
 
     char buffer[HTTP_BUFFER_CAP];
     size_t buffer_off = 0;
@@ -1199,13 +1204,15 @@ HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
 
     while(true) {
 	bool bbreak = false;//0129\r\n ... body ... \r\n
-	size_t nbytes = fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, *f);
+	//size_t nbytes = fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, *f);
+	size_t nbytes = io_file_fread(buffer + buffer_off + 6, 1, -6 + buffer_cap - 2, file);
 	if(nbytes != buffer_cap - 2 - 6) {
-	    if(ferror(*f)) {
-		fprintf(stderr, "[WARNING]: Can not read file because: %s\n", strerror(errno));
+	    if(io_file_ferror(file)) {
+		//TODO: error handling
+		//fprintf(stderr, "[WARNING]: Can not read file because: %s\n", strerror(errno));
 		return false;
 	    }
-	    if(feof(*f)) {
+	    if(io_file_feof(file)) {
 		bbreak = true;
 	    }
 	}
@@ -1221,7 +1228,7 @@ HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
 	    size_t n = nbytes;
 	    int i = 0;
 	    while(n > 0) {
-		size_t m = n % 16;
+		char m = (char) (n % 16);
 		buffer[buffer_off + 4 - i++ - 1] = m<10 ? m + '0' : m + 'W';
 		n /= 16;
 	    }
@@ -1250,11 +1257,11 @@ HTTP_DEF bool http_send_file(FILE **f, Http *http, const char *content_type) {
     return true;
 }
 
-HTTP_DEF void http_close_file(FILE **f) {
-    if(f) fclose(*f);
+HTTP_DEF void http_close_file(Io_File *file) {
+    io_file_close(file);
 }
 
-HTTP_DEF ssize_t http_send(Http *http, const void *buf, size_t len) {
+HTTP_DEF ssize_t http_send(Http *http, const void *buf, int len) {
 #ifndef HTTP_NO_SSL
     if(http->conn != NULL) {
 	return SSL_write(http->conn, buf, len);
@@ -1266,7 +1273,7 @@ HTTP_DEF ssize_t http_send(Http *http, const void *buf, size_t len) {
 #endif //HTTP_NO_SSL 
 }
 
-HTTP_DEF ssize_t http_read(Http *http, void *buf, size_t count) {
+HTTP_DEF ssize_t http_read(Http *http, void *buf, int count) {
 #ifndef HTTP_NO_SSL  
     if(http->conn != NULL) {
 	return SSL_read(http->conn, buf, count);
@@ -1293,9 +1300,9 @@ HTTP_DEF void http_server_simple_file_handler(const HttpRequest *request, Http *
 
 
 //----------BEGIN SOCKET----------
-HTTP_DEF int http_open() {
+HTTP_DEF SOCKET http_open() {
 #ifdef _WIN32
-    return WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, 0);
+    return WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, 0);
 #endif //_WIN32
 #ifdef linux
     struct protoent *protoent = getprotobyname("tcp");
@@ -1307,7 +1314,7 @@ HTTP_DEF int http_open() {
 #endif //linux
 }
 
-HTTP_DEF bool http_bind(int socket, int port) {
+HTTP_DEF bool http_bind(SOCKET socket, int port) {
     if(!http_valid(socket)) {
 	return false;
     }
@@ -1316,7 +1323,7 @@ HTTP_DEF bool http_bind(int socket, int port) {
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(port);
+    addr.sin_port = htons((u_short) port);
 
     if(bind(socket, (SOCKADDR*) &addr, sizeof(addr)) == SOCKET_ERROR) {
 	closesocket(socket);
@@ -1340,7 +1347,7 @@ HTTP_DEF bool http_bind(int socket, int port) {
     return true;
 }
 
-HTTP_DEF void http_shutdown(int socket) {
+HTTP_DEF void http_shutdown(SOCKET socket) {
 #ifdef _WIN32
     shutdown(socket, SD_BOTH);
 #endif //_WIN32
@@ -1349,7 +1356,7 @@ HTTP_DEF void http_shutdown(int socket) {
 #endif //linux
 }
 
-HTTP_DEF void http_close(int socket) {
+HTTP_DEF void http_close(SOCKET socket) {
 #ifdef _WIN32
     closesocket(socket);
 #endif //_WIN32
@@ -1359,16 +1366,16 @@ HTTP_DEF void http_close(int socket) {
 }
 
 
-HTTP_DEF bool http_valid(int socket) {
+HTTP_DEF bool http_valid(SOCKET socket) {
 #ifdef _WIN32
-    return ((SOCKET) socket) != INVALID_SOCKET;
+    return (socket) != INVALID_SOCKET;
 #endif //_WIN32
 #ifdef linux
     return socket !=-1;
 #endif //linux
 }
 
-HTTP_DEF void http_make_blocking(int socket) {
+HTTP_DEF void http_make_blocking(SOCKET socket) {
 #ifdef _WIN32
     (void) socket;
 #endif //_WIN32
@@ -1378,7 +1385,7 @@ HTTP_DEF void http_make_blocking(int socket) {
 #endif //linux
 }
 
-HTTP_DEF void http_make_nonblocking(int socket) {
+HTTP_DEF void http_make_nonblocking(SOCKET socket) {
 #ifdef _WIN32
     unsigned long mode = 1;
     ioctlsocket(socket, FIONBIO, &mode);
@@ -1389,7 +1396,7 @@ HTTP_DEF void http_make_nonblocking(int socket) {
 #endif //linux
 }
 
-HTTP_DEF HttpAccept http_accept(int socket, int *out_client) {
+HTTP_DEF HttpAccept http_accept(SOCKET socket, SOCKET *out_client) {
     struct sockaddr_in addr;
 
 #ifdef _WIN32
@@ -1432,7 +1439,7 @@ HTTP_DEF HttpAccept http_accept(int socket, int *out_client) {
     return HTTP_ACCEPT_OK;
 }
 
-HTTP_DEF HttpAccept http_select(int client, fd_set *read_fds, struct timeval *timeout) {
+HTTP_DEF HttpAccept http_select(SOCKET client, fd_set *read_fds, struct timeval *timeout) {
 #ifdef _WIN32
     int ret = select(0, read_fds, NULL, NULL, timeout);
     if(ret == SOCKET_ERROR) {
@@ -1458,54 +1465,68 @@ HTTP_DEF HttpAccept http_select(int client, fd_set *read_fds, struct timeval *ti
     return HTTP_ACCEPT_OK;
 }
 
-HTTP_DEF bool http_connect(int socket, bool ssl, const char *hostname, size_t hostname_len) {
+HTTP_DEF bool http_connect(SOCKET socket, bool ssl, const char *hostname, size_t hostname_len) {
     return http_connect2(socket, ssl ? HTTPS_PORT : HTTP_PORT, hostname, hostname_len);
 }
 
-HTTP_DEF bool http_connect2(int socket, int port, const char *hostname, size_t hostname_len) {
-
+HTTP_DEF bool http_connect2(SOCKET socket, int port, const char *hostname, size_t hostname_len) {
     if(!http_valid(socket)) {
 	return false;
     }
-
     if(hostname == NULL) {
 	return false;
     }
 
-#ifdef _WIN32
-    SOCKADDR_IN addr = {0};
-    char *name = (char *) alloca(hostname_len + 1);
-#endif //WIN32
 #ifdef linux
     struct sockaddr_in addr = {0};
     char name[hostname_len + 1];
-#endif //linux
-
     memcpy(name, hostname, hostname_len);
     name[hostname_len] = 0;
-  
+
     struct hostent *hostent = gethostbyname(name);
     if(!hostent) {
 	return false;
     }
 
-#ifdef _WIN32
-    addr.sin_addr.s_addr = *((unsigned long*) hostent->h_addr);
-#endif //WIN32
-#ifdef linux
     in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr*)*(hostent->h_addr_list)));
     if(in_addr == (in_addr_t) -1) {
 	return false;
     }
     addr.sin_addr.s_addr = in_addr;
-#endif //linux
 
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port = htons((u_short) port);
     if(connect(socket, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-	warn("socket connect failed");
 	return false;
     }
+  
+#elif _WIN32
+    char *name = (char *) alloca(hostname_len + 1);
+    memcpy(name, hostname, hostname_len);
+    name[hostname_len] = 0;
+
+    struct addrinfo hints;
+    struct addrinfo* result = NULL;
+
+    ZeroMemory(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    char port_cstr[6];
+    snprintf(port_cstr, sizeof(port_cstr), "%d", port);
+
+    if(getaddrinfo(name, port_cstr, &hints, &result) != 0) {
+	return false;
+    }
+
+    if(connect(socket, result->ai_addr, (int) result->ai_addrlen) != 0) {
+	freeaddrinfo(result);
+	return false;
+    }
+
+    freeaddrinfo(result);
+#endif //linux - _WIN32
 
     return true; 
 }
@@ -1551,14 +1572,9 @@ HTTP_DEF bool http_respond(Http *http, HttpStatus status, const char *content_ty
 		 prefix, content_type, body_size_bytes, body_size_bytes, body);
 }
 
-HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nbytes_total, int *offset) {
+HTTP_DEF bool http_skip_headers(Http *http, char *buf, int count, ssize_t *nbytes_total, int64_t *offset) {
     do {
-	int read = http_read(http, buf, count);
-	if(read <= 0) {
-	    return false;
-	}
-    
-	*nbytes_total = (ssize_t) read;
+	*nbytes_total = http_read(http, buf, count);
 	if(*nbytes_total < 0 ) {
 	    return false;
 	}
@@ -1567,7 +1583,7 @@ HTTP_DEF bool http_skip_headers(Http *http, char *buf, size_t count, ssize_t *nb
 	while(s.len) {
 	    string line = string_chop_by_delim(&s, '\n');
 	    if(line.len && line.data[0]=='\r') {
-		*offset = (int) (line.data+2 - buf);
+		*offset = (int64_t) (line.data+2 - buf);
 		return true;
 	    }
 	}
@@ -1591,7 +1607,7 @@ HTTP_DEF bool http_send_len(const char *buffer, size_t _buffer_size, Http *http)
     ssize_t nbytes_last;
     ssize_t nbytes_total = 0;
     while(nbytes_total < buffer_size) {
-	nbytes_last = http_send(http, buffer + nbytes_total, buffer_size - nbytes_total);
+	nbytes_last = http_send(http, buffer + nbytes_total, (int) (buffer_size - nbytes_total) );
 
 	if(nbytes_last == -1) {
 	    return false;
@@ -1606,7 +1622,7 @@ HTTP_DEF bool http_send_len2(const char *buffer, size_t buffer_len, void *http) 
     return http_send_len(buffer, buffer_len, (Http *) http);
 }
 
-HTTP_DEF bool http_read_len(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata), void *userdata) {
+HTTP_DEF bool http_read_len(Http *http, HttpWriteCallback write_callback, void *userdata) {
     if(!http_valid(http->socket)) {
 	return false;
     }  
@@ -1649,7 +1665,7 @@ HTTP_DEF bool http_read_len(Http *http, size_t (*write_callback)(const void *dat
     return false;
 }
 
-HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *data, size_t size, size_t memb, void *userdata),
+HTTP_DEF bool http_read_body(Http *http, HttpWriteCallback write_callback,
 			     void *userdata, HttpHeader *header) {
     if(!http_valid(http->socket)) {
 	return false;
@@ -1670,7 +1686,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
     do{
 	nbytes_total = http_read(http, buffer, HTTP_BUFFER_CAP);
 
-	if(nbytes_total == -1) {
+	if(nbytes_total == -1) {      
 	    return false;
 	}
 
@@ -1687,7 +1703,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 		string key = string_trim(string_chop_by_delim(&line, ':'));
 		string value = string_trim(line);
 #ifdef HTTP_DEBUG
-		printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value));
+		printf(String_Fmt": "String_Fmt"\n", String_Arg(key), String_Arg(value)); fflush(stdout);
 #endif	
 		if(string_eq(key, STRING("Content-Length")) ||
 		   string_eq(key, STRING("content-length"))) {
@@ -1729,7 +1745,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 		if(read >= (uint64_t) content_length) {
 		    break;
 		}
-	    } else if(content_length == -2) { //TRANSFER_ENCODING: chunked
+	    } else if(content_length == -2) { //TRANSFER_ENCODING: chunked	
 		bool bbreak = false;
 		size_t diff = (size_t) nbytes_total - offset;
 		if(diff==0) {
@@ -1743,6 +1759,7 @@ HTTP_DEF bool http_read_body(Http *http, size_t (*write_callback)(const void *da
 		uint64_t n;
 		size_t size;
 		string word;
+	
 		for(;i<diff-1;i++) {
 		    if(buf[i]!='\r') continue;
 		    if(buf[i+1]!='\n') continue;
@@ -1842,6 +1859,17 @@ HTTP_DEF void http_init_external_libs(const char *cert_file, const char *key_fil
     (void) http_global_wsa_startup;
 #endif //linux
 }
+
+HTTP_DEF void http_free_external_libs() {
+#ifndef HTTP_NO_SSL
+    SSL_CTX_free(http_global_ssl_server_ctx);
+    SSL_CTX_free(http_global_ssl_client_ctx);
+#endif //HTTP_NO_SSL
+
+#ifdef _WIN32
+    WSACleanup();
+#endif //_WIN32
+}
 //----------END SOCKET----------
 
 HTTP_DEF size_t _fwrite(const void *data, size_t size, size_t memb, void *userdata) {
@@ -1865,7 +1893,7 @@ HTTP_DEF bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *
 	    buffer->data[i] = buffer->data[i] ^ (context->xormask[(mask_off + i)%4]);
 	}
 	context->handle_websocket(buffer->data, buffer->len, context->http, context->arg);
-	context->payload_len -= buffer->len;
+	context->payload_len -= (int) buffer->len;
 	return true;
     }
 
@@ -1887,7 +1915,7 @@ HTTP_DEF bool http_websocket_read(HttpWebSocketContext *context, String_Buffer *
 	unsigned long _m = 1;
 	context->payload_len = 0;
 	assert(buffer->len >= off + 2);
-	for(int n=off-1;n>=0;n--) {
+	for(int n=(int) off-1;n>=0;n--) {
 	    for(int i=0;i<8;i++) {
 		if((buffer->data[2+n] & (1 << i))) context->payload_len += _m;
 		_m = _m << 1;
@@ -1928,13 +1956,13 @@ HTTP_DEF bool http_websocket_send_len(const char *buffer, size_t buffer_len, Htt
     char xormask[4];
     char res_buffer[HTTP_BUFFER_CAP];
     if(buffer_len < 126) {    
-	char size = buffer_len | 0x80;
+	char size = (char) buffer_len | 0x80;
 	return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%_ws",
 		     header, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
     } else if(buffer_len <= UINT16_MAX) {    
-	char indication = (char) (int) ((int) 0xff & (int) ~0x1);
+	int indication = 0xff & ~0x1;
 	char size[] = {(char) ((buffer_len & 0xff00) >> 8), (char) (buffer_len & 0x00ff)};    
-	return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%c%.*s%.*s%_ws",
+	return sendf(http_send_len2, client, res_buffer, HTTP_BUFFER_CAP, "%c%d%.*s%.*s%_ws",
 		     header, indication, (size_t) 2, size, (size_t) 4, xormask, buffer_len, buffer, xormask);
     } else {
 	char indication = -1;

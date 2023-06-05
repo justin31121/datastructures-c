@@ -126,7 +126,7 @@ JSON_PARSER_DEF bool json_parse_number(Tokenizer *t, const Json_Parse_Events *ev
       value = token.content;
     }
     else if(token.content.data != value.data) {
-      u64 diff = token.content.data - value.data - value.len;
+      size_t diff = token.content.data - value.data - value.len;
       value = string_from(value.data, value.len + diff + token.content.len);	
     }
 
@@ -152,7 +152,7 @@ JSON_PARSER_DEF bool json_parse_number(Tokenizer *t, const Json_Parse_Events *ev
       value = token.content;
     }
     else if(token.content.data != value.data) {
-      u64 diff = token.content.data - value.data - value.len;
+      size_t diff = token.content.data - value.data - value.len;
       value = string_from(value.data, value.len + diff + token.content.len);	
     }
     
@@ -181,7 +181,7 @@ JSON_PARSER_DEF bool json_parse_number(Tokenizer *t, const Json_Parse_Events *ev
       value = token.content;
     }
     else if(token.content.data != value.data) {
-      u64 diff = token.content.data - value.data - value.len;
+      size_t diff = token.content.data - value.data - value.len;
       value = string_from(value.data, value.len + diff + token.content.len);	
     }
   }
@@ -223,7 +223,7 @@ JSON_PARSER_DEF bool json_parse_string(Tokenizer *t, const Json_Parse_Events *ev
 
     tokenizer_next(t, &token);
     if(token.content.data != value.data) {
-      u64 diff = token.content.data - value.data - value.len;
+      size_t diff = token.content.data - value.data - value.len;
       value = string_from(value.data, value.len + diff + token.content.len);	
     }
 
@@ -233,7 +233,7 @@ JSON_PARSER_DEF bool json_parse_string(Tokenizer *t, const Json_Parse_Events *ev
 	return false;
       }
       if(token.content.data != value.data) {
-	u64 diff = token.content.data - value.data - value.len;
+	size_t diff = token.content.data - value.data - value.len;
 	value = string_from(value.data, value.len + diff + token.content.len);	
       }
     }
@@ -278,7 +278,7 @@ JSON_PARSER_DEF bool json_parse_object(Tokenizer *t, const Json_Parse_Events *ev
   }
 
   if(events->on_elem != NULL) {
-    string empty_string = {0, token.content.data};
+    string empty_string = {token.content.data, 0};
     if(!events->on_elem(JSON_PARSE_TYPE_OBJECT,
 			empty_string,
 			events->arg, object)) {
@@ -314,7 +314,7 @@ JSON_PARSER_DEF bool json_parse_object(Tokenizer *t, const Json_Parse_Events *ev
 
 	tokenizer_next(t, &token);
 	if(token.content.data != key.data) {
-	  u64 diff = token.content.data - key.data - key.len;
+	  size_t diff = token.content.data - key.data - key.len;
 	  key = string_from(key.data, key.len + diff + token.content.len);	
 	}
 
@@ -467,7 +467,7 @@ JSON_PARSER_DEF bool json_parse2(const char *cstr, size_t cstr_len, const Json_P
     return false;
   }
 
-  Tokenizer tokenizer = {cstr, cstr_len, 0, 0};
+  Tokenizer tokenizer = {cstr, (u32) cstr_len, 0, 0};
   void *elem = NULL;
   if(!json_parse_json(&tokenizer, events, &elem)) {
     return false;

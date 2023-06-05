@@ -21,7 +21,7 @@ typedef struct {
   void *arg;
 }Html_Parse_Events;
 
-HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events);
+HTML_PARSER_DEF bool html_parse(const char *cstr, size_t cstr_len, const Html_Parse_Events *events);
 
 #ifdef HTML_PARSER_IMPLEMENTATION
 
@@ -126,7 +126,7 @@ HTML_PARSER_DEF bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events 
     while(token.type != TOKENTYPE_EQUALS && token.type != TOKENTYPE_ANGLE_CLOSE) {
       tokenizer_next(t, &token);
       if(token.content.data != key.data) {
-	u64 diff = token.content.data - key.data - key.len;
+	size_t diff = token.content.data - key.data - key.len;
 	key = string_from(key.data, key.len + diff + token.content.len);
       }
       //__html_parse_peek_token(TOKENTYPE_WORD);
@@ -161,7 +161,7 @@ HTML_PARSER_DEF bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events 
       while(token.type != quotation) {
 	tokenizer_next(t, &token);
 	if(token.content.data != value.data) {
-	  u64 diff = token.content.data - value.data - value.len;
+	  size_t diff = token.content.data - value.data - value.len;
 	  value = string_from(value.data, value.len + diff + token.content.len);	
 	}
 	__html_parse_peek_token(quotation);
@@ -178,7 +178,7 @@ HTML_PARSER_DEF bool html_parse_node_open(Tokenizer *t, const Html_Parse_Events 
 	tokenizer_next(t, &token);
 	from = token.content.data + token.content.len;
 	if(token.content.data != value.data) {
-	  u64 diff = token.content.data - value.data - value.len;
+	  size_t diff = token.content.data - value.data - value.len;
 	  value = string_from(value.data, value.len + diff + token.content.len);
 	}
 	__html_parse_peek_token(TOKENTYPE_ANGLE_CLOSE);
@@ -415,7 +415,7 @@ HTML_PARSER_DEF bool html_parse_node(Tokenizer *t, const Html_Parse_Events *even
     } else {
       tokenizer_next(t, &token);
 
-      u64 diff = token.content.data - current.data - current.len;
+      size_t diff = token.content.data - current.data - current.len;
       current = current.len
 	? string_from(current.data, current.len + diff + token.content.len)
 	: token.content;
@@ -423,12 +423,11 @@ HTML_PARSER_DEF bool html_parse_node(Tokenizer *t, const Html_Parse_Events *even
   }
 
   panic("unreachable");
-  return false;
 }
 
-HTML_PARSER_DEF bool html_parse(const char *cstr, u64 cstr_len, const Html_Parse_Events *events) {
+HTML_PARSER_DEF bool html_parse(const char *cstr, size_t cstr_len, const Html_Parse_Events *events) {
 
-    Tokenizer tokenizer = {cstr, cstr_len, 0, 0};
+  Tokenizer tokenizer = {cstr, (u32) cstr_len, 0, 0};
     void *node;
     if(!events) {
 	Html_Parse_Events no_events = {0};      

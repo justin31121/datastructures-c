@@ -49,9 +49,9 @@ void queue_append_front(Queue *queue, const void *data) {
     exit(1);
   }
   
-  int _pos = (queue->start - 1) % queue->cap;
+  int _pos = ((int) queue->start - 1) % (int) queue->cap;
   if(_pos < 0) {
-    _pos = queue->cap - 1;
+    _pos = (int) queue->cap - 1;
   }
   size_t pos = (size_t) _pos;
   memcpy((char *) queue->buffer + pos*queue->memb, data, queue->memb);
