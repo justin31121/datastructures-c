@@ -16,8 +16,9 @@
 void util_unused(int n, ...) { (void) n; }
 
 #define not_null(ptr) do{ if(ptr==NULL) {fprintf(stderr, "%s:%d: error: %s: Expected a non NULL pointer\n", __FILE__, __LINE__, __func__); exit(1); }}while(0)
-#define panic(...) do{ fprintf(stderr, "%s:%d: error: %s: ", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); /* if(errno != 0) { fprintf(stderr, ": %s", strerror(errno));} */ fprintf(stderr, "\n"); exit(1);}while(0)
 #define warn(...) do{ fprintf(stderr, "%s:%d: warning: %s:", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); }while(0)
+
+#define panic(...) do{ fprintf(stderr, "%s:%d: error: %s: ", __FILE__, __LINE__, __func__); fprintf(stderr, __VA_ARGS__); if(errno != 0) { fprintf(stderr, ": %s", strerror(errno));} fprintf(stderr, "\n"); exit(1);}while(0)
 
 
 void print_bytes(void *_ptr, size_t number_of_bytes);

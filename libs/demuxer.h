@@ -1,6 +1,12 @@
 #ifndef DEMUXER_H
 #define DEMUXER_H
 
+#ifdef DEMUXER_IMPLEMENTATION
+#  define HTTP_IMPLEMENTATION
+#endif //DEMUXER_IMPLEMENTATION
+
+#include "../libs/http.h"
+
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/channel_layout.h>
@@ -11,16 +17,32 @@
 #define SAMPLES 1024
 
 #ifdef DEMUXER_IMPLEMENTATION
+#define DEMUXER_BUFFER_CAP 1024
+
+typedef struct{
+  Http http;
+  const char *route;
+  bool ssl;
+  
+  char buffer[DEMUXER_BUFFER_CAP];
+  ssize_t nbytes_total;
+  int64_t offset;
+
+  int64_t len;
+  int64_t pos;
+}Player_Socket;
 
 typedef struct{
   bool skip_extract_frame;
+  int64_t duration;
   
   AVIOContext *av_io_context;
   AVFormatContext *av_format_context;
   AVPacket *packet;
   AVFrame *frame;
+  
+  Player_Socket socket;
   Io_File file;
-  int64_t duration;
 
   //AUDIO
   int audio_stream;
@@ -36,17 +58,22 @@ typedef struct{
   AVCodecContext *video_av_codec_context;
   struct SwsContext* video_sws_context;
   AVRational video_time_base;
+  int video_pts;
 
   unsigned char *video_rgb_buffer;
   int video_rgb_buffer_stride;
   int video_rgb_buffer_height;
+  int audio_pts;
 }Demuxer;
 
 typedef void (*Demuxer_On_Decode)(Demuxer *demuxer, int64_t pts, int out_samples, void *arg);
 
 void demuxer_init(Demuxer *demuxer, const char *filepath);
-void demuxer_seek(Demuxer *demuxer, float p);
+int64_t demuxer_seek(Demuxer *demuxer, float p);
 bool demuxer_decode(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg);
+
+bool player_socket_init(Player_Socket *s, const char *url, int start, int end);
+void player_socket_free(Player_Socket *s);
 
 typedef struct{
   const char *memory;
@@ -58,12 +85,15 @@ int file_read(void *opaque, uint8_t *buf, int buf_size);
 int64_t file_seek(void *opaque, int64_t offset, int whence);
 int memory_read(void *opaque, uint8_t *buf, int _buf_size);
 int64_t memory_seek(void *opaque, int64_t offset, int whence);
+int url_read(void *opaque, uint8_t *buf, int buf_size);
+int64_t url_seek(void *opaque, int64_t offset, int whence);
+
 
 #endif //DEMUXER_IMPLEMENTATION
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void panic(const char *mess) {
+void panic2(const char *mess) {
   fprintf(stderr, "ERROR: %s\n", mess); fflush(stderr);
   exit(1);
 }
@@ -71,29 +101,38 @@ void panic(const char *mess) {
 void demuxer_init(Demuxer *demuxer, const char *filepath) {
   demuxer->skip_extract_frame = false;
 
-  if(!io_file_open(&demuxer->file, filepath)) {
-    panic("file_open");
+  if(io_file_open(&demuxer->file, filepath)) {
+      demuxer->av_io_context =
+	  avio_alloc_context(NULL, 0, 0, &demuxer->file, file_read, NULL, file_seek);
+      if(!demuxer->av_io_context) {
+	  panic2("avio_alloc_context");
+      }
+
+  } else if(player_socket_init(&demuxer->socket, filepath, 0, 0)) {
+      demuxer->av_io_context =
+	  avio_alloc_context(NULL, 0, 0, &demuxer->socket, url_read, NULL, url_seek);
+      if(!demuxer->av_io_context) {
+	  panic2("avio_alloc_context");
+      }
+	  
+  } else {
+      panic2("file_open");	  
   }
   
-  demuxer->av_io_context =
-  avio_alloc_context(NULL, 0, 0, &demuxer->file, file_read, NULL, file_seek);
-  if(!demuxer->av_io_context) {
-    panic("avio_alloc_context");
-  }
 
   demuxer->av_format_context = avformat_alloc_context();
   if(!demuxer->av_format_context) {
-    panic("avformat_alloc_context");
+    panic2("avformat_alloc_context");
   }
 
   demuxer->av_format_context->pb = demuxer->av_io_context;
   demuxer->av_format_context->flags = AVFMT_FLAG_CUSTOM_IO;
   if (avformat_open_input(&demuxer->av_format_context, "", NULL, NULL) != 0) {
-    panic("avformat_open_input");
+    panic2("avformat_open_input");
   }
 
   if(avformat_find_stream_info(demuxer->av_format_context, NULL) < 0) {
-    panic("avformat_find_stream_info");
+    panic2("avformat_find_stream_info");
   }
   av_dump_format(demuxer->av_format_context, 0, "", 0);
 
@@ -112,7 +151,7 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
 
   if(demuxer->video_stream == -1) {
     fprintf(stderr, "ERROR: Can not find video stream in file: %s\n", filepath);
-    panic("");
+    panic2("asfasdf");
   }
 
   ///////////////////////VIDEO
@@ -120,7 +159,7 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
   av_codec_parameters = demuxer->av_format_context->streams[demuxer->video_stream]->codecpar;
   const AVCodec *video_av_codec = avcodec_find_decoder(av_codec_parameters->codec_id);
   if(!video_av_codec) {
-    panic("video_av_codec");
+    panic2("video_av_codec");
   }
   int video_width = av_codec_parameters->width;
   int video_height = av_codec_parameters->height;
@@ -130,15 +169,15 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
   
   demuxer->video_av_codec_context = avcodec_alloc_context3(video_av_codec);
   if(!demuxer->video_av_codec_context) {
-    panic("avcodec_alloc_context3");
+    panic2("avcodec_alloc_context3");
   }
 
   if(avcodec_parameters_to_context(demuxer->video_av_codec_context, av_codec_parameters) < 0) {
-    panic("avcodec_parameters_to_context");    
+    panic2("avcodec_parameters_to_context");    
   }
 
   if(avcodec_open2(demuxer->video_av_codec_context, video_av_codec, NULL) < 0) {
-    panic("avcodec_open2");
+    panic2("avcodec_open2");
   }
 
   ///////////////////////AUDIO
@@ -146,34 +185,34 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
   av_codec_parameters = demuxer->av_format_context->streams[demuxer->audio_stream]->codecpar;
   const AVCodec *audio_av_codec = avcodec_find_decoder(av_codec_parameters->codec_id);
   if(!video_av_codec) {
-    panic("video_av_codec");
+    panic2("video_av_codec");
   }
   AVStream* audioStream = demuxer->av_format_context->streams[demuxer->audio_stream];
   demuxer->audio_time_base = audioStream->time_base;
 
   demuxer->audio_av_codec_context = avcodec_alloc_context3(audio_av_codec);
   if(!demuxer->audio_av_codec_context) {
-    panic("avcodec_alloc_context3");
+    panic2("avcodec_alloc_context3");
   }
 
   if(avcodec_parameters_to_context(demuxer->audio_av_codec_context, av_codec_parameters) < 0) {
-    panic("avcodec_parameters_to_context");    
+    panic2("avcodec_parameters_to_context");    
   }
 
   if(avcodec_open2(demuxer->audio_av_codec_context, audio_av_codec, NULL) < 0) {
-    panic("avcodec_open2");
+    panic2("avcodec_open2");
   }
 
   ///////////// PREPARE
     
   demuxer->packet = av_packet_alloc();
   if(!demuxer->packet) {
-    panic("av_packet_alloc");
+    panic2("av_packet_alloc");
   }
   
   demuxer->frame = av_frame_alloc();
   if(!demuxer->frame) {
-    panic("av_frame_alloc");
+    panic2("av_frame_alloc");
   }
 
   /////////////// VIDEO PREPARE
@@ -186,12 +225,12 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
 		   video_width, video_height, rgb_pixel_format,
 		   SWS_FAST_BILINEAR, NULL, NULL, NULL);
   if(!demuxer->video_sws_context) {
-    panic("sws_getContext");
+    panic2("sws_getContext");
   }
 
   demuxer->video_rgb_buffer = malloc(video_width * video_height * 3);
   if(!demuxer->video_rgb_buffer) {
-    panic("malloc");
+    panic2("malloc");
   }
   demuxer->video_rgb_buffer_height = video_height;
   demuxer->video_rgb_buffer_stride = video_width * 3;
@@ -212,7 +251,7 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
   
   demuxer->audio_swr_context = swr_alloc();
   if(!demuxer->audio_swr_context) {
-    panic("swr_alloc");
+    panic2("swr_alloc");
   }
 
   const char *ch_layout = "mono";
@@ -221,14 +260,14 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
   } else if(channels == 2) {
       ch_layout = "stereo";
   } else {
-    panic("unsupported channel layout");
+    panic2("unsupported channel layout");
   }
 
   /*
   char chLayoutDescription[128];
   int sts = av_channel_layout_describe(&av_codec_parameters->ch_layout, chLayoutDescription, sizeof(chLayoutDescription));
   if(sts < 0) {
-    panic("av_channel_layout_describe");
+    panic2("av_channel_layout_describe");
   }
   */
   char *chLayoutDescription = "stereo";
@@ -243,35 +282,35 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
   av_opt_set_int(demuxer->audio_swr_context, "out_sample_rate", demuxer->audio_av_codec_context->sample_rate, 0);
 
   if(swr_init(demuxer->audio_swr_context) < 0) {
-    panic("swr_init");
+    panic2("swr_init");
   }
 
   int max_buffer_size = samples * sample_size;
   demuxer->audio_buffer = (unsigned char*) malloc(max_buffer_size);
   if(!demuxer->audio_buffer) {
-    panic("malloc");
+    panic2("malloc");
   }
   
 }
 
-void demuxer_seek(Demuxer *demuxer, float p) {
+int64_t demuxer_seek(Demuxer *demuxer, float p) {
   int64_t seek_to = (int64_t) (p * (float) demuxer->duration);
-  if(seek_to > 0) seek_to--;
 
-  av_frame_unref(demuxer->frame);
-  av_packet_unref(demuxer->packet);
-  
-  av_seek_frame(demuxer->av_format_context, demuxer->video_stream, (int64_t) demuxer->video_time_base.den * seek_to , 0);
-  av_seek_frame(demuxer->av_format_context, demuxer->audio_stream, (int64_t) demuxer->audio_time_base.den * seek_to, 0);
+  int64_t seek_to_video = (int64_t) demuxer->video_time_base.den * seek_to;
 
-  for(int i=0;i<10;i++) {
-    while(av_read_frame(demuxer->av_format_context, demuxer->packet) < 0) ;
-    if(demuxer->packet->stream_index == demuxer->video_stream) {
-      demuxer->skip_extract_frame = true;
-      break;
-    }
+  av_seek_frame(demuxer->av_format_context, demuxer->video_stream, seek_to_video , AVSEEK_FLAG_BACKWARD);
+  int64_t seek_to_audio = seek_to_video;
+  while(1) {
+      while(av_read_frame(demuxer->av_format_context, demuxer->packet) < 0) ;
+      if(demuxer->packet->stream_index == demuxer->video_stream) {
+	  demuxer->skip_extract_frame = true;
+	  seek_to_audio = demuxer->frame->pts;
+	  break;
+      }
   }
-  
+  //av_seek_frame(demuxer->av_format_context, demuxer->audio_stream, seek_to_audio, AVSEEK_FLAG_ANY);
+
+  return seek_to_audio;
 }
 
 bool demuxer_decode(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg) {
@@ -288,16 +327,18 @@ bool demuxer_decode(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg) {
     //printf("read video frame\n");
 
     if(avcodec_send_packet(demuxer->video_av_codec_context, demuxer->packet)) {
-      panic("avcodec_send_packet");
+      panic2("avcodec_send_packet");
     }
 
     int response;
     while( (response = avcodec_receive_frame(demuxer->video_av_codec_context, demuxer->frame)) >= 0) {
       if(response < 0) {
-	panic("avcodec_receive_frame");
+	panic2("avcodec_receive_frame");
       } else if(response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
 	break;
       }
+
+      demuxer->video_pts = demuxer->frame->pts;
 
       //LOG
       /*
@@ -324,16 +365,18 @@ bool demuxer_decode(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg) {
     //printf("read audio frame\n");
 
     if(avcodec_send_packet(demuxer->audio_av_codec_context, demuxer->packet)) {
-      panic("avcodec_send_packet");
+      panic2("avcodec_send_packet");
     }
 
     int response;
     while( (response = avcodec_receive_frame(demuxer->audio_av_codec_context, demuxer->frame)) >= 0) {
       if(response < 0) {
-	panic("avcodec_receive_frame");
+	panic2("avcodec_receive_frame");
       } else if(response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
 	break;
       }
+
+      demuxer->audio_pts = demuxer->frame->pts;
 
       //TODO: maybe in the future you have to supply out_samples?
       int out_samples = swr_convert(demuxer->audio_swr_context, &demuxer->audio_buffer, demuxer->audio_samples,
@@ -359,13 +402,13 @@ void demuxer_decode2(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg) {
       //printf("read video frame\n");
 
       if(avcodec_send_packet(demuxer->video_av_codec_context, demuxer->packet)) {
-	panic("avcodec_send_packet");
+	panic2("avcodec_send_packet");
       }
 
       int response;
       while( (response = avcodec_receive_frame(demuxer->video_av_codec_context, demuxer->frame)) >= 0) {
 	if(response < 0) {
-	  panic("avcodec_receive_frame");
+	  panic2("avcodec_receive_frame");
 	} else if(response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
 	  break;
 	}
@@ -395,13 +438,13 @@ void demuxer_decode2(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg) {
       //printf("read audio frame\n");
 
       if(avcodec_send_packet(demuxer->audio_av_codec_context, demuxer->packet)) {
-	panic("avcodec_send_packet");
+	panic2("avcodec_send_packet");
       }
 
       int response;
       while( (response = avcodec_receive_frame(demuxer->audio_av_codec_context, demuxer->frame)) >= 0) {
 	if(response < 0) {
-	  panic("avcodec_receive_frame");
+	  panic2("avcodec_receive_frame");
 	} else if(response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
 	  break;
 	}
@@ -499,5 +542,236 @@ int64_t memory_seek(void *opaque, int64_t offset, int whence) {
     
   return memory->pos;
 }
+
+bool player_socket_init(Player_Socket *socket, const char *url, int start, int end) {
+  if(url) {
+    size_t url_len = strlen(url);    
+    bool ssl;
+    size_t hostname_len;
+
+    int hostname = http_find_hostname(url, url_len, &hostname_len, &ssl);
+    if(hostname < 0) {
+      return false;
+    }
+
+    size_t directory_len = url_len - hostname - hostname_len;
+    const char *route = "/";
+    if(directory_len>0) {
+      route = url + hostname + hostname_len;
+    }
+    
+    if(!http_init2(&socket->http, url + hostname, hostname_len, ssl)) {
+      return false;
+    }
+    socket->route = route;
+    socket->ssl = ssl;
+  } else {
+    if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+      return false;
+    }
+  }
+
+  bool close_connection = false;
+
+  char request_buffer[DEMUXER_BUFFER_CAP];
+  if(end == 0) {
+    HttpHeader header;
+    if(!sendf(http_send_len2, &socket->http, request_buffer, DEMUXER_BUFFER_CAP,
+	      "HEAD %s HTTP/1.1\r\n"
+	      "Host: %.*s\r\n"
+	      "Connection: Keep-Alive\r\n"
+	      "\r\n",
+	      socket->route, socket->http.host_len,
+	      socket->http.host)) {
+      return false;
+    }
+
+    if(!http_read_body(&socket->http, NULL, NULL, &header)) {
+      return false;
+    }
+
+    string key = STRING("Content-Length");
+    string key2 = STRING("content-length");
+    string value;
+    if(!http_header_has(&header, key, &value) && !http_header_has(&header, key2, &value)) {
+      return false;
+    }
+
+    if(!string_chop_int(&value, &end)) {
+	printf("string_chop_int ? \n"); fflush(stdout);
+	return false;
+    }
+
+    if(http_header_has(&header, STRING("Connection"), &value) &&
+       (string_eq(value, STRING("close")) || string_eq(value, STRING("Close"))) ) {
+	close_connection = true;
+    }
+  }
+
+  if(close_connection) {
+      http_free(&socket->http);
+      if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+	  return false;
+      }      
+  }
+
+  if(!sendf(http_send_len2, &socket->http, request_buffer, DEMUXER_BUFFER_CAP,
+	    "GET %s HTTP/1.1\r\n"
+	    "Host: %.*s\r\n"
+	    "Connection: Keep-Alive\r\n"
+	    "Range: bytes=%d-%d\r\n"
+	    "\r\n", socket->route, socket->http.host_len, socket->http.host, start, end)) {
+    return false;
+  }
+
+  socket->pos = start;
+  socket->len = end;
+  socket->offset = 0;
+  if(!http_skip_headers(&socket->http,
+			socket->buffer, DEMUXER_BUFFER_CAP,
+			&socket->nbytes_total, &socket->offset)) {
+    printf("here4\n"); fflush(stdout);
+    return false;
+  }
+  
+  return true;
+}
+
+void player_socket_free(Player_Socket *s) {
+  http_free(&s->http);
+}
+
+int url_read(void *opaque, uint8_t *buf, int _buf_size) {
+  Player_Socket *socket = (Player_Socket *) opaque;
+
+  int buf_size = _buf_size;
+  int buf_off = 0;
+
+  do{
+
+    if(socket->nbytes_total > 0) {
+
+      int64_t len = (int64_t) (socket->nbytes_total - (ssize_t) socket->offset);
+      if(socket->pos + len > socket->len) {
+	len = socket->len - socket->pos;
+      }
+      
+      if(len == 0) {
+	socket->nbytes_total -= (ssize_t) socket->offset;
+	socket->offset = 0;
+	continue;
+      }
+
+      if(len > buf_size) {
+	len = buf_size;
+
+	fprintf(stderr, "WRITING: %lld\n", len); fflush(stderr);
+	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
+
+	socket->offset += len;
+      } else {
+
+	  fprintf(stderr, "WRITING: %lld\n", len); fflush(stderr);
+	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
+	
+	socket->nbytes_total = 0;
+	socket->offset = 0;
+      }
+
+      socket->pos += len;
+      buf_size -= (int) len;
+      buf_off += (int) len;
+      
+    } else {
+	fprintf(stderr, "READING: %d\n", DEMUXER_BUFFER_CAP); fflush(stderr);
+	socket->nbytes_total = http_read(&socket->http, socket->buffer, DEMUXER_BUFFER_CAP);
+      
+	if(socket->nbytes_total == -1) {
+	    return -1; //network ERRROR 
+	}
+    }
+
+    if(socket->pos > socket->len) {
+      return AVERROR_EOF;
+    }
+
+  }while(buf_size > 0 && socket->pos < socket->len);
+
+  if(socket->nbytes_total <= 0) {
+      fprintf(stderr, "READING: %d\n", DEMUXER_BUFFER_CAP); fflush(stderr);
+      socket->nbytes_total = http_read(&socket->http, socket->buffer, DEMUXER_BUFFER_CAP);
+      if(socket->nbytes_total == -1) {
+	  return -1;
+      }
+  }
+  
+  return _buf_size;
+}
+
+int64_t url_seek(void *opaque, int64_t offset, int whence) {
+    Player_Socket *socket = (Player_Socket *) opaque;
+
+    int64_t pos = socket->pos;
+
+    switch (whence) {
+    case SEEK_SET:
+	pos = offset;
+	break;
+    case SEEK_CUR:
+	pos += offset;
+	break;
+    case SEEK_END:
+	pos = socket->len + offset;
+	break;
+    case AVSEEK_SIZE:
+	return (int64_t) socket->len;
+    default:
+	printf("something different: %d\n", whence); fflush(stdout);
+	return AVERROR_INVALIDDATA;
+    }
+
+    if(pos < 0 || pos > socket->len) return AVERROR_EOF;
+    if(pos - socket->pos > (10 * DEMUXER_BUFFER_CAP) || pos < socket->pos) {
+      player_socket_free(socket);
+      player_socket_init(socket, NULL, (int) pos, (int) socket->len);
+    }
+
+    while(socket->pos < pos){
+	if(socket->nbytes_total > 0) {
+
+	    int64_t len = (int64_t) (socket->nbytes_total - (ssize_t) socket->offset);
+	    if(socket->pos + len > socket->len) {
+		len = socket->len - socket->pos;
+	    }
+      
+	    if(len == 0) {
+		socket->nbytes_total -= (ssize_t) socket->offset;
+		socket->offset = 0;
+		continue;
+	    }
+
+	    if(socket->pos + len > pos) {
+		len = pos - socket->pos;
+		socket->offset += len;
+	    } else {
+		socket->nbytes_total = 0;
+		socket->offset = 0;			
+	    }
+
+	    socket->pos += len;
+	} else if(socket->pos < pos) {
+	    socket->nbytes_total = http_read(&socket->http, socket->buffer, DEMUXER_BUFFER_CAP);      
+	    if(socket->nbytes_total == -1) {
+		return -1; //network ERRROR 
+	    }
+	}	
+	if(socket->pos > socket->len) {
+	    return AVERROR_EOF;
+	}
+    }
+
+    return (int64_t) socket->pos;
+}
+
 
 #endif //DEMUXER_H

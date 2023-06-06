@@ -1,0 +1,27 @@
+-*- mode: compilation; default-directory: "c:/Users/jschartner/Documents/datastructures-c/" -*-
+Compilation started at Tue Jun  6 15:57:43
+
+cd .. && make video && video "https://rr4---sn-5hnednss.googlevideo.com/videoplayback?expire=1686081151&ei=Hzp_ZOLdEpGBgQfYrKPQCQ&ip=212.211.225.85&id=o-AE9r1jcp8rX1B5JlamS6svySV60ux96GUrzcnvFXjgOU&itag=18&source=youtube&requiressl=yes&mh=5U&mm=31%2C26&mn=sn-5hnednss%2Csn-4g5edndd&ms=au%2Conr&mv=m&mvi=4&pl=24&gcr=de&initcwndbps=2897500&spc=qEK7Bw6lHaqqC_A1MAbjz9e8iYewQh4l9YQsEZBZcA&vprv=1&svpuc=1&mime=video%2Fmp4&ns=8W-VFA7kThLPum7dDx_nnRYN&gir=yes&clen=16094765&ratebypass=yes&dur=204.474&lmt=1683246394507044&mt=1686059337&fvip=2&fexp=24007246%2C51000013%2C51000022&c=WEB&txp=5538434&n=T7h-xs-2hRoM3IT&sparams=expire%2Cei%2Cip%2Cid%2Citag%2Csource%2Crequiressl%2Cgcr%2Cspc%2Cvprv%2Csvpuc%2Cmime%2Cns%2Cgir%2Cclen%2Cratebypass%2Cdur%2Clmt&lsparams=mh%2Cmm%2Cmn%2Cms%2Cmv%2Cmvi%2Cpl%2Cinitcwndbps&lsig=AG3C_xAwRAIgdS8TULt-UK-7lW6QbwyJEM8vo_Rub7nrSwIUOawb7VkCIAwyBYGtdFvF92WPXpb8YbE2NDpBnu_LffWr1ZyPoK-7&sig=AOq0QJ8wRAIgAl3p6RAdCf0nVdm-57kR1Q35Zh-DLKI1bkXR5VsTQ-8CIDv00dqxVolP9vMOV7C09cFRLZ-6bn2RPKmuvZhPBOOQ"
+[RUNNING]: gcc -Wall -Wextra -Wshadow -pedantic -ggdb -o video ./src/video.c -lgdi32 -lopengl32 -lole32 -lxaudio2_8 -lavformat -lavcodec -lavutil -lpthread -lswresample -lswscale -lssl -lcrypto -lws2_32
+Video size: (590, 360)
+204sec
+3.240000min
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: isommp42
+    encoder         : Google
+  Duration: 00:03:24.47, start: 0.000000, bitrate: 629 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Main) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 590x360 [SAR 1:1 DAR 59:36], 531 kb/s, 25 fps, 25 tbr, 12800 tbn (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 95 kb/s (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+[SWR @ 0000017c2b179b40] The "in_channel_layout" option is deprecated: set input channel layout (Deprecated, use in_chlayout)
+[SWR @ 0000017c2b179b40] The "out_channel_layout" option is deprecated: set output channel layout (Deprecated, use out_chlayout)
+
+Compilation finished at Tue Jun  6 15:58:09
