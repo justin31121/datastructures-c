@@ -11,9 +11,6 @@
 #define JSON_PARSER_IMPLEMENTATION
 #include "../libs/json_parser.h"
 
-#define ARRAY_IMPLEMENTATION
-#include "../libs/array.h"
-
 #define YOUTUBE_IMPLEMENTATION
 #include "../libs/youtube.h"
 
@@ -79,7 +76,13 @@ int main(int argc, char **argv) {
 
     string link = string_from_cstr(in);
     if(!string_chop_string(&link, STRING("https://open.spotify.com/"))) {
-	panic("wrong prefix");
+	Spotify_Results results;
+	if(!spotify_results_init(access_token, link, &temp, &results)) {
+	    panic("spotify_results_init");
+	}
+
+	spotify_results_dump(&results);
+	return 0;
     }
     string_chop_string(&link, STRING("intl-de/"));
 

@@ -306,6 +306,24 @@ FONT_DEF bool font_init2(Font2 *font, const char* font_path, int font_height) {
 
 #endif //STB_TRUETYPE_IMPLEMENTATION
 
+FONT_DEF unsigned int font_estimate_width_len2(const Font2 *font, const char *cstr, size_t cstr_len) {
+  unsigned int x0 = 0;
+  size_t k = 0;
+  while(k < cstr_len) {
+      unsigned char c = (unsigned char) cstr[k++];
+      if(c < 32 || c > 128) {
+	  c = '?';
+      }
+      if(c == ' '  ) { // c <= 128
+	  x0 += font->height * 1 / 4;
+      }      
+      else {
+	  x0 += font->xs[c - 32] + font->ws[c - 32];	  
+      }
+  }
+  return x0;
+}
+
 FONT_DEF unsigned int font_estimate_width2(const Font2 *font, const char *cstr) {
   unsigned int x0 = 0;
   while(*cstr) {

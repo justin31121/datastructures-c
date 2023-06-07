@@ -228,10 +228,6 @@ int wglSwapIntervalEXT(GLint interval) {
   return (int) _wglSwapIntervalEXT(interval);
 }
 
-#ifdef GUI_LOOPLESS
-#include "LooplessSizeMove.h"
-#endif //GUI_LOOPLESS
-
 #endif //_WIN32
 
 #include <stdbool.h>
@@ -652,11 +648,6 @@ GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, floa
 }
 
 #ifdef _WIN32
-
-#ifdef GUI_LOOPLESS
-#include "LooplessSizeMove.c"
-#define UsedWindowProc LSMProc
-#endif //GUI_LOOPLESS
 
 static LARGE_INTEGER guiWin32PerfCountFrequency;
 static HCURSOR guiDefaultCursor;

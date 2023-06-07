@@ -296,15 +296,15 @@ PLAYLIST_DEF void *playlist_from_spotify_thread(void *arg) {
 	    continue;
 	}
 	string name = string_from(name_buf, name_size);
-	string short_name = string_from(name_buf + name_off, name_size - name_off);
-	printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
+	//string short_name = string_from(name_buf + name_off, name_size - name_off);
+	//printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
 	//PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
 
 	string videoId;
 	if(!youtube_results_first(name, &context->http, &context->sb, &videoId)) {
 	    panic("youtube_results_first");
 	}
-	printf(String_Fmt"\n", String_Arg(videoId));
+	//printf(String_Fmt"\n", String_Arg(videoId));
 
 	string _url;
 	if(!youtube_get_audio2(videoId, &context->http, &context->sb, context->duk_ctx, &_url, NULL)) {
@@ -323,7 +323,8 @@ PLAYLIST_DEF void *playlist_from_spotify_thread(void *arg) {
 }
 
 PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, const char *_link) {
-    string_buffer_reserve(&playlist->sources, 1024 * 4);
+    (void) player;
+    string_buffer_reserve(&playlist->sources, 1024 * 1024);
 
     string link = string_from_cstr(_link);
     if(!string_chop_string(&link, STRING("https://open.spotify.com/"))) {
@@ -361,14 +362,12 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
 	if(!spotify_get_track_name(access_token, link, &playlist->context.sb, &name)) {
 	    panic("get_track_name");
 	}
-	printf(String_Fmt"\n", String_Arg(name));
 	PLAYLIST_NAME_LEN_APPEND(playlist, name.data, name.len);
 
 	string videoId;
 	if(!youtube_results_first(name, &playlist->context.http, &playlist->context.sb, &videoId)) {
 	    panic("youtube_results_first");
 	}
-	printf(String_Fmt"\n", String_Arg(videoId));
 
 	string _url;
 	if(!youtube_get_audio2(videoId, &playlist->context.http, &playlist->context.sb, playlist->context.duk_ctx, &_url, NULL)) {
@@ -396,7 +395,6 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
 	}
 	string name = string_from(name_buf, name_size);
 	string short_name = string_from(name_buf + name_off, name_size - name_off);
-	printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
 	
 	PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
 
@@ -404,7 +402,6 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
 	if(!youtube_results_first(name, &playlist->context.http, &playlist->context.sb, &videoId)) {
 	    panic("youtube_results_first");
 	}
-	printf(String_Fmt"\n", String_Arg(videoId));
 
 	string _url;
 	if(!youtube_get_audio2(videoId, &playlist->context.http, &playlist->context.sb, playlist->context.duk_ctx, &_url, NULL)) {

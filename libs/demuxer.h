@@ -17,7 +17,7 @@
 #define SAMPLES 1024
 
 #ifdef DEMUXER_IMPLEMENTATION
-#define DEMUXER_BUFFER_CAP 1024
+#define DEMUXER_BUFFER_CAP (2*8912)
 
 typedef struct{
   Http http;
@@ -110,7 +110,7 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
 
   } else if(player_socket_init(&demuxer->socket, filepath, 0, 0)) {
       demuxer->av_io_context =
-	  avio_alloc_context(NULL, 0, 0, &demuxer->socket, url_read, NULL, url_seek);
+	  avio_alloc_context(av_malloc(DEMUXER_BUFFER_CAP), DEMUXER_BUFFER_CAP, 0, &demuxer->socket, url_read, NULL, url_seek);
       if(!demuxer->av_io_context) {
 	  panic2("avio_alloc_context");
       }
@@ -642,10 +642,33 @@ void player_socket_free(Player_Socket *s) {
 }
 
 int url_read(void *opaque, uint8_t *buf, int _buf_size) {
-  Player_Socket *socket = (Player_Socket *) opaque;
+    Player_Socket *socket = (Player_Socket *) opaque;
 
-  int buf_size = _buf_size;
-  int buf_off = 0;
+    int buf_size = _buf_size;
+    int buf_off = 0;
+
+    while(buf_size > 0) {
+	ssize_t nbytes_total = http_read(&socket->http, buf + buf_off, buf_size);
+	if(nbytes_total == -1) {
+	    return -1; //network ERRROR
+	}
+	socket->pos += nbytes_total;
+	buf_size -= (int) nbytes_total;
+	buf_off += (int) nbytes_total;
+
+	if(socket->pos > socket->len) {
+	    return AVERROR_EOF;
+	}
+    }
+
+    return _buf_size;
+}
+
+int url_read2(void *opaque, uint8_t *buf, int _buf_size) {
+    Player_Socket *socket = (Player_Socket *) opaque;
+
+    int buf_size = _buf_size;
+    int buf_off = 0;
 
   do{
 
@@ -682,12 +705,25 @@ int url_read(void *opaque, uint8_t *buf, int _buf_size) {
       buf_size -= (int) len;
       buf_off += (int) len;
       
-    } else {
-	fprintf(stderr, "READING: %d\n", DEMUXER_BUFFER_CAP); fflush(stderr);
-	socket->nbytes_total = http_read(&socket->http, socket->buffer, DEMUXER_BUFFER_CAP);
+    } else {	
+	
+	if(buf_size == DEMUXER_BUFFER_CAP) {
+	    fprintf(stderr, "WRITING: %d\n", DEMUXER_BUFFER_CAP); fflush(stderr);
+	    ssize_t nbytes_total = http_read(&socket->http, buf, DEMUXER_BUFFER_CAP);
+
+	    if(nbytes_total == -1) {
+		return -1; //network ERRROR 
+	    }
+	    socket->pos += nbytes_total;
+	    buf_size -= nbytes_total;
+
+	} else {
+	    fprintf(stderr, "READING: %d\n", DEMUXER_BUFFER_CAP); fflush(stderr);
+	    socket->nbytes_total = http_read(&socket->http, socket->buffer, DEMUXER_BUFFER_CAP);
       
-	if(socket->nbytes_total == -1) {
-	    return -1; //network ERRROR 
+	    if(socket->nbytes_total == -1) {
+		return -1; //network ERRROR 
+	    }	    
 	}
     }
 

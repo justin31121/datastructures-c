@@ -15,8 +15,6 @@
 #define IO_IMPLEMENTATION
 #include "../libs/io.h"
 
-
-#define PRE_CALC_BUFFER 30
 double MS_PER_FRAME = (double) 1000.0 / (double) 60.0;
 
 //24 bits per pixel
@@ -109,7 +107,6 @@ void *audio_thread(void *arg) {
 	if(local_now >= audio_ms) {
 
 	    audio_play(&audio, data, buffer_size);
-
       
 	    data = buffer_data + index * buffer_stride;
 	    audio_pos++;
@@ -126,15 +123,43 @@ void *decoding_thread(void *arg) {
     (void) arg;
   
     while(!meta.stop) {
+
+
+
+	/*
 	while( (video_pos + PRE_CALC_BUFFER >= meta.frames->count) ||
 	       (audio_pos + PRE_CALC_BUFFER >= meta.samples->count)) {
+	*/
+	while(1) {
+
+	    int local_video_pos = video_pos;
+	    
+	    int video_slot = video_pos % meta.frames->cap;
+	    int video_index = meta.frames->count % meta.frames->cap;
+	    int next_video_index = (meta.frames->count+1) % meta.frames->cap;
+
+	    int local_audio_pos = audio_pos;
+
+	    int audio_slot = audio_pos % meta.samples->cap;
+	    int audio_index = meta.samples->count % meta.samples->cap;
+	    int next_audio_index = (meta.samples->count+1) % meta.samples->cap;
+
+
+	    if(!(video_slot != video_index
+		 && audio_slot != audio_index
+		 && (meta.samples->count - audio_pos < meta.samples->cap)
+		 && (meta.frames->count - video_pos < meta.frames->cap)
+		   )) {
+		break;
+	    }
+
 	    if(!demuxer_decode(&demuxer, save_decode, &meta)) break;
 	    if(meta.stop) break;
+	    //fprintf(stderr, "video_pos: %lld, Frames.count: %lld (%lld)\n", video_pos, meta.frames->count, meta.frames->count - video_pos); fprintf(stderr, "audio_pos: %lld, Samples.count: %lld (%lld)\n", audio_pos, meta.samples->count, meta.samples->count - audio_pos); fflush(stderr);
 	}
     
-	thread_sleep(5);
-	fprintf(stderr, "video_pos: %lld, Frames.count: %lld\n", video_pos, meta.frames->count);
-	fprintf(stderr, "audio_pos: %lld, Samples.count: %lld\n", audio_pos, meta.samples->count); fflush(stderr);
+	thread_sleep(10);
+	//fprintf(stderr, "video_pos: %lld, Frames.count: %lld (%lld)\n", video_pos, meta.frames->count, meta.frames->count - video_pos); fprintf(stderr, "audio_pos: %lld, Samples.count: %lld (%lld)\n", audio_pos, meta.samples->count, meta.samples->count - audio_pos); fflush(stderr);
     }
     return NULL;
 }
@@ -167,7 +192,7 @@ int main(int argc, char **argv) {
     Frames frames = {0};
     frames.width = demuxer.video_rgb_buffer_stride / 3;
     frames.height = demuxer.video_rgb_buffer_height;
-    frames.cap = PRE_CALC_BUFFER * 4;
+    frames.cap = 26;
 
     int64_t size = frames.width * frames.height
 	* bytes_per_pixel * frames.cap;
@@ -191,7 +216,7 @@ int main(int argc, char **argv) {
     Samples samples = {0};
     samples.sample_rate = demuxer.audio_sample_rate;
     samples.samples = SAMPLES;
-    samples.cap = PRE_CALC_BUFFER * 40;
+    samples.cap = 100;
   
     samples.ptss = (int64_t *) malloc(sizeof(int64_t) * samples.cap);
     if(!samples.ptss) { 
@@ -216,8 +241,8 @@ int main(int argc, char **argv) {
     /////////////////////////////////////////////////////////////////////////
 
     meta = (Meta) {&frames, &samples, false};
-
-    for(int i=0;i<PRE_CALC_BUFFER*4;i++) {
+    
+    for(int i=0;i<20;i++) {
 	if(!demuxer_decode(&demuxer, save_decode, &meta)) break;
     }
 
@@ -372,10 +397,8 @@ int main(int argc, char **argv) {
 	    video_pos = 0;
 	    meta.stop = false;
 
-	    for(int i=0;i<PRE_CALC_BUFFER*2;i++) {
-		demuxer_decode(&demuxer, save_decode, &meta);
-	    }
-	    while(frames.count < PRE_CALC_BUFFER) {
+	    while(frames.count < frames.cap) {
+		if(samples.count == samples.cap) break;
 		demuxer_decode(&demuxer, save_decode, &meta);
 	    }
 

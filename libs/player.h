@@ -43,11 +43,8 @@ typedef struct{
   Http http;
   const char *route;
   bool ssl;
+  bool close_connection;
   
-  char buffer[PLAYER_BUFFER_CAP];
-  ssize_t nbytes_total;
-  int64_t offset;
-
   int64_t len;
   int64_t pos;
 }Player_Socket;
@@ -69,7 +66,7 @@ typedef struct{
   float current_volume;
   float duration; //fancy
   float duration_abs;
-  int den;
+  int64_t den;
 
   bool decoder_used;
   bool playing;
@@ -159,13 +156,16 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
     }
     socket->route = route;
     socket->ssl = ssl;
+    socket->close_connection = true;
   } else {
-    if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
-      return false;
-    }
+      if(socket->close_connection) {
+	  if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+	      return false;
+	  }	  
+      }
   }
 
-  bool close_connection = false;
+  bool close_connection = socket->close_connection;
 
   char request_buffer[PLAYER_BUFFER_CAP];
   if(end == 0) {
@@ -200,13 +200,13 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
        (string_eq(value, STRING("close")) || string_eq(value, STRING("Close"))) ) {
 	close_connection = true;
     }
-  }
 
-  if(close_connection) {
-      http_free(&socket->http);
-      if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
-	  return false;
-      }      
+    if(close_connection) {
+	http_free(&socket->http);
+	if(!http_init2(&socket->http, socket->http.host, socket->http.host_len, socket->ssl)) {
+	    return false;
+	}
+    }
   }
 
   if(!sendf(http_send_len2, &socket->http, request_buffer, PLAYER_BUFFER_CAP,
@@ -220,11 +220,12 @@ PLAYER_DEF bool player_socket_init(Player_Socket *socket, const char *url, int s
 
   socket->pos = start;
   socket->len = end;
-  socket->offset = 0;
+
+  ssize_t nbytes_total;
+  ssize_t offset;
   if(!http_skip_headers(&socket->http,
-			socket->buffer, PLAYER_BUFFER_CAP,
-			&socket->nbytes_total, &socket->offset)) {
-    printf("here4\n"); fflush(stdout);
+			request_buffer, PLAYER_BUFFER_CAP,
+			&nbytes_total, &offset)) {
     return false;
   }
   
@@ -314,7 +315,6 @@ PLAYER_DEF bool player_device_init(Player *player, int sample_rate) {
   return true;
 }
 
-//TODO
 PLAYER_DEF bool player_device_free(Player *player) {
   if(player->sample_rate == 0) {
     return false;
@@ -425,64 +425,41 @@ PLAYER_DEF int64_t player_decoder_memory_seek(void *opaque, int64_t offset, int 
 }
 
 PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size) {
-  Player_Socket *socket = (Player_Socket *) opaque;
 
-  int buf_size = _buf_size;
-  int buf_off = 0;
+    Player_Socket *socket = (Player_Socket *) opaque;
 
-  do{
+    int buf_size = _buf_size;
+    int buf_off = 0;
+    int last_socket_pos = socket->pos;
 
-    if(socket->nbytes_total > 0) {
+    while(buf_size > 0) {
+	ssize_t nbytes_total = http_read(&socket->http, buf + buf_off, buf_size);
+	if(nbytes_total == -1) {
+	    if(socket->close_connection) {
+		player_socket_free(socket);
+	    }
+	    if(!player_socket_init(socket, NULL, (int) last_socket_pos, (int) socket->len)) {
+		///TODO: handle this error
+		return -1;
+	    }
+	    return player_decoder_url_read(opaque, buf, _buf_size);
 
-      int64_t len = (int64_t) (socket->nbytes_total - (ssize_t) socket->offset);
-      if(socket->pos + len > socket->len) {
-	len = socket->len - socket->pos;
-      }
-      
-      if(len == 0) {
-	socket->nbytes_total -= (ssize_t) socket->offset;
-	socket->offset = 0;
-	continue;
-      }
+	}
+	socket->pos += nbytes_total;
+	buf_size -= (int) nbytes_total;
+	buf_off += (int) nbytes_total;
 
-      if(len > buf_size) {
-	len = buf_size;
-	
-	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
-
-	socket->offset += len;
-      } else {
-
-	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
-	
-	socket->nbytes_total = 0;
-	socket->offset = 0;
-      }
-
-      socket->pos += len;
-      buf_size -= (int) len;
-      buf_off += (int) len;
-      
-    } else {
-      socket->nbytes_total = http_read(&socket->http, socket->buffer, PLAYER_BUFFER_CAP);
-      
-      if(socket->nbytes_total == -1) {
-	return -1; //network ERRROR 
-      }
-
+	if(socket->pos > socket->len) {
+	    return AVERROR_EOF;
+	}
     }
 
-    if(socket->pos > socket->len) {
-      return AVERROR_EOF;
-    }
+    return _buf_size;
 
-  }while(buf_size > 0 && socket->pos < socket->len);
-
-  
-  return _buf_size;
 }
 
 PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whence) {
+
     Player_Socket *socket = (Player_Socket *) opaque;
 
     int64_t pos = socket->pos;
@@ -500,52 +477,40 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
     case AVSEEK_SIZE:
 	return (int64_t) socket->len;
     default:
-	printf("something different: %d\n", whence); fflush(stdout);
+	//TODO: handle this error, log or something
 	return AVERROR_INVALIDDATA;
     }
 
     if(pos < 0 || pos > socket->len) return AVERROR_EOF;
     if(pos - socket->pos > (10 * PLAYER_BUFFER_CAP) || pos < socket->pos) {
-      player_socket_free(socket);
-      player_socket_init(socket, NULL, (int) pos, (int) socket->len);
-    }
-
-    while(socket->pos < pos){
-	if(socket->nbytes_total > 0) {
-
-	    int64_t len = (int64_t) (socket->nbytes_total - (ssize_t) socket->offset);
-	    if(socket->pos + len > socket->len) {
-		len = socket->len - socket->pos;
-	    }
-      
-	    if(len == 0) {
-		socket->nbytes_total -= (ssize_t) socket->offset;
-		socket->offset = 0;
-		continue;
-	    }
-
-	    if(socket->pos + len > pos) {
-		len = pos - socket->pos;
-		socket->offset += len;
-	    } else {
-		socket->nbytes_total = 0;
-		socket->offset = 0;			
-	    }
-
-	    socket->pos += len;
-	} else if(socket->pos < pos) {
-	    socket->nbytes_total = http_read(&socket->http, socket->buffer, PLAYER_BUFFER_CAP);      
-	    if(socket->nbytes_total == -1) {
-		return -1; //network ERRROR 
-	    }
-	}	
-	if(socket->pos > socket->len) {
-	    return AVERROR_EOF;
+	if(socket->close_connection) {
+	    player_socket_free(socket);
+	}
+	if(!player_socket_init(socket, NULL, (int) pos, (int) socket->len)) {
+	    //TODO: handle this error, log or something
+	    return -1;
 	}
     }
 
-    return (int64_t) socket->pos;
+    while(socket->pos < pos){
+	int count = pos - socket->pos;
+	ssize_t nbytes_total = http_read(&socket->http, NULL, count);
+	if(nbytes_total != -1) {
+	    socket->pos += (int64_t) nbytes_total;
+	} else {	    
+	    if(socket->close_connection) {
+		player_socket_free(socket);
+	    }
+	    if(!player_socket_init(socket, NULL, (int) pos, (int) socket->len)) {
+		//TODO: handle this error, log or something
+		return -1;
+	    }
+	}       
+    }
+
+    return socket->pos;
 }
+
 
 PLAYER_DEF bool player_open(Player *player, const char *path) {
   if(player_open_file(player, path)) {
@@ -636,7 +601,7 @@ PLAYER_DEF bool player_open_url(Player *player, const char *url) {
   }
   player->decoder_used = true;
 
-  player_init_stats(player);  
+  player_init_stats(player);
   return true;
 }
 
@@ -704,9 +669,9 @@ PLAYER_DEF void *player_play_thread(void *arg) {
     
   }
 
-  if(player->buffer.last_size < 0) {
-    player_stop(player);
-    player->buffer.last_size = -3;
+  if(player->playing) {
+      player_stop(player);
+      player->buffer.last_size = -3;
   }
   
   return NULL;

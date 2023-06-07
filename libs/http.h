@@ -1784,10 +1784,12 @@ HTTP_DEF bool http_read_body(Http *http, HttpWriteCallback write_callback,
 		}
 		if(need > 0) {		    
 		    int64_t bar = (int64_t) i + 1 - off;
+		    /*
 		    if(!(need - bar >= 0)) {
 			//printf("need: %ld, i: %ld, off: %lu\n", need, i, off);
 			panic("assert");
 		    }
+		    */
 		    write_callback(buf + off, bar, 1, userdata);
 		    need -= bar;
 		}

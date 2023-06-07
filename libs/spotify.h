@@ -25,6 +25,18 @@ SPOTIFY_DEF bool spotify_album_by_id(const char* albumId, Json *json);
 SPOTIFY_DEF bool spotify_track_by_id(const char* track, Json *json);
 SPOTIFY_DEF bool spotify_get_keyword(const Json track, char keyword[1024]);
 
+/////////////////////////////////////////////////////////////////////////////
+
+typedef struct{
+    string prev;
+    Arr *names;
+    bool in_tracks;
+}Spotify_Results;
+
+SPOTIFY_DEF bool spotify_results_init(string access_token, string keyword, String_Buffer *sb, Spotify_Results *results);
+SPOTIFY_DEF void spotify_results_dump(Spotify_Results *results);
+SPOTIFY_DEF void spotify_results_free(Spotify_Results *results);
+
 typedef struct{
     Arr *names;
     string prev;
@@ -451,6 +463,71 @@ SPOTIFY_DEF bool spotify_tracks_next(Spotify_Tracks *tracks, char *buffer, size_
 SPOTIFY_DEF void spotify_track_names_free(Spotify_Tracks *tracks) {
     arr_free(tracks->names);
 }
+
+SPOTIFY_DEF bool spotify_on_elem_results_init(Json_Parse_Type type, string content, void *arg, void **elem) {
+    (void) type;
+    (void) elem;
+
+    Spotify_Results *results = (Spotify_Results *) arg;
+    results->prev = content;
+
+    return true;
+}
+
+SPOTIFY_DEF void spotify_on_object_elem_results_init(void *object, string key, void *elem, void *arg) {
+    (void) object;
+    (void) elem; 
+
+    Spotify_Results *results = (Spotify_Results *) arg;
+    if( string_eq_cstr(key, "name") || string_eq_cstr(key, "id") ) {
+	arr_push(results->names, &results->prev);
+    }
+
+    if( string_eq_cstr(key, "tracks") ) {
+	results->in_tracks = true;
+    }
+}
+
+SPOTIFY_DEF bool spotify_results_init(string access_token, string keyword, String_Buffer *sb, Spotify_Results *results) {
+    size_t sb_len = sb->len;
+
+    string term = tsmap(sb, keyword, http_encodeURI);
+    const char *url = tprintf(sb, "https://api.spotify.com/v1/search?q="String_Fmt"&type=playlist,album,track", String_Arg(term));
+    const char *auth = tprintf(sb, "Authorization: Bearer "String_Fmt"\r\n", String_Arg(access_token));
+    
+    sb->len = sb_len;
+    if(!http_get(url, string_buffer_callback, sb, NULL, auth)) {
+	return false;
+    }
+    string response = string_from(sb->data + sb_len, sb->len - sb_len);
+
+    //printf( String_Fmt"\n", String_Arg(response) );
+
+    *results = (Spotify_Results) {0};
+    results->names = arr_init2(sizeof(string), 1024);
+  
+    Json_Parse_Events events = {0};
+    events.on_elem = spotify_on_elem_results_init;
+    events.on_object_elem = spotify_on_object_elem_results_init;
+    events.arg = results;
+    if(!json_parse2(response.data, response.len, &events)) {
+	return false;
+    }
+
+    return true;
+}
+
+SPOTIFY_DEF void spotify_results_dump(Spotify_Results *results) {
+    for(size_t i=0;i<results->names->count;i++) {
+	string name = *(string *) arr_get(results->names, i);
+	printf( String_Fmt"\n", String_Arg(name) );
+    }
+}
+
+SPOTIFY_DEF void spotify_results_free(Spotify_Results *results) {
+    (void) results;
+}
+
 
 #endif //SPOTIFY_IMPLEMENTATION
 
