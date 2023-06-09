@@ -712,7 +712,7 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
 	    (string_index_of(content, "audio/mp4") >= 0)  ||
 	    (string_index_of(content, "audio/webm") >= 0) ) {
 	    if(foo->tag.len) {
-		if(string_index_of(foo->prev, "https://") == 0 &&
+		if(string_index_of(foo->prev, "https://") == 0 &&		   
 		   string_eq(foo->prev_prev, foo->tag) ) {
 		    foo->is_signature = false;
 		    foo->signature = foo->prev;
@@ -725,6 +725,8 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
 		    arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
 		    arr_push(foo->strings, &foo->prev_prev);
 		    arr_push(foo->strings, &content);
+		    string sig = STRING("sig");
+		    arr_push(foo->strings, &sig);
 		    arr_push(foo->strings, &foo->prev);
 		} else {
 		    foo->state = 1;

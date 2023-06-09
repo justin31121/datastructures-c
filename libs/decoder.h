@@ -403,11 +403,14 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
       return false;
   }
 
+  /*
   char chLayoutDescription[128];
   int sts = av_channel_layout_describe(&av_codec_parameters->ch_layout, chLayoutDescription, sizeof(chLayoutDescription));
   if(sts < 0) {
       return false;
   }
+  */
+  char *chLayoutDescription = "stereo";
 
   av_opt_set(decoder->swr_context, "in_channel_layout", chLayoutDescription, 0);
   av_opt_set_int(decoder->swr_context, "in_sample_fmt", decoder->av_codec_context->sample_fmt, 0);

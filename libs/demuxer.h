@@ -688,14 +688,14 @@ int url_read2(void *opaque, uint8_t *buf, int _buf_size) {
       if(len > buf_size) {
 	len = buf_size;
 
-	fprintf(stderr, "WRITING: %lld\n", len); fflush(stderr);
+	fprintf(stderr, "WRITING: %ld\n", len); fflush(stderr);
 	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
 
 	socket->offset += len;
       } else {
 
-	  fprintf(stderr, "WRITING: %lld\n", len); fflush(stderr);
-	memcpy(buf + buf_off, socket->buffer + socket->offset, len);
+	  fprintf(stderr, "WRITING: %ld\n", len); fflush(stderr);
+	  memcpy(buf + buf_off, socket->buffer + socket->offset, len);
 	
 	socket->nbytes_total = 0;
 	socket->offset = 0;
