@@ -63,7 +63,7 @@ AUDIO_DEF bool audio_init(Audio *audio, int channels, int sample_rate) {
   return true;
 }
 
-AUDIO_DEF void audio_play(Audio *audio, unsigned char *data, unsigned_int data_size) {
+AUDIO_DEF void audio_play(Audio *audio, unsigned char *data, unsigned int data_size) {
   xaudio_device_play_async( &audio->device, data, data_size );
 }
 #endif //_WIN32
