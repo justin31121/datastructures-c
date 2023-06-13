@@ -90,6 +90,7 @@ void *audio_thread(void *arg) {
 
 	if(local_now >= audio_ms) {
 
+	    printf("AUDIO: %lf >= %lf\n", local_now, audio_ms); fflush(stdout);
 	    audio_play(&audio, data, buffer_size);
       
 	    data = buffer_data + index * buffer_stride;
@@ -110,7 +111,7 @@ void *decoding_audio_thread(void *arg) {
         int audio_slot = audio_pos % meta.samples->cap;
 	int audio_index = meta.samples->count % meta.samples->cap;
 
-	while( (audio_slot != audio_index) && (meta.samples->count - audio_pos < meta.samples->cap)) {
+	while( (audio_slot != audio_index) && (meta.samples->count - audio_pos< meta.samples->cap)) {
 	    demuxer_decode(&demuxer_audio, save_decode, &meta);
 	}
 
@@ -163,6 +164,10 @@ int main(int argc, char **argv) {
   
     printf("%fmin\n", secs + comma);
 
+    if(!audio_init(&audio, 2, demuxer_audio.sample_rate)) {
+	return 1;
+    }
+
     ////////////////////////////////////////////////////////////////////////// 
  
     int64_t bytes_per_sample = 4;
@@ -170,7 +175,7 @@ int main(int argc, char **argv) {
     Samples samples = {0};
     samples.sample_rate = demuxer_audio.sample_rate;
     samples.samples = SAMPLES;
-    samples.cap = 20;
+    samples.cap = 100;
   
     samples.ptss = (int64_t *) malloc(sizeof(int64_t) * samples.cap);
     if(!samples.ptss) { 
@@ -195,24 +200,21 @@ int main(int argc, char **argv) {
     /////////////////////////////////////////////////////////////////////////
 
     meta = (Meta) {&samples, false};
-    
-    for(int i=0;i<20;i++) {
-	if(!demuxer_decode(&demuxer_audio, save_decode, &meta)) break;
-	if(!demuxer_decode(&demuxer_video, save_decode, &meta)) break;
+
+    for(int i=0;i<40;i++) demuxer_decode(&demuxer_video, NULL, &meta);
+    for(int i=0;i<20;i++) demuxer_decode(&demuxer_audio, save_decode, &meta);
+
+    printf("video_count: %lld, audio_count: %lld\n", demuxer_video.count, samples.count); 
+    fflush(stdout);
+
+    for(int i=0;i<19;i++) {
+	printf("video_pts: %lld\n", demuxer_video.ptss[i % demuxer_video.cap]);
     }
 
-    Thread decoding_video_thread_id, decoding_audio_thread_id;
-    if(!thread_create(&decoding_video_thread_id, decoding_video_thread, NULL)) {
-	return 1;
+    for(int i=0;i<19;i++) {
+	printf("audio_pts: %lld\n", samples.ptss[i % samples.cap]);
     }
-    if(!thread_create(&decoding_audio_thread_id, decoding_audio_thread, NULL)) {
-	return 1;
-    }
-
-    if(!audio_init(&audio, 2, demuxer_audio.sample_rate)) {
-	return 1;
-    }
-
+	
     /////////////////////////////////////////////////////////////////////////
    
     Gui gui;
@@ -251,16 +253,24 @@ int main(int argc, char **argv) {
 		    (GLsizei) demuxer_video.buffer_height,
 		    GL_RGB,
 		    GL_UNSIGNED_BYTE,
-		    demuxer_video.buffer + ((video_pos % demuxer_video.cap) * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
+		    demuxer_video.buffer + ((video_pos++ % demuxer_video.cap) * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
 
     bool paused = false;
 
     Thread audio_thread_id;
-    if(!thread_create(&audio_thread_id, audio_thread, &samples)) {
+    Thread decoding_video_thread_id, decoding_audio_thread_id;
+    if(!thread_create(&decoding_video_thread_id, decoding_video_thread, NULL)) {
+	return 1;
+    }
+    if(!thread_create(&decoding_audio_thread_id, decoding_audio_thread, NULL)) {
 	return 1;
     }
 
     bool bar_clicked = false;
+
+    if(!thread_create(&audio_thread_id, audio_thread, &samples)) {
+	return 1;
+    }
 
     float width = 0.f, height = 0.f;
     Gui_Event event;
@@ -283,6 +293,12 @@ int main(int argc, char **argv) {
 	}
 
 	mutex_lock(mutex);
+	if(!paused) {
+	    now += MS_PER_FRAME;
+	}
+	mutex_release(mutex);
+
+	mutex_lock(mutex);
 	double local_now = now;
 	mutex_release(mutex);
 
@@ -290,13 +306,11 @@ int main(int argc, char **argv) {
     
 	double video_ms = (double) (av_rescale_q(demuxer_video.ptss[index], demuxer_video.time_base, AV_TIME_BASE_Q) * 1000 / AV_TIME_BASE);
 	if(local_now >= video_ms) {
-	    //printf("%lld ms\n", now);
+	    if(video_pos == 0) {
+	    }
+	    //printf("%lf ms, video_pos: %lld, index: %ld\n", now, video_pos, index); fflush(stdout);
 	    video_pos++;
-	    if(video_pos >= demuxer_video.count - 1) {
-		gui.running = false;
-		printf("exited fine\n"); fflush(stdout);
-		break;
-	    }      
+	    printf("VIDEO: %lf >= %lf\n", local_now, video_ms); fflush(stdout);
 	    glTexSubImage2D(GL_TEXTURE_2D,
 			    0,
 			    0,
@@ -306,6 +320,12 @@ int main(int argc, char **argv) {
 			    GL_RGB,
 			    GL_UNSIGNED_BYTE,
 			    demuxer_video.buffer + (index * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
+	    if(video_pos >= demuxer_video.count - 1) {
+		gui.running = false;
+		printf("exited fine\n"); fflush(stdout);
+		break;
+	    }
+
 	}
     
 	gui_get_window_sizef(&gui, &width, &height);
@@ -314,8 +334,8 @@ int main(int argc, char **argv) {
 	float mouse_y = (float) event.mousey;
 	gui_mouse_to_screenf(width, height, &mouse_x, &mouse_y);
 
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
+	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	//glEnable(GL_BLEND);
 	glEnable(GL_TEXTURE_2D);
     
 	glViewport(0, 0, (int) width, (int) height);
@@ -435,13 +455,7 @@ int main(int argc, char **argv) {
 	glVertex2f(( - cursor_width/2 + cursor_x )/width*2.0-1.0, padding/height*2.0-1.0);
     
 	glEnd();
-    
-	mutex_lock(mutex);
-	if(!paused) {
-	    now += MS_PER_FRAME;
-	}
-	mutex_release(mutex);
-
+  
 	double seconds = now / 1000;
 	double minutes = (double) ((int64_t) (seconds / 60) % 10);
 	double fractional = roundf(seconds - minutes * 60.0) / 100.0;

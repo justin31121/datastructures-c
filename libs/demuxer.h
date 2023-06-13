@@ -135,7 +135,7 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
     if(avformat_find_stream_info(demuxer->av_format_context, NULL) < 0) {
 	panic2("avformat_find_stream_info");
     }
-    av_dump_format(demuxer->av_format_context, 0, "", 0);
+    //av_dump_format(demuxer->av_format_context, 0, "", 0);
 
     demuxer->stream = -1; // for now unused
 
@@ -271,7 +271,7 @@ void demuxer_init(Demuxer *demuxer, const char *filepath) {
 	
 	int64_t bytes_per_pixel = 3;
 	demuxer->count = 0;
-	demuxer->cap = 10;
+	demuxer->cap = 50;
 	
 	int64_t size = video_width * video_height
 	    * bytes_per_pixel * demuxer->cap;
@@ -311,43 +311,43 @@ bool demuxer_decode(Demuxer *demuxer, Demuxer_On_Decode on_decode, void *arg) {
     if(demuxer->skip_extract_frame) {
 	demuxer->skip_extract_frame = false;
     } else {
-	if(av_read_frame(demuxer->av_format_context, demuxer->packet) < 0) {
-	    return false;
-	}    
+	do{
+	    if(av_read_frame(demuxer->av_format_context, demuxer->packet) < 0) {
+		return false;
+	    }	    
+	}while(demuxer->packet->stream_index != demuxer->stream);
     }
 
-    if(demuxer->packet->stream_index == demuxer->stream) {	
-	if(avcodec_send_packet(demuxer->av_codec_context, demuxer->packet)) {
-	    panic2("avcodec_send_packet");
+    if(avcodec_send_packet(demuxer->av_codec_context, demuxer->packet)) {
+	panic2("avcodec_send_packet");
+    }
+
+    int response;
+    while( (response = avcodec_receive_frame(demuxer->av_codec_context, demuxer->frame)) >= 0) {
+	if(response < 0) {
+	    panic2("avcodec_receive_frame");
+	} else if(response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
+	    break;
 	}
+	demuxer->pts = demuxer->frame->pts;
 
-	int response;
-	while( (response = avcodec_receive_frame(demuxer->av_codec_context, demuxer->frame)) >= 0) {
-	    if(response < 0) {
-		panic2("avcodec_receive_frame");
-	    } else if(response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
-		break;
-	    }
-	    demuxer->pts = demuxer->frame->pts;
-
-	    int64_t index = demuxer->count % demuxer->cap;
-	    if(demuxer->is_audio) {
-		//TODO: maybe in the future you have to supply out_samples?
-		int out_samples = swr_convert(demuxer->as.swr_context, &demuxer->buffer, demuxer->samples, (const unsigned char **) (demuxer->frame->data), demuxer->frame->nb_samples);
+	if(demuxer->is_audio) {
+	    //TODO: maybe in the future you have to supply out_samples?
+	    int out_samples = swr_convert(demuxer->as.swr_context, &demuxer->buffer, demuxer->samples, (const unsigned char **) (demuxer->frame->data), demuxer->frame->nb_samples);
       
-		while(out_samples > 0) {
-		    on_decode(demuxer, demuxer->frame->pts, out_samples, arg);
-		    out_samples = swr_convert(demuxer->as.swr_context, &demuxer->buffer, demuxer->samples, NULL, 0);
-		}
-	    } else {
-		unsigned char *buffer = demuxer->buffer + (index * demuxer->buffer_width * demuxer->buffer_height * (int64_t) 3);
-		sws_scale(demuxer->as.sws_context, (const uint8_t * const*) demuxer->frame->data, demuxer->frame->linesize, 0, demuxer->buffer_height, &buffer, &demuxer->buffer_stride);
-		demuxer->ptss[index] = demuxer->frame->pts;
-		demuxer->count++;
+	    while(out_samples > 0) {
+		on_decode(demuxer, demuxer->frame->pts, out_samples, arg);
+		out_samples = swr_convert(demuxer->as.swr_context, &demuxer->buffer, demuxer->samples, NULL, 0);
 	    }
-
-	    av_frame_unref(demuxer->frame);
+	} else {
+	    int64_t index = demuxer->count % demuxer->cap;
+	    unsigned char *buffer = demuxer->buffer + (index * demuxer->buffer_width * demuxer->buffer_height * (int64_t) 3);
+	    sws_scale(demuxer->as.sws_context, (const uint8_t * const*) demuxer->frame->data, demuxer->frame->linesize, 0, demuxer->buffer_height, &buffer, &demuxer->buffer_stride);
+	    demuxer->ptss[index] = demuxer->frame->pts;
+	    demuxer->count++;
 	}
+
+	av_frame_unref(demuxer->frame);
     }
 
     av_packet_unref(demuxer->packet);

@@ -65,7 +65,7 @@ int main(int argc, char ** argv) {
 	
     } else if(strcmp(arg, "video") == 0) {
 	if(use_gcc) {
-	    ret = run("gcc -O3", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl);
+	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl);
 	} else {
 	    ret = run("cl", flags, "/Fe:video ./src/video.c");
 	}
@@ -148,6 +148,10 @@ int main(int argc, char ** argv) {
     } else if(strcmp(arg, "browser") == 0) {
 	if(use_gcc) {
 	    ret = run("gcc", flags, "-o browser ./src/browser.c", link_ssl, link_video);
+	}
+    } else if(strcmp(arg, "viewer") == 0) {
+	if(use_gcc) {
+	    ret = run("gcc", flags, "-o viewer ./src/viewer.c", link_video);
 	}
     } else {	
 	fprintf(stderr, "ERROR: Unknown target: '%s'\n", arg);

@@ -244,6 +244,7 @@ typedef enum{
   GUI_EVENT_MOUSERELEASE,
   GUI_EVENT_MOUSEWHEEL,
   GUI_EVENT_MOUSEMOTION,
+  GUI_EVENT_FILEDROP,
   GUI_EVENT_COUNT,
 }Gui_Event_Type;
 
@@ -260,6 +261,7 @@ typedef struct{
   union{
     char key;
     int amount;
+    long long value;
   }as;
   int mousex;
   int mousey;
@@ -328,9 +330,9 @@ GUI_DEF void gui_swap_buffers(Gui *gui);
 #ifdef _MSC_VER
 #  pragma comment(lib,"gdi32.lib")
 #  pragma comment(lib,"user32.lib")
-#  ifdef GUI_OPENGL
+#  ifndef GUI_NO_OPENGL
 #    pragma comment(lib,"opengl32.lib")
-#  endif //GUI_OPENGL
+#  endif //GUI_NO_OPENGL
 #endif //_WIN32
 
 #ifdef linux
@@ -713,7 +715,8 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   STARTUPINFO startupInfo;
   GetStartupInfo(&startupInfo);
   DWORD nCmdShow = startupInfo.wShowWindow;
-  
+
+  //LoadIcon (NULL, IDI_WINLOGO), LoadCursor (NULL, IDC_ARROW), (HBRUSH) GetStockObject (WHITE_BRUSH)
   WNDCLASS wc = {0};
   wc.lpfnWndProc = Gui_Implementation_WndProc;
   wc.hInstance = hInstance;
@@ -728,7 +731,12 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   int screenWidth = GetSystemMetrics(SM_CXSCREEN);
   int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-  gui->win = CreateWindowEx(0,
+  DWORD flags = 0;
+#ifdef GUI_DRAG_N_DROP
+  flags |= WS_EX_ACCEPTFILES;
+#endif //GUI_DRAG_N_DROP
+
+  gui->win = CreateWindowEx(flags,
 			    wc.lpszClassName,
 			    wc.lpszClassName,
 			    WS_OVERLAPPEDWINDOW,
@@ -904,6 +912,10 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   DispatchMessage(msg);
 
   switch(msg->message) {
+  case WM_DROPFILES: {
+      event->type = GUI_EVENT_FILEDROP;
+      event->as.value = msg->wParam;
+  } break;
   case WM_MOUSEWHEEL:
   case WM_MOUSEHWHEEL: {
     event->type = GUI_EVENT_MOUSEWHEEL; 
@@ -962,7 +974,7 @@ GUI_DEF unsigned long gui_time_measure(Gui_Time *reference) {
 }
 
 GUI_DEF bool gui_init_opengl(Gui *gui) {
-#ifdef GUI_OPENGL
+#ifndef GUI_NO_OPENGL
   HDC windowDC = GetDC(gui->win);
 
   PIXELFORMATDESCRIPTOR desiredFormat = {0};
@@ -986,7 +998,7 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
   win32_opengl_init();
 #else
   (void) gui;
-#endif //GUI_OPENGL
+#endif //GUI_NO_OPENGL
   return true;
 }
 
