@@ -50,6 +50,8 @@ typedef struct{
   string tag;
   string signature;
   bool is_signature;
+
+  bool is_raw;
 }Youtube_Info;
 
 YOUTUBE_DEF bool youtube_get_response(string videoId, Http * http, String_Buffer *sb, string *response);
@@ -630,43 +632,43 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *s
   size_t sb_len = sb->len;
   for(int i=0;i<4;i++) {
       sb->len = sb_len;
-      fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") %d/%d\n", String_Arg(videoId), i+1, 4);
+      //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") %d/%d\n", String_Arg(videoId), i+1, 4);
       
       string response;
       if(!youtube_get_response(videoId, http, sb, &response)) {
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not get youtube response\n", String_Arg(videoId) );
+	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not get youtube response\n", String_Arg(videoId) );
 	  continue;
       }
   
       if(!youtube_info_first_stream(response, STRING("140"), &signature, &is_signature)) {
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not find stream \"140\"\n", String_Arg(videoId) );
+	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not find stream \"140\"\n", String_Arg(videoId) );
 	  continue;
       }
       
       if(!is_signature) {
 	  *url = tsmap(sb, signature, http_decodeURI);
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") No Signature. Pure Stream\n", String_Arg(videoId) );
+	  //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") No Signature. Pure Stream\n", String_Arg(videoId) );
 	  return true;
       }
 
       if(!youtube_decoder_init(response, http, sb, &decoder)) {
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not init decoder\n", String_Arg(videoId) );
+	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not init decoder\n", String_Arg(videoId) );
 	  continue;
       }
 
       const char *stream_url;
       if(!youtube_decoder_decode(&decoder, sb, duk_ctx, signature, &stream_url)) {
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not decode\n", String_Arg(videoId) );
+	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not decode\n", String_Arg(videoId) );
 	  continue;
       }
 
       if(!http_head(stream_url, &header, NULL)) {
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
+	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
 	  continue;
       }
 
       if(200 != http_header_response_code(&header)) {
-	  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
+	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
 	  continue;
       }
 
@@ -722,9 +724,12 @@ YOUTUBE_DEF bool youtube_on_elem_info_init(Json_Parse_Type type, string content,
 		}
 	    } else {
 		if(string_index_of(foo->prev, "https://") == 0) {
+		  foo->is_raw = true;
 		    arr_push(foo->strings, &YOUTUBE_INFO_FRAME);
-		    arr_push(foo->strings, &foo->prev_prev);
+		    arr_push(foo->strings, &foo->prev_prev);		    
 		    arr_push(foo->strings, &content);
+		    string sig = STRING("sig");
+		    arr_push(foo->strings, &sig);
 		    arr_push(foo->strings, &foo->prev);
 		} else {
 		    foo->state = 1;
@@ -877,11 +882,17 @@ YOUTUBE_DEF void youtube_info_free(Youtube_Info *info) {
 
 YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info) {
 
+  /*
+  size_t k=0;
+  while(k<info->strings->count) {
+    string next = *(string *) arr_get(info->strings, k++);
+    printf( String_Fmt"\n", String_Arg(next) );
+  }
+  */
 
   const char *display[] = {"width", "height", "fps", "audioSampleRate"};
 
-  size_t i = 0;
-  i=1;
+  size_t i=1;
   while(i<info->strings->count) {
     string tag = *(string *) arr_get(info->strings, i++);
     string type = *(string *) arr_get(info->strings, i++);
@@ -889,7 +900,7 @@ YOUTUBE_DEF void youtube_info_dump(Youtube_Info *info) {
     printf(String_Fmt" - "String_Fmt"\n", String_Arg(tag), String_Arg(type));
 
     string next = *(string *) arr_get(info->strings, i++);
-    while(!string_eq(next, YOUTUBE_INFO_FRAME)) {
+    while(i<info->strings->count && !string_eq(next, YOUTUBE_INFO_FRAME)) {
       string value = *(string *) arr_get(info->strings, i++);
 
       bool hide = true;
@@ -1400,6 +1411,7 @@ YOUTUBE_DEF bool youtube_results_first(string term, Http *http, String_Buffer *s
 }
 
 YOUTUBE_DEF void youtube_results_dump(Youtube_Results *results) {
+  
   for(size_t i=0;i<results->videoIds->count;i+=2) {
     string videoId = *(string *) arr_get(results->videoIds, i);
     string title = *(string *) arr_get(results->videoIds, i+1);

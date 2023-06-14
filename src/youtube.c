@@ -133,7 +133,27 @@ int main(int argc, char **argv) {
     }
 
     if(!is_signature) {
-	printf(String_Fmt"\n", String_Arg( tsmap(&sb, signature, http_decodeURI) ));
+
+
+      string url_string = tsmap(&sb, signature, http_decodeURI);
+      const char* url = tprintf(&sb, String_Fmt, String_Arg(url_string) );
+	if(download) {
+	  char *out_buffer;
+	  size_t out_buffer_size;
+	  printf("Url: '%s'\n", url);
+      
+	  download3(url, true, &out_buffer, &out_buffer_size);
+
+	  if(!out_name) {
+	    out_name = "videoplayback.mp4";
+	  }
+	  io_write_file_len(out_name, out_buffer, out_buffer_size);
+	  printf("Saved: '%s'\n", out_name);
+	  return 0;
+	}
+
+	printf(String_Fmt"\n", String_Arg( url_string ));
+	
 	return 0;
     }
 
