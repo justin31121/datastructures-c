@@ -652,7 +652,6 @@ GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, floa
 #ifdef _WIN32
 
 static LARGE_INTEGER guiWin32PerfCountFrequency;
-static HCURSOR guiDefaultCursor;
 
 #ifndef UsedWindowProc
 #define UsedWindowProc DefWindowProc
@@ -689,9 +688,6 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
       return 0;
     }
     return UsedWindowProc(hWnd, message, wParam, lParam);
-  } else if(message == WM_SETCURSOR) {
-    SetCursor(guiDefaultCursor);
-    return UsedWindowProc(hWnd, message, wParam, lParam);
   } else {
     return UsedWindowProc(hWnd, message, wParam, lParam);
   }
@@ -707,8 +703,6 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   if(!guiWin32PerfCountFrequency.QuadPart) {
     QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
   }
-  
-  guiDefaultCursor = LoadCursor(0, IDC_ARROW);
 
   HMODULE hInstance = GetModuleHandle(NULL);
 
@@ -716,16 +710,43 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   GetStartupInfo(&startupInfo);
   DWORD nCmdShow = startupInfo.wShowWindow;
 
-  //LoadIcon (NULL, IDI_WINLOGO), LoadCursor (NULL, IDC_ARROW), (HBRUSH) GetStockObject (WHITE_BRUSH)
-  WNDCLASS wc = {0};
+  WNDCLASSEX wc = {0};
+  wc.cbSize = sizeof(WNDCLASSEX);
+  //wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+  wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
   wc.lpfnWndProc = Gui_Implementation_WndProc;
   wc.hInstance = hInstance;
   wc.lpszClassName = name;
-  //wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
   wc.cbWndExtra = sizeof(LONG_PTR);
+  wc.cbClsExtra = 0;
+  //HANDLE icon = LoadIcon(NULL, IDI_APPLICATION);
+  /*
+  HANDLE icon = (HICON) LoadImage( // returns a HANDLE so we have to cast to HICON
+      NULL,             // hInstance must be NULL when loading from a file
+      "rsc\\icon.ico",   // the icon file name
+      IMAGE_ICON,       // specifies that the file is an icon
+      0,                // width of the image (we'll specify default later on)
+      0,                // height of the image
+      LR_LOADFROMFILE|  // we want to load a file (as opposed to a resource)
+      LR_DEFAULTSIZE|   // default metrics based on the type (IMAGE_ICON, 32x32)
+      LR_SHARED         // let the system release the handle when it's no longer used
+      );
+  */
 
-  if(!RegisterClass(&wc)) {
-    return false;
+  /*
+  //TODO: unhardcode this
+  int offset = LookupIconIdFromDirectoryEx(icon_data, TRUE, 0, 0, LR_DEFAULTCOLOR);
+  HICON icon = CreateIconFromResourceEx(icon_data + offset, icon_size - offset, TRUE, 0x30000, 0, 0, LR_DEFAULTCOLOR);
+  */
+  HICON icon = LoadIcon(hInstance, MAKEINTRESOURCE(1));
+  wc.hIcon = icon; // ICON when tabbing
+  wc.hIconSm = icon; //ICON default
+  wc.hCursor = LoadCursor (NULL, IDC_ARROW);
+  //wc.hbrBackground = (HBRUSH) GetStockObject (WHITE_BRUSH);
+
+  if(!RegisterClassEx(&wc)) {
+      printf("here\n"); fflush(stdout);
+      return false;
   }
 
   int screenWidth = GetSystemMetrics(SM_CXSCREEN);
