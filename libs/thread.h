@@ -97,6 +97,23 @@ void thread_sleep(int ms) {
     }
 }
 
+int mutex_create(Mutex *mutex) {
+  if(pthread_mutex_init(mutex, NULL) != 0) {
+    return 0;
+  }
+
+  return 1;
+}
+
+void mutex_lock(Mutex mutex) {
+  pthread_mutex_lock(&mutex);
+}
+
+void mutex_release(Mutex mutex) {
+  pthread_mutex_unlock(&mutex);
+}
+
+
 #endif //__GNUC__
 
 #endif //THREAD_IMPLEMENTATION

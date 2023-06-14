@@ -24,7 +24,7 @@ String_Buffer html_content = {0};
 String_Buffer sb = {0};
 size_t lines = 0;
 
-const char *visible_tags[] = {"h1", "p", "a", "div", "span", "iframe", "center", "link", "th", "img", "b"};
+const char *visible_tags[] = {"h1", "h2", "iframe", "center", "link", "img", "div", "p", "a", "b", "i", "span", "code", "th", "td", "li", "sub"};
 const char *other_tags[] = {"style", "title", "script", "path"};
 
 bool on_node(string name, void *arg, void **node) {
@@ -45,11 +45,15 @@ void on_node_content(void *node, string content, void *arg) {
     if(!last->len) {
 	return;	
     }
+    content = string_trim(content);
+    if(!content.len) {
+	return;
+    }
+
     for(size_t i=0;i<sizeof(visible_tags)/sizeof(visible_tags[0]);i++) {
 	if(string_eq_cstr(*last, visible_tags[i])) {
-	    content = string_trim(content);
-	    if(!content.len) return;
 	    string_buffer_append(&sb, content.data, content.len);
+	    string_buffer_append(&sb, "\n", 1);
 	    string_buffer_append(&sb, "\n", 1);
 	    return;
 	}
@@ -65,9 +69,9 @@ void on_node_content(void *node, string content, void *arg) {
 }
 
 void *request(void *arg) {
-    (void) arg;
+    char *url = (char *) arg;
 
-    if(!http_get("https://de.wikipedia.org/wiki/C_(Programmiersprache)", string_buffer_callback, &html_content, NULL, NULL)) {
+    if(!http_get(url, string_buffer_callback, &html_content, NULL, NULL)) {
 	panic("http_get");
     }
 
@@ -92,7 +96,14 @@ void *request(void *arg) {
     return NULL;
 }
 
-int main() {
+int main(int argc, char **argv) {
+
+    if(argc < 2) {
+	fprintf(stderr, "ERROR: Please provide an url\n");
+	fprintf(stderr, "USAGE: %s <url>\n", argv[0]);
+	return 1;
+    }
+    
     Gui gui;
     //Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
     Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
@@ -114,7 +125,7 @@ int main() {
     imgui_set_background(0xff181818);
 
     Thread request_thread;
-    if(!thread_create(&request_thread, request, NULL)) {
+    if(!thread_create(&request_thread, request, argv[1])) {
 	return 1;
     }
 
@@ -140,10 +151,38 @@ int main() {
 	} else {
 	    Vec2f pos = vec2f(0, height - font.height*(1 + (float) scroll) );
 	    string content = string_from(sb.data, sb.len);
+	    string line = string_trim(string_chop_by_delim(&content, '\n'));
 	    while(content.len) {
-		string line = string_trim(string_chop_by_delim(&content, '\n'));
-		if(pos.y > 0 && pos.y < height) imgui_text_len(pos, line.data, line.len, vec4f(1, 1, 1, 1));
-		pos.y -= font.height;
+
+		if(line.len == 1 && line.data[0] == 69) {
+		    pos.y -= font.height;
+		    line = string_trim(string_chop_by_delim(&content, '\n'));
+		    continue;
+		}
+
+		int _len = line.len;
+		for(size_t i=0;i<line.len;i++) {
+		    if(font_estimate_width_len2(&font, line.data, i) > (unsigned int) width) {
+			_len = i-2;
+			break;
+		    }
+		}
+		if(_len <= 0) {
+		    line = string_trim(string_chop_by_delim(&content, '\n'));
+		    continue;
+		}
+		size_t len = (size_t) _len;
+		
+		if(pos.y >= 0 && pos.y < height &&
+		   imgui_instance.renderer.verticies_count + 2 * len < RENDERER_VERTEX_CAP) {
+		    imgui_text_len(pos, line.data, len, vec4f(1, 1, 1, 1));
+		}
+		if(len == line.len) {
+		    line = string_trim(string_chop_by_delim(&content, '\n'));
+		} else {
+		    line = string_from(line.data + len, line.len - len);
+		}
+		if(len) pos.y -= font.height;
 	    }
 	}
 

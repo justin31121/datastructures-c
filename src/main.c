@@ -1,22 +1,35 @@
-#include <stdio.h>
-
-#define STRING_IMPLEMENTATION
-#include "../libs/string.h"
-
-String_Buffer sb = {0};
-
+#define IO_IMPLEMENTATION
+#include "../libs/io.h"
 
 int main() {
 
-    long long int space_cap = 1024 * 1024;
-    char *space = calloc(1, space_cap);
-    if(!space) {
+    char *content;
+    size_t content_size; 
+    if(!io_slurp_file("rsc\\icon.ico", &content, &content_size)) {
 	return 1;
     }
 
-    const char *value = "foooooooooooooooooooooooooooooooooooooooooooooooooooo";
-    int pos = cstr_index_of(space, space_cap, value, strlen(value) );
-    printf("pos: %d\n", pos);
+    printf("loaded: %d bytes\n", content_size);
+
+    FILE *f = fopen("rsc\\icon.h", "wb");
+    
+    fprintf(f, "#ifndef ICON_H_H\n");
+    fprintf(f, "#define ICON_H_H\n\n");
+
+    fprintf(f, "int icon_size = %d;\n\n", content_size);
+
+    fprintf(f, "unsigned char icon_data[] = {");
+    for(size_t i=0;i<content_size;i++) {
+	fprintf(f, "%d", (unsigned int) content[i]);
+	if(i != content_size - 1) {
+	    fprintf(f, ", ");
+	}
+    }
+    fprintf(f, "};\n\n");
+    
+    fprintf(f, "#endif //ICON_H_H\n");
+    
+    fclose(f);
     
     return 0;
 }

@@ -2,6 +2,7 @@
 #define IO_H_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifdef _WIN32
 # include <windows.h>
@@ -12,6 +13,8 @@
 # include <limits.h>
 # include <dirent.h>
 # include <sys/stat.h>
+# include <string.h>
+# include <stdlib.h>
 #endif //linux
 
 #ifndef IO_DEF
@@ -41,6 +44,7 @@ typedef struct{
     DWORD pos;
     char abs_name[MAX_PATH];
 #elif linux
+    FILE *f;
     char abs_name[PATH_MAX];
 #endif //_WIN32
     char *name;
@@ -117,6 +121,117 @@ IO_DEF bool io_exists(const char *file_path, bool *is_file) {
     }
 
     return false;
+}
+
+IO_DEF bool io_mkdir(const char *file_path) {
+  return mkdir(file_path, 0777) == 0;
+}
+
+IO_DEF bool io_file_open(Io_File *file, const char *file_path) {
+  file->f = fopen(file_path, "rb");
+  if(file->f == NULL) {
+    return false;
+  }
+
+  return true;
+}
+
+IO_DEF bool io_file_close(Io_File *file) {
+  fclose(file->f);
+  return true;
+}
+
+IO_DEF size_t io_file_fread(void *ptr, size_t size, size_t count, Io_File *file) {
+  return fread(ptr, size, count, file->f);
+}
+
+IO_DEF int io_file_ferror(Io_File *file) {
+  return ferror(file->f);
+}
+
+IO_DEF int io_file_feof(Io_File *file) {
+  return feof(file->f);
+}
+
+IO_DEF int io_file_fseek(Io_File *file, long offset, int whence) {
+  return fseek(file->f, offset, whence);
+}
+
+IO_DEF long io_file_ftell(Io_File *file) {
+  return ftell(file->f);
+}
+
+IO_DEF bool io_getenv(const char *name, char *buffer, size_t buffer_cap) {
+  char *value = getenv(name);
+  if(value == NULL) {
+    return false;
+  }
+
+  size_t value_len = strlen(value);
+  if(value_len > buffer_cap - 1) {
+    return false;
+  }
+
+  memcpy(buffer, value, value_len+1);
+  return true;
+}
+
+IO_DEF bool io_slurp_file(const char *name, char **buffer, size_t *buffer_size) {  
+  FILE *f = fopen(name, "rb");
+  if(!f) {
+    return false;
+  }
+
+  if(fseek(f, 0, SEEK_END) < 0) {
+    fclose(f);
+    return false;
+  }
+
+  long m = ftell(f);
+  if(m < 0) {
+    fclose(f);
+    return false;
+  }  
+
+  if(fseek(f, 0, SEEK_SET) < 0) {
+    fclose(f);
+    return false;
+  }
+
+  *buffer = (char *) malloc((size_t) m + 1);
+  if(!(*buffer)) {
+    fclose(f);
+    return false;
+  }
+
+  size_t _m = (size_t) m;
+  size_t n = fread(*buffer, 1, _m, f);
+  if(n != _m) {
+    fclose(f);
+    exit(1);    
+  }
+  (*buffer)[n] = 0;
+
+  *buffer_size = n;
+
+  fclose(f);
+  return true;
+}
+
+IO_DEF bool io_write_file_len(const char *name, char *buffer, size_t buffer_size) {
+  FILE *f = fopen(name, "wb");
+  if(!f) {
+    return false;
+  }
+
+  fwrite(buffer, buffer_size, 1, f);
+  if(ferror(f)) {
+    fclose(f);
+    return false;
+  }
+
+  fclose(f);
+  return true;
 }
 
 #endif //linux

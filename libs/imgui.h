@@ -158,6 +158,7 @@ IMGUI_DEF bool imgui_peek() {
     
   imgui_instance.pos = vec2f((float) imgui_instance.event->mousex,
 			     (float) imgui_instance.event->mousey);
+
   gui_mouse_to_screenf(imgui_instance.size.x, imgui_instance.size.y,
 		       &imgui_instance.pos.x,
 		       &imgui_instance.pos.y);
@@ -293,7 +294,10 @@ IMGUI_DEF int imgui_list(Vec2f pos, Vec2f size, Vec4f primary, Vec4f secondary, 
       if(listView->scroll_pos < 0) listView->scroll_pos = 0.f;
       if(listView->scroll_pos > size.y - pane_size.y) listView->scroll_pos = size.y - pane_size.y;
     }
-    
+
+    if(IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.pos, pane_pos, pane_size)) {
+	color.w *= .8f;
+    }
     renderer_solid_rect(&imgui_instance.renderer, pane_pos, pane_size, color);
   } else {
     listView->off = -1.f;	
@@ -311,17 +315,23 @@ IMGUI_DEF int imgui_list(Vec2f pos, Vec2f size, Vec4f primary, Vec4f secondary, 
   int result = -1;
   for(;i<listView->len;i++) {
     if(file_pos.y < pos.y) break;
-    Vec4f color = listView->pos == i ? primary : secondary;
     bool is_enabled = listView->enabled(listView->arg, i);
     const char *text = listView->get(listView->arg, i);
-    if(is_enabled) {
-      if(imgui_text_button(file_pos, text, color)) {
-	result = (int) i;
-      }      
+
+    if(!is_enabled) {
+	Vec4f color = secondary;
+	color.w *= .25f;
+	imgui_text(file_pos, text, color);	
+    } else if(listView->pos == i) {
+	Vec4f color = primary;
+	color.w *= .25f;
+	imgui_text(file_pos, text, primary);		
     } else {
-      color.w *= .25f;
-      imgui_text(file_pos, text, color);
-    }  
+	if(imgui_text_button(file_pos, text, secondary)) {
+	    result = (int) i;
+	}	
+    }
+    
     file_pos.y -= font_height;
   }
   return result;
@@ -380,7 +390,7 @@ IMGUI_DEF bool imgui_text_button(Vec2f pos, const char *text, Vec4f color) {
   if(holding) {
     color.w *= .5f;
   } else if(IMGUI_RENDERER_VEC_IN_RECT(imgui_instance.pos, pos, size)) {
-    color.w *= .75f;
+    color.w *= .8f;
   }
   imgui_text_len(pos, text, strlen(text), color);
   return imgui_instance.released && holding;
@@ -389,7 +399,7 @@ IMGUI_DEF bool imgui_text_button(Vec2f pos, const char *text, Vec4f color) {
 IMGUI_DEF void imgui_text_len(Vec2f pos, const char *text, size_t text_len, Vec4f color) {
   IMGUI_RENDERER_UPDATE(imgui_instance.font_index, SHADER_FOR_TEXT);
   for(size_t k=0;k<text_len;k++) {
-    char c = text[k];
+      unsigned char c = text[k];
     if(c == ' ') {
       pos.x += imgui_instance.font->height / 3;
       continue;

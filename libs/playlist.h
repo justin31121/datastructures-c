@@ -311,9 +311,32 @@ PLAYLIST_DEF void *playlist_from_spotify_thread(void *arg) {
       panic("youtube_results_first");
     }
 
-    string _url;
-    if(!youtube_get_audio2(videoId, &context->http, &context->sb, context->duk_ctx, &_url, NULL)) {
-      panic("youtube_get_audio2");
+    bool first = true;
+    char name_buf[1024];
+    size_t name_size, name_off;
+    while(spotify_tracks_next(&context->tracks, name_buf, sizeof(name_buf), &name_size, &name_off) ) {
+      context->sb.len = sb_len;
+      if(first) {
+	first = false;
+	continue;
+      }
+      string name = string_from(name_buf, name_size);
+      //string short_name = string_from(name_buf + name_off, name_size - name_off);
+      //printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
+      //PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
+
+      string videoId;
+      if(!youtube_results_first(name, &context->http, &context->sb, &videoId)) {
+	panic("youtube_results_first");
+      }
+      //printf(String_Fmt"\n", String_Arg(videoId));
+
+      string _url;
+      if(!youtube_get_audio2(videoId, &context->http, &context->sb, context->duk_ctx, &_url, NULL)) {
+	panic("youtube_get_audio2");
+      }
+	
+      PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
     }
 	
     PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
@@ -384,11 +407,13 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
     duk_destroy_heap(playlist->context.duk_ctx);
     string_buffer_free(&playlist->context.sb);
     http_free(&playlist->context.http);
+
+    return true;
   } else {
     if(!spotify_get_track_names(access_token, prefix, link, &playlist->context.sb, &playlist->context.tracks)) {
       panic("get_track_names");
     }
-
+	
     size_t tracks_pos = playlist->context.tracks.pos;
 
     char name_buf[1024];
@@ -397,7 +422,8 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
       return false;
     }
     string name = string_from(name_buf, name_size);
-    string short_name = string_from(name_buf + name_off, name_size - name_off);	
+    string short_name = string_from(name_buf + name_off, name_size - name_off);
+	
     PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
 
     string videoId;
@@ -408,7 +434,8 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
     string _url;
     if(!youtube_get_audio2(videoId, &playlist->context.http, &playlist->context.sb, playlist->context.duk_ctx, &_url, NULL)) {
       panic("youtube_get_audio2");
-    }	
+    }
+	
     PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
 
     bool first = true;
@@ -427,9 +454,9 @@ PLAYLIST_DEF bool playlist_from_spotify(Playlist *playlist, Player *player, cons
     if(!thread_create(&spotify_thread, playlist_from_spotify_thread, playlist)) {
       return false;
     }
+
+    return true;
   }
-    
-  return true;
 }
 
 PLAYLIST_DEF bool playlist_from_spotify2(Playlist *playlist, Player *player, const char *_link) {

@@ -44,7 +44,7 @@ typedef struct{
 }Renderer_Texture;
 */
 
-#define RENDERER_VERTEX_CAP (1024 * 10)
+#define RENDERER_VERTEX_CAP (1024 * 20)
 
 typedef struct{
   GLuint vao;

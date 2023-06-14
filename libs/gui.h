@@ -230,10 +230,6 @@ int wglSwapIntervalEXT(GLint interval) {
   return (int) _wglSwapIntervalEXT(interval);
 }
 
-#ifdef GUI_LOOPLESS
-#include "LooplessSizeMove.h"
-#endif //GUI_LOOPLESS
-
 #endif //_WIN32
 
 #include <stdbool.h>
@@ -250,6 +246,7 @@ typedef enum{
   GUI_EVENT_MOUSERELEASE,
   GUI_EVENT_MOUSEWHEEL,
   GUI_EVENT_MOUSEMOTION,
+  GUI_EVENT_FILEDROP,
   GUI_EVENT_COUNT,
 }Gui_Event_Type;
 
@@ -266,6 +263,7 @@ typedef struct{
   union{
     char key;
     int amount;
+    long long value;
   }as;
   int mousex;
   int mousey;
@@ -334,9 +332,9 @@ GUI_DEF void gui_swap_buffers(Gui *gui);
 #ifdef _MSC_VER
 #  pragma comment(lib,"gdi32.lib")
 #  pragma comment(lib,"user32.lib")
-#  ifdef GUI_OPENGL
+#  ifndef GUI_NO_OPENGL
 #    pragma comment(lib,"opengl32.lib")
-#  endif //GUI_OPENGL
+#  endif //GUI_NO_OPENGL
 #endif //_WIN32
 
 #ifdef linux
@@ -482,11 +480,11 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       event->type = e->type == ButtonPress ?
 	GUI_EVENT_MOUSEPRESS : GUI_EVENT_MOUSERELEASE;
       if(e->xbutton.button == Button1) {
-	event->key = 'L';
+	event->as.key = 'L';
       } else if(e->xbutton.button == Button2) {
-	event->key = 'M';
+	event->as.key = 'M';
       } else if(e->xbutton.button == Button3) {
-	event->key = 'R';
+	event->as.key = 'R';
       } 
     } else if(e->type == MotionNotify) {
       event->type = GUI_EVENT_MOUSEMOTION;
@@ -498,7 +496,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
       if(e->type == KeyRelease) {
 	event->type = GUI_EVENT_KEYRELEASE;
       }
-      event->key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
+      event->as.key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
     }
     return true;
   }
@@ -655,13 +653,7 @@ GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, floa
 
 #ifdef _WIN32
 
-#ifdef GUI_LOOPLESS
-#include "LooplessSizeMove.c"
-#define UsedWindowProc LSMProc
-#endif //GUI_LOOPLESS
-
 static LARGE_INTEGER guiWin32PerfCountFrequency;
-static HCURSOR guiDefaultCursor;
 
 #ifndef UsedWindowProc
 #define UsedWindowProc DefWindowProc
@@ -698,9 +690,6 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
       return 0;
     }
     return UsedWindowProc(hWnd, message, wParam, lParam);
-  } else if(message == WM_SETCURSOR) {
-    SetCursor(guiDefaultCursor);
-    return UsedWindowProc(hWnd, message, wParam, lParam);
   } else {
     return UsedWindowProc(hWnd, message, wParam, lParam);
   }
@@ -716,30 +705,61 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
   if(!guiWin32PerfCountFrequency.QuadPart) {
     QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
   }
-  
-  guiDefaultCursor = LoadCursor(0, IDC_ARROW);
 
   HMODULE hInstance = GetModuleHandle(NULL);
 
   STARTUPINFO startupInfo;
   GetStartupInfo(&startupInfo);
   DWORD nCmdShow = startupInfo.wShowWindow;
-  
-  WNDCLASS wc = {0};
+
+  WNDCLASSEX wc = {0};
+  wc.cbSize = sizeof(WNDCLASSEX);
+  //wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+  wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
   wc.lpfnWndProc = Gui_Implementation_WndProc;
   wc.hInstance = hInstance;
   wc.lpszClassName = name;
-  //wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
   wc.cbWndExtra = sizeof(LONG_PTR);
+  wc.cbClsExtra = 0;
+  //HANDLE icon = LoadIcon(NULL, IDI_APPLICATION);
+  /*
+  HANDLE icon = (HICON) LoadImage( // returns a HANDLE so we have to cast to HICON
+      NULL,             // hInstance must be NULL when loading from a file
+      "rsc\\icon.ico",   // the icon file name
+      IMAGE_ICON,       // specifies that the file is an icon
+      0,                // width of the image (we'll specify default later on)
+      0,                // height of the image
+      LR_LOADFROMFILE|  // we want to load a file (as opposed to a resource)
+      LR_DEFAULTSIZE|   // default metrics based on the type (IMAGE_ICON, 32x32)
+      LR_SHARED         // let the system release the handle when it's no longer used
+      );
+  */
 
-  if(!RegisterClass(&wc)) {
-    return false;
+  /*
+  //TODO: unhardcode this
+  int offset = LookupIconIdFromDirectoryEx(icon_data, TRUE, 0, 0, LR_DEFAULTCOLOR);
+  HICON icon = CreateIconFromResourceEx(icon_data + offset, icon_size - offset, TRUE, 0x30000, 0, 0, LR_DEFAULTCOLOR);
+  */
+  HICON icon = LoadIcon(hInstance, MAKEINTRESOURCE(1));
+  wc.hIcon = icon; // ICON when tabbing
+  wc.hIconSm = icon; //ICON default
+  wc.hCursor = LoadCursor (NULL, IDC_ARROW);
+  //wc.hbrBackground = (HBRUSH) GetStockObject (WHITE_BRUSH);
+
+  if(!RegisterClassEx(&wc)) {
+      printf("here\n"); fflush(stdout);
+      return false;
   }
 
   int screenWidth = GetSystemMetrics(SM_CXSCREEN);
   int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-  gui->win = CreateWindowEx(0,
+  DWORD flags = 0;
+#ifdef GUI_DRAG_N_DROP
+  flags |= WS_EX_ACCEPTFILES;
+#endif //GUI_DRAG_N_DROP
+
+  gui->win = CreateWindowEx(flags,
 			    wc.lpszClassName,
 			    wc.lpszClassName,
 			    WS_OVERLAPPEDWINDOW,
@@ -915,6 +935,10 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   DispatchMessage(msg);
 
   switch(msg->message) {
+  case WM_DROPFILES: {
+      event->type = GUI_EVENT_FILEDROP;
+      event->as.value = msg->wParam;
+  } break;
   case WM_MOUSEWHEEL:
   case WM_MOUSEHWHEEL: {
     event->type = GUI_EVENT_MOUSEWHEEL; 
@@ -973,7 +997,7 @@ GUI_DEF unsigned long gui_time_measure(Gui_Time *reference) {
 }
 
 GUI_DEF bool gui_init_opengl(Gui *gui) {
-#ifdef GUI_OPENGL
+#ifndef GUI_NO_OPENGL
   HDC windowDC = GetDC(gui->win);
 
   PIXELFORMATDESCRIPTOR desiredFormat = {0};
@@ -997,7 +1021,7 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
   win32_opengl_init();
 #else
   (void) gui;
-#endif //GUI_OPENGL
+#endif //GUI_NO_OPENGL
   return true;
 }
 

@@ -17,7 +17,9 @@ int main(int argc, char ** argv) {
     bool use_gcc = is_linux() || !msvc();
 
     //DEFAULT LINUX
-    const char *link_libav = "-lavformat -lavcodec -lavutil -lswresample -lpthread";
+    const char *link_swresample = "-lswresample";
+    const char *link_swscale = "-lswscale";
+    const char *link_libav = "-lavformat -lavcodec -lavutil -lpthread";
     const char *link_ssl = "-lssl -lcrypto -pthread -lm";
     
     const char *link_video = "-lX11 -lGLX -lGL"; //X11, opengl
@@ -52,13 +54,20 @@ int main(int argc, char ** argv) {
 		if(ret) return ret;
 	    }	    
 	    ret = run("gcc", flags, "-o", "player", obj_duktape, "./src/player_demo.c",
-		      link_ssl, link_libav, link_video, link_audio);
+		      link_ssl, link_libav, link_swresample, link_video, link_audio);
 	} else {
 	    if(!io_exists(obj_duktape, NULL)) {
 		ret = run("cl /Fe:", obj_duktape,"/c ./thirdparty/duktape.c");
 		if(ret) return ret;
 	    }	    
 	    ret = run("cl", flags, "/Fe:player", obj_duktape, "./src/player_demo.c");
+	}
+	
+    } else if(strcmp(arg, "video") == 0) {
+	if(use_gcc) {
+	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl);
+	} else {
+	    ret = run("cl", flags, "/Fe:video ./src/video.c");
 	}
     } else if(strcmp(arg, "gui_demo") == 0) {
 	if(use_gcc) {
@@ -72,7 +81,7 @@ int main(int argc, char ** argv) {
 		ret = run("gcc ", "-o", obj_duktape,"-c ./thirdparty/duktape.c");
 		if(ret) return ret;
 	    }	    
-	    ret = run("gcc", flags, "-o youtube", obj_duktape, "./src/youtube.c", link_ssl, link_libav);
+	    ret = run("gcc", flags, "-o youtube", obj_duktape, "./src/youtube.c", link_ssl);
 	} else {
 	    if(!io_exists(obj_duktape, NULL)) {
 		ret = run("cl /Fe:", obj_duktape,"/c ./thirdparty/duktape.c");
@@ -139,6 +148,10 @@ int main(int argc, char ** argv) {
     } else if(strcmp(arg, "browser") == 0) {
 	if(use_gcc) {
 	    ret = run("gcc", flags, "-o browser ./src/browser.c", link_ssl, link_video);
+	}
+    } else if(strcmp(arg, "viewer") == 0) {
+	if(use_gcc) {
+	    ret = run("gcc", flags, "-o viewer icon.o ./src/viewer.c -lcomdlg32", link_video);
 	}
     } else {	
 	fprintf(stderr, "ERROR: Unknown target: '%s'\n", arg);

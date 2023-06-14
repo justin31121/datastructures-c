@@ -4,7 +4,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../thirdparty/stb_truetype.h"
 
-#define GUI_OPENGL
+//#define GUI_CONSOLE
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"
 
@@ -32,6 +32,13 @@ static Playlist playlist;
 static bool loading = true;
 static char *loading_log = NULL;
 
+void *open_thread(void *arg) {
+    (void) arg; 
+    player_open(&player, playlist_get_source(&playlist, playlist.pos));
+    player_play(&player);
+    return NULL;
+}
+
 void toggle() {
   player_toggle(&player);
 }
@@ -40,16 +47,22 @@ void prev() {
   if(!player.decoder_used) return;
   player_close(&player);
   playlist_prev(&playlist);
-  player_open(&player, playlist_get_source(&playlist, playlist.pos));
-  player_play(&player);  
+  
+  Thread thread_id;
+  if(!thread_create(&thread_id, open_thread, NULL)) {
+      panic("thread_create");
+  }
 }
 
 void next() {
   if(!player.decoder_used) return;
   player_close(&player);
   playlist_next(&playlist);
-  player_open(&player, playlist_get_source(&playlist, playlist.pos));
-  player_play(&player);
+
+  Thread thread_id;
+  if(!thread_create(&thread_id, open_thread, NULL)) {
+      panic("thread_create");
+  }
 }
 
 void choose(size_t pos) {
@@ -57,8 +70,11 @@ void choose(size_t pos) {
   if(playlist.pos == pos) return;
   player_close(&player);
   playlist.pos = pos;
-  player_open(&player, playlist_get_source(&playlist, playlist.pos));
-  player_play(&player);
+  
+  Thread thread_id;
+  if(!thread_create(&thread_id, open_thread, NULL)) {
+      panic("thread_create");
+  }
 }
 
 void *player_start(void *_arg) {
@@ -126,8 +142,12 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-#include "../rsc/segoeui.h"
-  Font2 font = font2_segoeui_24; 
+//#include "../rsc/segoeui.h"
+  //Font2 font = font2_segoeui_24;
+  Font2 font;
+  if(!font_init2(&font, "C:\\Windows\\Fonts\\calibri.ttf", 20)) {
+      return 1;
+  }
   imgui_set_font(&font);
   
   int musik = imgui_add_img(musik_data, musik_width, musik_height);
@@ -204,12 +224,20 @@ int main(int argc, char **argv) {
       }	    
     }
     if(player.playing) {
-      float d = player.duration_abs;
-      float n;
-      player_get_timestamp_abs(&player, &n);
-      if(d - n < 1.f && n < d) {
-	next();
-      }
+
+	/*
+	int64_t last_pts = (int64_t) player.duration_abs * player.den;
+	if(player.decoder.pts >= last_pts) {
+	    next();
+	}
+	*/
+
+	float d = player.duration_abs;
+	float n;
+	player_get_timestamp_abs(&player, &n);
+	if(d - n < 1.f && n < d) {
+	    next();
+	}
     }
     
     imgui_get_size(&width, &height);
