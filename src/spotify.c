@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
     if(!spotify_get_track_name(access_token, link, &temp, &name)) {
       panic("get_track_name");
     }
-    //printf(String_Fmt"\n", String_Arg(name));
+    printf(String_Fmt"\n", String_Arg(name)); fflush(stdout);
 
     Http http;
     if(!http_init2(&http, YOUTUBE_HOSTNAME, strlen(YOUTUBE_HOSTNAME), true)) {

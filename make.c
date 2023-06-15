@@ -151,7 +151,9 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "viewer") == 0) {
 	if(use_gcc) {
-	    ret = run("gcc", flags, "-o viewer icon.o ./src/viewer.c -lcomdlg32", link_video);
+	  ret = run("gcc", flags, "-o viewer icon.o ./src/viewer.c -lcomdlg32", link_video);
+	} else {
+	  ret = run("cl", flags, "/Fe:viewer icon.res ./src/viewer.c");
 	}
     } else {	
 	fprintf(stderr, "ERROR: Unknown target: '%s'\n", arg);

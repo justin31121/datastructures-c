@@ -756,6 +756,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
 
   DWORD flags = 0;
 #ifdef GUI_DRAG_N_DROP
+#  pragma comment(lib,"shell32.lib")
   flags |= WS_EX_ACCEPTFILES;
 #endif //GUI_DRAG_N_DROP
 
