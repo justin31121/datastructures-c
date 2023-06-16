@@ -4,8 +4,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../thirdparty/stb_truetype.h"
 
-#define GUI_OPENGL
-#define GUI_CONSOLE
+//#define GUI_CONSOLE
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"
 
@@ -143,8 +142,12 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-#include "../rsc/segoeui.h"
-  Font2 font = font2_segoeui_24; 
+//#include "../rsc/segoeui.h"
+  //Font2 font = font2_segoeui_24;
+  Font2 font;
+  if(!font_init2(&font, "C:\\Windows\\Fonts\\calibri.ttf", 20)) {
+      return 1;
+  }
   imgui_set_font(&font);
   
   int musik = imgui_add_img(musik_data, musik_width, musik_height);
@@ -222,19 +225,19 @@ int main(int argc, char **argv) {
     }
     if(player.playing) {
 
+	/*
 	int64_t last_pts = (int64_t) player.duration_abs * player.den;
 	if(player.decoder.pts >= last_pts) {
 	    next();
 	}
+	*/
 
-	/*
 	float d = player.duration_abs;
 	float n;
 	player_get_timestamp_abs(&player, &n);
 	if(d - n < 1.f && n < d) {
-	next();
+	    next();
 	}
-	*/
     }
     
     imgui_get_size(&width, &height);

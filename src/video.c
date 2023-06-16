@@ -105,10 +105,16 @@ void *audio_thread(void *arg) {
 void *decoding_audio_thread(void *arg) {
   (void) arg;
   
-  while(!meta.stop) {
-    while(audio_pos < meta.samples->count &&
-	  audio_pos + 24 >= meta.samples->count) {
-      demuxer_decode(&demuxer_audio, save_decode, &meta);
+    while(!meta.stop) {
+        int audio_slot = audio_pos % meta.samples->cap;
+	int audio_index = meta.samples->count % meta.samples->cap;
+
+	while( (audio_slot != audio_index) && (meta.samples->count - audio_pos< meta.samples->cap)) {
+	    demuxer_decode(&demuxer_audio, save_decode, &meta);
+	}
+
+	thread_sleep(10);
+
     }
 
     thread_sleep(10);
@@ -159,8 +165,6 @@ int main(int argc, char **argv) {
   
   printf("%fmin\n", secs + comma);
 
-  ////////////////////////////////////////////////////////////////////////// 
- 
   int64_t bytes_per_sample = 4;
 
   Samples samples = {0};
@@ -185,48 +189,30 @@ int main(int argc, char **argv) {
   if(!audio_init(&audio, 2, demuxer_audio.sample_rate)) {
     return 1;
   }
-
-  /////////////////////////////////////////////////////////////////////////
-
   meta = (Meta) {&samples, false};
-    
-  for(int i=0;i<20;i++) {
-    demuxer_decode(&demuxer_audio, save_decode, &meta);
-    demuxer_decode(&demuxer_video, save_decode, &meta);
-  }
-  
-  Thread audio_thread_id;
-  if(!thread_create(&audio_thread_id, audio_thread, &samples)) {
-    return 1;
+
+  for(int i=0;i<40;i++) demuxer_decode(&demuxer_video, NULL, &meta);
+  for(int i=0;i<20;i++) demuxer_decode(&demuxer_audio, save_decode, &meta);
+
+  printf("video_count: %lld, audio_count: %lld\n", demuxer_video.count, samples.count); 
+  fflush(stdout);
+
+  for(int i=0;i<19;i++) {
+    printf("video_pts: %lld\n", demuxer_video.ptss[i % demuxer_video.cap]);
   }
 
-  Thread decoding_video_thread_id, decoding_audio_thread_id;
-  if(!thread_create(&decoding_video_thread_id, decoding_video_thread, NULL)) {
-    return 1;
+  for(int i=0;i<19;i++) {
+    printf("audio_pts: %lld\n", samples.ptss[i % samples.cap]);
   }
-    
-  if(!thread_create(&decoding_audio_thread_id, decoding_audio_thread, NULL)) {
-    return 1;
-  }
-
+	
   /////////////////////////////////////////////////////////////////////////
-     
+   
   Gui gui;
-  Gui_Canvas canvas = {(unsigned int) demuxer_video.buffer_width, (unsigned int) demuxer_video.buffer_height, NULL};
+  Gui_Canvas canvas = {(unsigned int) 500, (unsigned int) 300, NULL};
   if(!gui_init(&gui, &canvas, "video")) {
     return 1;
   }
   gui_use_vsync(1);
-
-  int64_t bytes_per_pixel = 3;
-  GLuint textures;
-  glGenTextures(1, &textures);
-  glBindTexture(GL_TEXTURE_2D, textures);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glTexImage2D(GL_TEXTURE_2D,
@@ -247,24 +233,28 @@ int main(int argc, char **argv) {
 		  (GLsizei) demuxer_video.buffer_height,
 		  GL_RGB,
 		  GL_UNSIGNED_BYTE,
-		  demuxer_video.buffer + ((video_pos % demuxer_video.cap) * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
+		  demuxer_video.buffer + ((video_pos++ % demuxer_video.cap) * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
 
-  bool paused = false;  
-  
-  bool bar_clicked = false;
+  bool paused = false;
+
+  Thread audio_thread_id;
+  Thread decoding_video_thread_id, decoding_audio_thread_id;
+  if(!thread_create(&decoding_video_thread_id, decoding_video_thread, NULL)) {
+    return 1;
+  }
+  if(!thread_create(&decoding_audio_thread_id, decoding_audio_thread, NULL)) {
+    return 1;
+  }
+
+  if(!thread_create(&audio_thread_id, audio_thread, &samples)) {
+    return 1;
+  }
 
   float width = 0.f, height = 0.f;
   Gui_Event event;
   while(gui.running) {
-    
-    bool left_click = false;
-    bool release = false;
-
-    mutex_lock(mutex);
-    if(!paused) {
-      now += MS_PER_FRAME;
-    }
-    mutex_release(mutex);
+	bool left_click = false;
+	bool release = false;
 	
     while(gui_peek(&gui, &event)) {
       if(event.type == GUI_EVENT_KEYPRESS) {
@@ -280,31 +270,41 @@ int main(int argc, char **argv) {
       }
     }
 
-    mutex_lock(mutex);
-    double local_now = now;
-    mutex_release(mutex);
+	mutex_lock(mutex);
+	if(!paused) {
+	  now += MS_PER_FRAME;
+	}
+	mutex_release(mutex);
+
+	mutex_lock(mutex);
+	double local_now = now;
+	mutex_release(mutex);
 
     int64_t index = (video_pos) % demuxer_video.cap;
     
-    double video_ms = (double) (av_rescale_q(demuxer_video.ptss[index], demuxer_video.time_base, AV_TIME_BASE_Q) * 1000 / AV_TIME_BASE);
-    if(local_now >= video_ms) {
-      //printf("%lld ms\n", now);
-      video_pos++;
-      if(video_pos >= demuxer_video.count - 1) {
-	gui.running = false;
-	printf("exited fine\n"); fflush(stdout);
-	break;
-      }      
-      glTexSubImage2D(GL_TEXTURE_2D,
-		      0,
-		      0,
-		      0,
-		      (GLsizei) demuxer_video.buffer_width,
-		      (GLsizei) demuxer_video.buffer_height,
-		      GL_RGB,
-		      GL_UNSIGNED_BYTE,
-		      demuxer_video.buffer + (index * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
-    }
+	double video_ms = (double) (av_rescale_q(demuxer_video.ptss[index], demuxer_video.time_base, AV_TIME_BASE_Q) * 1000 / AV_TIME_BASE);
+	if(local_now >= video_ms) {
+	  if(video_pos == 0) {
+	  }
+	  //printf("%lf ms, video_pos: %lld, index: %ld\n", now, video_pos, index); fflush(stdout);
+	  video_pos++;
+	  printf("VIDEO: %lf >= %lf\n", local_now, video_ms); fflush(stdout);
+	  glTexSubImage2D(GL_TEXTURE_2D,
+			  0,
+			  0,
+			  0,
+			  (GLsizei) demuxer_video.buffer_width,
+			  (GLsizei) demuxer_video.buffer_height,
+			  GL_RGB,
+			  GL_UNSIGNED_BYTE,
+			  demuxer_video.buffer + (index * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
+	  if(video_pos >= demuxer_video.count - 1) {
+	    gui.running = false;
+	    printf("exited fine\n"); fflush(stdout);
+	    break;
+	  }
+
+	}
     
     gui_get_window_sizef(&gui, &width, &height);
 
