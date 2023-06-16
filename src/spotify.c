@@ -125,11 +125,15 @@ int main(int argc, char **argv) {
       
 	    download3(url, true, &out_buffer, &out_buffer_size);
 
-	    if(!out_name) {
-		out_name = "videoplayback.mp4";
+	    const char* filename;
+	    if(out_name) {
+	      filename = tprintf(&temp, "%s/"String_Fmt".m4a", out_name, String_Arg(name));
+	    } else {
+	      filename = tprintf(&temp, "./"String_Fmt".m4a", String_Arg(name));
 	    }
-	    io_write_file_len(out_name, out_buffer, out_buffer_size);
-	    printf("Saved: '%s'\n", out_name);
+
+	    io_write_file_len(filename, out_buffer, out_buffer_size);
+	    printf("Saved: '%s'\n", filename);
 	    return 0;
 	}
 	
@@ -143,7 +147,6 @@ int main(int argc, char **argv) {
 	}
 	duk_context* duk_ctx = duk_create_heap_default();
 	
-
 	Spotify_Tracks tracks;
 	if(!spotify_get_track_names(access_token, prefix, link, &temp, &tracks)) {
 	    panic("get_track_names");
@@ -161,20 +164,66 @@ int main(int argc, char **argv) {
 	    string name = string_from(name_buf, name_size);
 	    string short_name = string_from(name_buf + name_off, name_size - name_off);
 	    printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
-	    
-	    string videoId;
-	    if(!youtube_results_first(name, &http, &temp, &videoId)) {
+
+	    if(download) {
+	      
+	      const char* filename;
+	      const char* dir_name;
+	      if(out_name) {
+		dir_name = tprintf(&temp, "%s/"String_Fmt, out_name);
+	      } else {
+		dir_name = tprintf(&temp, "./"String_Fmt"/", String_Arg(folder));
+	      }
+	      filename = tprintf(&temp, "%s"String_Fmt".m4a", dir_name, String_Arg(short_name));
+
+	      bool is_file;
+	      if(!io_exists(dir_name, &is_file)) {
+		if(!io_mkdir(dir_name)) {
+		  panic("io_mkdir");
+		}
+	      }
+
+	      if(!io_exists(filename, &is_file)) {
+		string videoId;
+		if(!youtube_results_first(name, &http, &temp, &videoId)) {
+		  panic("youtube_results_first");
+		}
+
+		string _url;
+		if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
+		  panic("youtube_get_audio2");
+		}
+
+		const char *url = tprintf(&temp, String_Fmt, String_Arg(_url) );
+		printf("Url: '%s'\n", url); fflush(stdout);
+	      
+		char *out_buffer;
+		size_t out_buffer_size;
+		download3(url, true, &out_buffer, &out_buffer_size);
+
+		if(io_write_file_len(filename, out_buffer, out_buffer_size)) {
+		  printf("INFO: Saved: '%s'\n", filename);
+		} else {
+		  printf("WARNING: Failed to save: '%s'\n", filename);
+		}
+		
+	      }
+	    } else {	      
+	      string videoId;
+	      if(!youtube_results_first(name, &http, &temp, &videoId)) {
 		panic("youtube_results_first");
-	    }
+	      }
 
-	    string _url;
-	    if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
+	      string _url;
+	      if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
 		panic("youtube_get_audio2");
+	      }
+
+	      const char *url = tprintf(&temp, String_Fmt, String_Arg(_url) );
+	      printf("Url: '%s'\n", url); fflush(stdout);
 	    }
+	    
 
-	    const char *url = tprintf(&temp, String_Fmt, String_Arg(_url) );
-
-	    printf("Url: '%s'\n", url); fflush(stdout);
 	}
 
 	/*

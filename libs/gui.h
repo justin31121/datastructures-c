@@ -1,6 +1,9 @@
 #ifndef GUI_H_H
 #define GUI_H_H
 
+#include <stdbool.h>
+#include <string.h>
+
 #ifdef linux
 #include <time.h>
 #include <X11/Xlib.h>
@@ -51,6 +54,30 @@ void (*glUniform2fv)(GLint location, GLsizei count, const GLfloat *value) = NULL
 GLint (*glGetUniformLocation)(GLuint program, const GLchar *name) = NULL;
 void (*glUniform1i)(GLint location, GLint v0) = NULL;
 void (*glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const void * data) = NULL;
+
+#define XDND_PROTOCOL_VERSION 5
+
+// State machine structure
+typedef struct {
+	bool xdndExchangeStarted;
+	bool xdndPositionReceived;
+	bool xdndStatusReceived;
+	bool xdndStatusSent;
+	bool xdndDropReceived;
+	Time xdndDropTimestamp;
+	Time xdndLastPositionTimestamp;
+	bool amISource;
+	int p_rootX;
+	int p_rootY;
+	Window otherWindow;
+	Atom proposedAction;
+	Atom proposedType;
+} XDNDStateMachine;
+
+static XDNDStateMachine xdndState;
+static Atom XdndAware, XA_STRING, XA_ATOM, XdndEnter, XdndPosition, XdndActionCopy, XdndLeave, XdndStatus, XdndDrop,
+  XdndSelection, XDND_DATA, XdndTypeList, XdndFinished, WM_PROTOCOLS, WM_DELETE_WINDOW, typesWeAccept[6];
+
 
 #endif //linux
 
@@ -230,8 +257,6 @@ int wglSwapIntervalEXT(GLint interval) {
 
 #endif //_WIN32
 
-#include <stdbool.h>
-
 #ifndef GUI_DEF
 #define GUI_DEF static inline
 #endif //GUI_DEF
@@ -312,7 +337,7 @@ GUI_DEF void gui_toggle_fullscreen(Gui *gui);
 GUI_DEF bool gui_get_window_size(Gui *gui, int *width, int *height);
 GUI_DEF bool gui_get_window_sizef(Gui *gui, float *width, float *height);
 GUI_DEF void gui_time_capture(Gui_Time *time);
-GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);
+GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event);
 GUI_DEF bool gui_free(Gui *gui);
 
@@ -416,6 +441,44 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
     return false;
   }
 
+  //TODO: Do this only once
+  
+  /////// Drag And Drop
+  // Define atoms
+  XdndAware = XInternAtom(gui->display, "XdndAware", False);
+  XA_ATOM = XInternAtom(gui->display, "XA_ATOM", False);
+  XA_STRING = XInternAtom(gui->display, "XA_STRING", False);
+  XdndEnter = XInternAtom(gui->display, "XdndEnter", False);
+  XdndPosition = XInternAtom(gui->display, "XdndPosition", False);
+  XdndActionCopy = XInternAtom(gui->display, "XdndActionCopy", False);
+  XdndLeave = XInternAtom(gui->display, "XdndLeave", False);
+  XdndStatus = XInternAtom(gui->display, "XdndStatus", False);
+  XdndDrop = XInternAtom(gui->display, "XdndDrop", False);
+  XdndSelection = XInternAtom(gui->display, "XdndSelection", False);
+  XDND_DATA = XInternAtom(gui->display, "XDND_DATA", False);
+  XdndTypeList = XInternAtom(gui->display, "XdndTypeList", False);
+  XdndFinished = XInternAtom(gui->display, "XdndFinished", False);
+  WM_PROTOCOLS = XInternAtom(gui->display, "WM_PROTOCOLS", False);
+  WM_DELETE_WINDOW = XInternAtom(gui->display, "WM_DELETE_WINDOW", False);
+
+  Atom version = 5;
+  XChangeProperty(gui->display, gui->win, XdndAware, XA_ATOM, 32, PropModeReplace,
+		  (unsigned char *)&version, 1);
+
+  Atom xdndActionListAtom = XInternAtom(gui->display, "XdndActionList", False);
+  Atom xdndActionCopyAtom = XInternAtom(gui->display, "XdndActionCopy", False);
+  Atom actions[] = { xdndActionCopyAtom };
+  XChangeProperty(gui->display, gui->win, xdndActionListAtom, XA_ATOM, 32, PropModeReplace,
+		  (unsigned char *)actions, 1);
+
+  // Define type atoms we will accept for file drop
+  typesWeAccept[0] = XInternAtom(gui->display, "text/uri-list", False);
+  typesWeAccept[1] = XInternAtom(gui->display, "UTF8_STRING", False);
+  typesWeAccept[2] = XInternAtom(gui->display, "TEXT", False);
+  typesWeAccept[3] = XInternAtom(gui->display, "STRING", False);
+  typesWeAccept[4] = XInternAtom(gui->display, "text/plain;charset=utf-8", False);
+  typesWeAccept[5] = XInternAtom(gui->display, "text/plain", False);
+
   Atom wmDeleteMessage = XInternAtom(gui->display, "WM_DELETE_WINDOW", False);
   gui->wmDeleteMessage = (int) wmDeleteMessage;
   XSetWMProtocols(gui->display, gui->win, &wmDeleteMessage, 1);
@@ -423,6 +486,8 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   XSelectInput(gui->display, gui->win,
 	       ButtonPressMask | ButtonReleaseMask |
 	       ExposureMask |
+	       PointerMotionMask |
+	       EnterWindowMask | LeaveWindowMask |
 	       PointerMotionMask |
 	       KeyPressMask | StructureNotifyMask);
   XMapWindow(gui->display, gui->win);
@@ -438,6 +503,8 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   gui->fd = -1; //ConnectionNumber(gui->display);  
   gui->tv.tv_usec = 0;
   gui->tv.tv_sec = 1;
+
+  memset(&xdndState, 0, sizeof(xdndState));
   return true;
 }
 
@@ -468,13 +535,57 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   if(XPending(gui->display)) {
     XNextEvent(gui->display, e);
     if(e->type == ClientMessage) {
+      printf("CLIENT MESSAGE\n");
       if(e->xclient.data.l[0] == gui->wmDeleteMessage) {
 	gui->running = 0;
+      }
+      if(e->xclient.message_type == XInternAtom(gui->display, "XdndDrop", False)) {
+	printf("Drop event\n");
+
+	// Retrieve the dropped files
+	Atom xdndTypeListAtom = XInternAtom(gui->display, "XdndTypeList", False);
+	Atom xdndFilesAtom = XInternAtom(gui->display, "text/uri-list", False);
+
+	Atom type;
+	int format;
+	unsigned long nitems, bytesLeft;
+	unsigned char *data = NULL;
+
+	// Get the property of the window to retrieve the dropped file list
+	XGetWindowProperty(gui->display, gui->win, xdndTypeListAtom, 0, 0, False,
+			   AnyPropertyType, &type, &format, &nitems, &bytesLeft, &data);
+
+	if (type == XA_ATOM && format == 32 && data != NULL) {
+	  Atom *atomList = (Atom *)data;
+
+	  for (unsigned int i = 0; i < nitems; i++) {
+	    if (atomList[i] == xdndFilesAtom) {
+	      // The dropped files are available as a property of the window
+	      Atom xdndFilesPropertyAtom = XInternAtom(gui->display, "XdndFiles", False);
+
+	      // Get the property value to retrieve the file list
+	      XGetWindowProperty(gui->display, gui->win, xdndFilesPropertyAtom, 0, 0, False,
+				 AnyPropertyType, &type, &format, &nitems, &bytesLeft, &data);
+
+	      if (type == XA_STRING && format == 8 && data != NULL) {
+		// Assuming the file list is in UTF-8 encoding
+		char *fileList = (char *)data;
+		printf("Dropped file list:\n%s\n", fileList);
+		XFree(data);
+	      }
+
+	      break;
+	    }
+	  }
+
+	  XFree(atomList);
+	}
       }
     } else if(e->type == ButtonPress ||
 	      e->type == ButtonRelease) {
       event->type = e->type == ButtonPress ?
 	GUI_EVENT_MOUSEPRESS : GUI_EVENT_MOUSERELEASE;
+      
       if(e->xbutton.button == Button1) {
 	event->as.key = 'L';
       } else if(e->xbutton.button == Button2) {
