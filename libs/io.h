@@ -103,6 +103,7 @@ IO_DEF bool io_dir_next(Io_Dir *dir, Io_File *file) {
     memcpy(file->abs_name, dir->name, len);
     int len2 = strlen(dir->ent->d_name);
     memcpy(file->abs_name + len, dir->ent->d_name, len2);
+    file->abs_name[len2 + len] = 0;
   
     return true;
 }

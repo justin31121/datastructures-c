@@ -142,10 +142,16 @@ PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const c
   }
   player_close(player);
 
+#ifdef _WIN32
+  char delim = '\\';
+#elif linux
+  char delim = '/';
+#endif
+
   string filepath = string_from_cstr(file_path);
   string last = {0};
   while(filepath.len) {
-    string part = string_chop_by_delim(&filepath, '\\');
+    string part = string_chop_by_delim(&filepath, delim);
     last = part;
   }
 
@@ -181,7 +187,7 @@ PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const ch
 
   Io_File file;
   while(io_dir_next(&dir, &file)) {
-    if(file.is_dir) continue;    
+    if(file.is_dir) continue;
     if(!player_open_file(player, file.abs_name)) {
       continue;
     }
@@ -305,43 +311,23 @@ PLAYLIST_DEF void *playlist_from_spotify_thread(void *arg) {
       continue;
     }
     string name = string_from(name_buf, name_size);
+    //string short_name = string_from(name_buf + name_off, name_size - name_off);
+    //printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
+    //PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
 
     string videoId;
     if(!youtube_results_first(name, &context->http, &context->sb, &videoId)) {
       panic("youtube_results_first");
     }
+    //printf(String_Fmt"\n", String_Arg(videoId));
 
-    bool first = true;
-    char name_buf[1024];
-    size_t name_size, name_off;
-    while(spotify_tracks_next(&context->tracks, name_buf, sizeof(name_buf), &name_size, &name_off) ) {
-      context->sb.len = sb_len;
-      if(first) {
-	first = false;
-	continue;
-      }
-      string name = string_from(name_buf, name_size);
-      //string short_name = string_from(name_buf + name_off, name_size - name_off);
-      //printf( String_Fmt" ("String_Fmt")\n", String_Arg(name), String_Arg(short_name) );
-      //PLAYLIST_NAME_LEN_APPEND(playlist, short_name.data, short_name.len);
-
-      string videoId;
-      if(!youtube_results_first(name, &context->http, &context->sb, &videoId)) {
-	panic("youtube_results_first");
-      }
-      //printf(String_Fmt"\n", String_Arg(videoId));
-
-      string _url;
-      if(!youtube_get_audio2(videoId, &context->http, &context->sb, context->duk_ctx, &_url, NULL)) {
-	panic("youtube_get_audio2");
-      }
-	
-      PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
+    string _url;
+    if(!youtube_get_audio2(videoId, &context->http, &context->sb, context->duk_ctx, &_url, NULL)) {
+      panic("youtube_get_audio2");
     }
 	
     PLAYLIST_SOURCE_LEN_APPEND(playlist, _url.data, _url.len);
   }
-
 
   spotify_track_names_free(&context->tracks);
   duk_destroy_heap(context->duk_ctx);

@@ -22,9 +22,14 @@ typedef _Thread Threads[NUMBER_OF_THREADS];
 
 size_t download_thread_callback(const void *data, size_t size, size_t memb, void *userdata);
 void *download_thread_function(void *arg);
+//ask for size of file
 bool download_get_size(const char *url, size_t *data_size);
+//allocate just enough for file and download
 bool download3(const char *url, bool monitor, char **buffer, size_t *buffer_size);
+//here is memory, does it fit? If yes download and return used size
 bool download2(const char *url, bool monitor, char *buffer, size_t buffer_size, size_t *data_size);
+//Download the file. download_size is the size of the file and buffer can hold atleast
+//download_size of memory
 bool download(const char *url, bool monitor, char *buffer, size_t download_size);
 
 #ifdef DOWNLOAD_IMPLEMENTATION

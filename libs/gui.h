@@ -55,29 +55,34 @@ GLint (*glGetUniformLocation)(GLuint program, const GLchar *name) = NULL;
 void (*glUniform1i)(GLint location, GLint v0) = NULL;
 void (*glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const void * data) = NULL;
 
+#ifdef GUI_DRAG_N_DROP
 #define XDND_PROTOCOL_VERSION 5
 
 // State machine structure
 typedef struct {
-	bool xdndExchangeStarted;
-	bool xdndPositionReceived;
-	bool xdndStatusReceived;
-	bool xdndStatusSent;
-	bool xdndDropReceived;
-	Time xdndDropTimestamp;
-	Time xdndLastPositionTimestamp;
-	bool amISource;
-	int p_rootX;
-	int p_rootY;
-	Window otherWindow;
-	Atom proposedAction;
-	Atom proposedType;
+  bool xdndExchangeStarted;
+  bool xdndPositionReceived;
+  bool xdndStatusReceived;
+  bool xdndStatusSent;
+  bool xdndDropReceived;
+  Time xdndDropTimestamp;
+  Time xdndLastPositionTimestamp;
+  bool amISource;
+  int p_rootX;
+  int p_rootY;
+  Window otherWindow;
+  Atom proposedAction;
+  Atom proposedType;
 } XDNDStateMachine;
 
-static XDNDStateMachine xdndState;
-static Atom XdndAware, XA_STRING, XA_ATOM, XdndEnter, XdndPosition, XdndActionCopy, XdndLeave, XdndStatus, XdndDrop,
+// Atom definitions
+static Atom XdndAware, XA_ATOM, XdndEnter, XdndPosition, XdndActionCopy, XdndLeave, XdndStatus, XdndDrop,
   XdndSelection, XDND_DATA, XdndTypeList, XdndFinished, WM_PROTOCOLS, WM_DELETE_WINDOW, typesWeAccept[6];
 
+// XDND global state machine
+static XDNDStateMachine xdndState;
+
+#endif //GUI_DRAG_N_DROP
 
 #endif //linux
 
@@ -446,12 +451,12 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   }
 
   //TODO: Do this only once
-  
+
+#ifdef GUI_DRAG_N_DROP
   /////// Drag And Drop
   // Define atoms
   XdndAware = XInternAtom(gui->display, "XdndAware", False);
   XA_ATOM = XInternAtom(gui->display, "XA_ATOM", False);
-  XA_STRING = XInternAtom(gui->display, "XA_STRING", False);
   XdndEnter = XInternAtom(gui->display, "XdndEnter", False);
   XdndPosition = XInternAtom(gui->display, "XdndPosition", False);
   XdndActionCopy = XInternAtom(gui->display, "XdndActionCopy", False);
@@ -482,6 +487,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   typesWeAccept[3] = XInternAtom(gui->display, "STRING", False);
   typesWeAccept[4] = XInternAtom(gui->display, "text/plain;charset=utf-8", False);
   typesWeAccept[5] = XInternAtom(gui->display, "text/plain", False);
+#endif //GUI_DRAG_N_DROP
 
   Atom wmDeleteMessage = XInternAtom(gui->display, "WM_DELETE_WINDOW", False);
   gui->wmDeleteMessage = (int) wmDeleteMessage;
@@ -493,7 +499,10 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
 	       PointerMotionMask |
 	       EnterWindowMask | LeaveWindowMask |
 	       PointerMotionMask |
-	       KeyPressMask | StructureNotifyMask);
+#ifdef GUI_DRAG_N_DROP	       
+	       EnterWindowMask | LeaveWindowMask |
+#endif //GUI_DRAG_N_DROP	       
+	       KeyPressMask | KeyReleaseMask | StructureNotifyMask);
   XMapWindow(gui->display, gui->win);
 
   gui->ctx = glXCreateNewContext(gui->display, bestFbc, GLX_RGBA_TYPE, 0, True );
@@ -511,6 +520,171 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   memset(&xdndState, 0, sizeof(xdndState));
   return true;
 }
+
+#ifdef GUI_DRAG_N_DROP
+
+//TODO: maybe you should implement an abstraction
+#include <stdlib.h>
+
+GUI_DEF char *gui_xdnd_get_copied_data(Display *disp, Window source) {
+  // Declare return value
+  char *retVal = NULL;
+
+  // Try to get PRIMARY property
+  Atom actualType = None;
+  int actualFormat;
+  unsigned long numOfItems, bytesAfterReturn;
+  unsigned char *data = NULL;
+  if (XGetWindowProperty(disp, source, XDND_DATA, 0, 1024, False, AnyPropertyType,
+			 &actualType, &actualFormat, &numOfItems, &bytesAfterReturn, &data) == Success) {
+    // Allocate temporary buffer
+    char *tempBuffer = malloc(numOfItems + 1);
+    if (!tempBuffer) {
+      //TODO: log error
+    }
+
+    // Copy all data from X buffer then add null-byte to create proper string, then
+    // dispose of X buffer
+    memcpy(tempBuffer, data, numOfItems);
+    tempBuffer[numOfItems] = '\0';
+    XFree(data);
+
+    // Copy from beyond 'file://' prefix if present
+    char *tempPtr;
+    if ((tempPtr = strstr(tempBuffer, "file://")) != NULL) {
+      tempPtr = tempBuffer + 7;
+    } else {
+      tempPtr = tempBuffer;
+    }
+
+    // Check if cr/nl ending is present and terminate string
+    // before this if so
+    if (tempPtr[strlen(tempPtr)-2] == 0xD && tempPtr[strlen(tempPtr)-1] == 0xA)
+      tempPtr[strlen(tempPtr)-2] = '\0';
+
+    // Allocate return buffer
+    retVal = malloc(strlen(tempPtr) + 1);
+    if (!retVal) {
+      //TODO: log error
+    }
+
+    // Copy data from temp buffer to it, then free temp buffer
+    memcpy(retVal, tempPtr, strlen(tempPtr));
+    retVal[strlen(tempPtr)] = '\0';
+    free(tempBuffer);
+  }
+
+  // Return malloc allocated buffer - caller must free
+  return retVal;
+}
+
+GUI_DEF void gui_xdnd_send_status(Display *disp, Window source, Window target, Atom action)
+{
+  if (xdndState.xdndExchangeStarted && !xdndState.amISource) {
+    // Declare message struct and populate its values
+    XEvent message;
+    memset(&message, 0, sizeof(message));
+    message.xclient.type = ClientMessage;
+    message.xclient.display = disp;
+    message.xclient.window = target;
+    message.xclient.message_type = XdndStatus;
+    message.xclient.format = 32;
+    message.xclient.data.l[0] = source;
+    message.xclient.data.l[1] = 1; // Sets accept and want position flags
+
+    // Send back window rectangle coordinates and width
+    message.xclient.data.l[2] = 0;
+    message.xclient.data.l[3] = 0;
+
+    // Specify action we accept
+    message.xclient.data.l[4] = action;
+
+    // Send it to target window
+    if (XSendEvent(disp, target, False, 0, &message) == 0) {
+      //TODO: log error
+    }
+  }
+}
+
+GUI_DEF void gui_xdnd_send_leave(Display *disp, Window source, Window target)
+{
+  if (xdndState.xdndExchangeStarted && xdndState.amISource) {
+    // Declare message struct and populate its values
+    XEvent message;
+    memset(&message, 0, sizeof(message));
+    message.xclient.type = ClientMessage;
+    message.xclient.display = disp;
+    message.xclient.window = target;
+    message.xclient.message_type = XdndLeave;
+    message.xclient.format = 32;
+    message.xclient.data.l[0] = source;
+    // Rest of array members reserved so not set
+
+    // Send it to target window
+    if (XSendEvent(disp, target, False, 0, &message) == 0) {
+      //TODO: log error
+    }
+  }
+}
+
+GUI_DEF bool gui_xdnd_do_we_accept(Atom a) {
+  for (unsigned int i = 0; i < sizeof(typesWeAccept) / sizeof(Atom); ++i) {
+    if (a == typesWeAccept[i]) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+GUI_DEF Atom gui_xdnd_get_supported_type(Display *disp, Window source) {
+  // Try to get XdndTypeList property
+  Atom retVal = None;
+  Atom actualType = None;
+  int actualFormat;
+  unsigned long numOfItems, bytesAfterReturn;
+  unsigned char *data = NULL;
+  if (XGetWindowProperty(disp, source, XdndTypeList, 0, 1024, False, AnyPropertyType,
+			 &actualType, &actualFormat, &numOfItems, &bytesAfterReturn, &data) == Success) {
+    if (actualType != None) {
+      Atom *supportedAtoms = (Atom *)data;
+      for (unsigned int i = 0; i < numOfItems; ++i) {
+	if (gui_xdnd_do_we_accept(supportedAtoms[i])) {
+	  retVal = supportedAtoms[i];
+	  break;
+	}
+      }
+			
+      XFree(data);
+    }
+  }
+
+  return retVal;
+}
+
+GUI_DEF void gui_xdnd_send_finished(Display *disp, Window source, Window target)
+{
+  if (xdndState.xdndExchangeStarted && !xdndState.amISource) {
+    // Declare message struct and populate its values
+    XEvent message;
+    memset(&message, 0, sizeof(message));
+    message.xclient.type = ClientMessage;
+    message.xclient.display = disp;
+    message.xclient.window = target;
+    message.xclient.message_type = XdndFinished;
+    message.xclient.format = 32;
+    message.xclient.data.l[0] = source;
+    message.xclient.data.l[1] = 1;
+    message.xclient.data.l[2] = XdndActionCopy;
+
+    // Send it to target window
+    if (XSendEvent(disp, target, False, 0, &message) == 0) {
+      //TODO: log error
+    }      
+  }
+}
+
+#endif //GUI_DRAG_N_DROP
 
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 
@@ -538,53 +712,129 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
   */
   if(XPending(gui->display)) {
     XNextEvent(gui->display, e);
+    
     if(e->type == ClientMessage) {
-      printf("CLIENT MESSAGE\n");
       if(e->xclient.data.l[0] == gui->wmDeleteMessage) {
 	gui->running = 0;
       }
-      if(e->xclient.message_type == XInternAtom(gui->display, "XdndDrop", False)) {
-	printf("Drop event\n");
+#ifdef GUI_DRAG_N_DROP
+      if(!xdndState.xdndExchangeStarted) {
+	if (e->xclient.message_type == XdndEnter) {
+	  // Update state
+	  xdndState.xdndExchangeStarted = true;
+	  xdndState.amISource = false;
+	  xdndState.otherWindow = e->xclient.data.l[0];
 
-	// Retrieve the dropped files
-	Atom xdndTypeListAtom = XInternAtom(gui->display, "XdndTypeList", False);
-	Atom xdndFilesAtom = XInternAtom(gui->display, "text/uri-list", False);
-
-	Atom type;
-	int format;
-	unsigned long nitems, bytesLeft;
-	unsigned char *data = NULL;
-
-	// Get the property of the window to retrieve the dropped file list
-	XGetWindowProperty(gui->display, gui->win, xdndTypeListAtom, 0, 0, False,
-			   AnyPropertyType, &type, &format, &nitems, &bytesLeft, &data);
-
-	if (type == XA_ATOM && format == 32 && data != NULL) {
-	  Atom *atomList = (Atom *)data;
-
-	  for (unsigned int i = 0; i < nitems; i++) {
-	    if (atomList[i] == xdndFilesAtom) {
-	      // The dropped files are available as a property of the window
-	      Atom xdndFilesPropertyAtom = XInternAtom(gui->display, "XdndFiles", False);
-
-	      // Get the property value to retrieve the file list
-	      XGetWindowProperty(gui->display, gui->win, xdndFilesPropertyAtom, 0, 0, False,
-				 AnyPropertyType, &type, &format, &nitems, &bytesLeft, &data);
-
-	      if (type == XA_STRING && format == 8 && data != NULL) {
-		// Assuming the file list is in UTF-8 encoding
-		char *fileList = (char *)data;
-		printf("Dropped file list:\n%s\n", fileList);
-		XFree(data);
+	  // Determine type to ask for
+	  if (e->xclient.data.l[1] & 0x1) {
+	    // More than three types, look in XdndTypeList
+	    xdndState.proposedType =
+	      gui_xdnd_get_supported_type(gui->display, xdndState.otherWindow);
+	  } else {
+	    // Only three types, check three in turn and stop when we find
+	    // one we support
+	    xdndState.proposedType = None;
+	    for (int i = 2; i < 5; ++i) {
+	      if (gui_xdnd_do_we_accept(e->xclient.data.l[i])) {
+		xdndState.proposedType = e->xclient.data.l[i];
+		break;
 	      }
+	    }
+	  }
+	}
+	
+      } else {
+	if(xdndState.amISource) {
+	  if (e->xclient.message_type == XdndStatus) {
+	    xdndState.xdndStatusReceived = true;
 
-	      break;
+	    // Check if target will accept drop
+	    if ((e->xclient.data.l[1] & 0x1) != 1) {
+	      // Won't accept, break exchange and wipe state
+	      printf("XDND: sending XdndLeave message to target window "
+		     "as it won't accept drop\n");
+	      gui_xdnd_send_leave(gui->display, gui->win, xdndState.otherWindow);
+	      memset(&xdndState, 0, sizeof(xdndState));
+	      //break; //DO something about that 
+	    }
+	  }
+	  else if (e->xclient.message_type == XdndFinished) {
+	    memset(&xdndState, 0, sizeof(xdndState));	    
+	    /* square.visible = false; */
+	    /* drawSquare(disp, wind, gContext, &square); */
+	  }
+	} else {
+	  // Check for XdndPosition message
+	  if (e->xclient.message_type == XdndPosition) {
+	    // Ignore if not for our window and sent erroneously
+	    if (xdndState.xdndPositionReceived &&
+	        (Window) e->xclient.data.l[0] != xdndState.otherWindow) { //TODO: is this correct ?
+	      printf("XDND: receiving XdndPosition from erroneous "
+		     "window, ignoring\n");
+	      //break; //TODO: do something about that
+	    }
+
+	    // Update state
+	    xdndState.xdndPositionReceived = true;
+	    xdndState.p_rootX = e->xclient.data.l[2] >> 16;
+	    xdndState.p_rootY = e->xclient.data.l[2] & 0xFFFF;
+	    xdndState.proposedAction = e->xclient.data.l[4];
+	    xdndState.xdndLastPositionTimestamp = e->xclient.data.l[3];
+
+	    // Now check if we should send XdndStatus message
+	    if (!xdndState.xdndStatusSent) {
+	      xdndState.xdndStatusSent = true;
+	      gui_xdnd_send_status(gui->display, gui->win,
+			     xdndState.otherWindow, xdndState.proposedAction);
 	    }
 	  }
 
-	  XFree(atomList);
+	  // Check for XdndLeave message
+	  if (e->xclient.message_type == XdndLeave) {
+	    memset(&xdndState, 0, sizeof(xdndState));
+	  }
+
+	  // Check for XdndDrop message
+	  if (e->xclient.message_type == XdndDrop) {
+	    if (e->xselection.property == None) {
+	      printf("xselection_property is None\n");
+	    } else {
+	      printf("xselection_property: 0x%lx\n", e->xselection.property);
+	    }
+
+	    // Ignore if not for our window and/or sent erroneously
+	    if (!xdndState.xdndPositionReceived ||
+	        (Window) e->xclient.data.l[0] != xdndState.otherWindow) { //TODO: is this correct?
+	      printf("XDND: receiving XdndDrop from erroneous "
+		     "window, ignoring\n");
+	      //break; //Do something about that
+	    }
+
+	    // Update state
+	    xdndState.xdndDropReceived = true;
+	    xdndState.xdndDropTimestamp = e->xclient.data.l[2];
+	    
+	    // Call XConvertSelection
+	    XConvertSelection(gui->display, XdndSelection, xdndState.proposedType,
+			      XDND_DATA, gui->win, xdndState.xdndDropTimestamp);
+	  }
 	}
       }
+    } else if(e->type == SelectionRequest) {
+      if (xdndState.xdndExchangeStarted && xdndState.amISource) {
+	// Add data to the target window
+	// sendSelectionNotify(disp, &event.xselectionrequest,
+	//   saveSquareState(&square)); ???
+      }
+    } else if(e->type == SelectionNotify) {
+      if (e->xselection.property == XDND_DATA) {
+	char *pathStr = gui_xdnd_get_copied_data(gui->display, gui->win);
+	printf("pathStr: %s\n", pathStr);
+	XDeleteProperty(gui->display, gui->win, XDND_DATA);
+        gui_xdnd_send_finished(gui->display, gui->win, xdndState.otherWindow);
+	memset(&xdndState, 0, sizeof(xdndState));
+      }
+#endif //GUI_DRAG_N_DROP      
     } else if(e->type == ButtonPress ||
 	      e->type == ButtonRelease) {
       event->type = e->type == ButtonPress ?
@@ -596,7 +846,15 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 	event->as.key = 'M';
       } else if(e->xbutton.button == Button3) {
 	event->as.key = 'R';
-      } 
+      }
+
+      if(e->xbutton.button == Button4) { //TO top
+	event->type = GUI_EVENT_MOUSEWHEEL;
+	event->as.amount = 1;
+      } else if(e->xbutton.button == Button5) { //TO bottom
+	event->type = GUI_EVENT_MOUSEWHEEL;
+	event->as.amount = -1;
+      }
     } else if(e->type == MotionNotify) {
       event->type = GUI_EVENT_MOUSEMOTION;
       event->mousex = e->xmotion.x;

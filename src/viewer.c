@@ -39,8 +39,7 @@ void maybe_load_file(const char *path) {
   if(file_uploaded) {
     glDeleteTextures(1, &textures);
   }
-    
->>>>>>> 9acdffca60a59186f17859f9abcfc5e1a58ee046
+  
   glGenTextures(1, &textures);
   glBindTexture(GL_TEXTURE_2D, textures);
 
@@ -48,33 +47,6 @@ void maybe_load_file(const char *path) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-<<<<<<< HEAD
-
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-  glTexImage2D(GL_TEXTURE_2D,
-	       0,
-	       GL_RGB,
-	       img_w,
-	       img_h,
-	       0,
-	       GL_RGB,
-	       GL_UNSIGNED_BYTE,
-	       img_data);
-
-  /*
-  glTexSubImage2D(GL_TEXTURE_2D,
-		  0,
-		  0,
-		  0,
-		  (GLsizei) demuxer_video.buffer_width,
-		  (GLsizei) demuxer_video.buffer_height,
-		  GL_RGB,
-		  GL_UNSIGNED_BYTE,
-		  demuxer_video.buffer + ((video_pos % demuxer_video.cap) * demuxer_video.buffer_width * demuxer_video.buffer_height * bytes_per_pixel));
-  */
-
-  glEnable(GL_TEXTURE_2D);
-=======
   
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glTexImage2D(GL_TEXTURE_2D,
@@ -98,6 +70,7 @@ void clampf(float *f, float min, float max) {
 
 int main(int argc, char ** argv) {
 
+#ifdef _WIN32
   //TODO: Implement named pipe Inter-Proccess-Communication(ICP)k
   //Example: https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ipc/transactions-on-named-pipes.md
 #include <psapi.h>
@@ -122,6 +95,7 @@ int main(int argc, char ** argv) {
       return 0;
     }
   }
+#endif //_WIN32
   
   /////////////////////////////////////////////////////////
 
@@ -142,42 +116,15 @@ int main(int argc, char ** argv) {
     maybe_load_file(argv[1]);
   }
 
->>>>>>> 9acdffca60a59186f17859f9abcfc5e1a58ee046
   float width = 0;
   float height = 0;
   Gui_Event event;
   while(gui.running) {
     while(gui_peek(&gui, &event)) {
-      if(event.type == GUI_EVENT_KEYPRESS) {
-	if(event.as.key == 'Q') {
-	  gui.running = false;
-<<<<<<< HEAD
-	}
-      } else if(event.type == GUI_EVENT_MOUSERELEASE) {
-	
-	
-      }
-    }
-    gui_get_window_sizef(&gui, &width, &height);
-
-    glViewport(0, 0, width, height);
-    glClearColor(1, 0, 1, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    
-    glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex2f(-1, 1);
-    glTexCoord2f(1, 0); glVertex2f(1, 1);
-    glTexCoord2f(1, 1); glVertex2f(1, -1);
-    glTexCoord2f(0, 1); glVertex2f(-1, -1);
-    glEnd();
-
-    gui_swap_buffers(&gui);
-  }
-  
-=======
-	} else if(event.as.key == 'K') {
-
+      if(event.as.key == 'Q') {
+	gui.running = false;
+      } else if(event.as.key == 'K') {
+#ifdef _WIN32
 	  //TODO: Weird behaviour, if the window is not closed
 	  // It essentially blocks the thread, i think
 	  char path[MAX_PATH];
@@ -199,32 +146,35 @@ int main(int argc, char ** argv) {
 	  if(GetOpenFileName(&of)) {
 	    maybe_load_file(path);
 	  }
+#endif //_WIN32
 	} else if(event.as.key == 'V') {
-	  if (! OpenClipboard(NULL)) {
+#ifdef WIN32
+	if (! OpenClipboard(NULL)) {
 			
-	  }
-
-	  // Get handle of clipboard object for ANSI text
-	  HANDLE hData = GetClipboardData(CF_TEXT);
-	  if (hData == NULL) {
-			
-	  }
-
-	  // Lock the handle to get the actual text pointer
-	  char * pszText = GlobalLock(hData);
-	  if (pszText == NULL) {
-			
-	  }
-		    
-	  printf("%s\n", pszText); fflush(stdout);
-		    
-	  // Release the lock
-	  GlobalUnlock( hData );
-		    
-	  // Release the clipboard
-	  CloseClipboard();
 	}
-      } else if(event.type == GUI_EVENT_FILEDROP) {				
+
+	// Get handle of clipboard object for ANSI text
+	HANDLE hData = GetClipboardData(CF_TEXT);
+	if (hData == NULL) {
+			
+	}
+
+	// Lock the handle to get the actual text pointer
+	char * pszText = GlobalLock(hData);
+	if (pszText == NULL) {
+			
+	}
+		    
+	printf("%s\n", pszText); fflush(stdout);
+		    
+	// Release the lock
+	GlobalUnlock( hData );
+		    
+	// Release the clipboard
+	CloseClipboard();
+#endif //_WIN32
+      } else if(event.type == GUI_EVENT_FILEDROP) {
+#ifdef _WIN32
 	char path[MAX_PATH];
 	HDROP h_drop = (HDROP) event.as.value;
 	int count = DragQueryFile(h_drop, 0xffffffff, path, MAX_PATH);
@@ -241,6 +191,7 @@ int main(int argc, char ** argv) {
 	}
 
 	DragFinish(h_drop);
+#endif //_WIN32
       } else if(event.type == GUI_EVENT_MOUSEWHEEL) {
 	z -= (float) event.as.amount;
 	clampf(&z, 0.f, 100.f);

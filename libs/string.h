@@ -86,6 +86,7 @@ typedef bool (*string_buffer_map)(const char *input, size_t input_size, char *bu
 STRING_DEF const char *tprintf(String_Buffer *sb, const char *format, ...);
 STRING_DEF string tsprintf(String_Buffer *sb, const char *format, ...);
 STRING_DEF string tsmap(String_Buffer *sb, string input, string_buffer_map map);
+STRING_DEF string tsreplace(String_Buffer *sb, string s, const char *_from, const char *_to);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -565,7 +566,37 @@ STRING_DEF bool string_replace(string s, const char *_from, const char *_to, cha
     return true;
 }
 
-//typedef bool (*string_buffer_map)(const char *input, size_t input_size, char *buffer, size_t buffer_size, size_t *output_size);
+STRING_DEF string tsreplace(String_Buffer *sb, string s, const char *_from, const char *_to) {
+    string from = string_from_cstr(_from);
+    string to = string_from_cstr(_to);
+
+    size_t buffer_size = 0;
+    size_t sb_len = sb->len;
+    
+    while(s.len) {
+      int pos = string_index_of2(s, from);
+      if(pos == -1) {
+	string_buffer_append(sb, s.data, s.len);
+	buffer_size += s.len;
+	string_chop_left(&s, s.len);
+      } else if(pos == 0) {
+	string_buffer_append(sb, to.data, to.len);
+	string_chop_left(&s, from.len);
+	buffer_size += to.len;
+      } else {
+	size_t _pos = (size_t) pos;
+	string_buffer_append(sb, s.data, _pos);
+	string_chop_left(&s, _pos);
+	buffer_size += _pos;
+
+	string_buffer_append(sb, to.data, to.len);
+	string_chop_left(&s, from.len);
+	buffer_size += to.len;
+      }
+    }
+
+    return string_from(sb->data + sb_len, buffer_size);
+}
 
 //TODO: This is kinda try n error
 STRING_DEF string tsmap(String_Buffer *sb, string input, string_buffer_map map) {

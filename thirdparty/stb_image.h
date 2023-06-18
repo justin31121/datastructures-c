@@ -903,9 +903,9 @@ typedef struct
 } stbi__result_info;
 
 #ifndef STBI_NO_ICO
-static int stbi__ico_info(stbi__context *s, int *x, int *y, int *comp);
 static void *stbi__ico_load(stbi__context *s, int *x, int *y, int *comp, int req_comp, stbi__result_info *ri);
 static int stbi__ico_test(stbi__context *s);
+static int stbi__ico_info(stbi__context *s, int *x, int *y, int *comp);
 static int stbi__ico_test_raw(stbi__context *s);
 #endif //STBI_NO_ICO
 
@@ -7929,6 +7929,10 @@ static int stbi__info_main(stbi__context *s, int *x, int *y, int *comp)
 
    #ifndef STBI_NO_HDR
    if (stbi__hdr_info(s, x, y, comp))  return 1;
+   #endif
+
+   #ifndef STBI_NO_ICO
+   if(stbi__ico_info(s, x, y, comp)) return 1;
    #endif
 
    // test tga last because it's a crappy test!

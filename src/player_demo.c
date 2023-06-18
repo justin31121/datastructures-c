@@ -117,6 +117,7 @@ bool list_is_enabled(void *arg, size_t pos) {
 }
 
 int main(int argc, char **argv) {
+  
   av_log_set_level(AV_LOG_QUIET);
 
   Gui gui;
@@ -142,11 +143,17 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-//#include "../rsc/segoeui.h"
+#ifdef linux
+  const char* font_path = "/usr/share/fonts/truetype/calibri/Calibri.ttf";
+#elif _WIN32
+  const char *font_path = "C:\\Windows\\Fonts\\calibri.ttf";
+#endif
+
+  //#include "../rsc/segoeui.h"
   //Font2 font = font2_segoeui_24;
   Font2 font;
-  if(!font_init2(&font, "C:\\Windows\\Fonts\\calibri.ttf", 20)) {
-      return 1;
+  if(!font_init2(&font, font_path, 18)) {
+    return 1;
   }
   imgui_set_font(&font);
   

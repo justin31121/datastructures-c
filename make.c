@@ -150,17 +150,11 @@ int main(int argc, char ** argv) {
 	    ret = run("gcc", flags, "-o browser ./src/browser.c", link_ssl, link_video);
 	}
     } else if(strcmp(arg, "viewer") == 0) {
-<<<<<<< HEAD
       if(use_gcc) {
-	ret = run("gcc", flags, "-o viewer src/viewer.c", link_video, "-lm");
+	ret = run("gcc", flags, "-o viewer ./src/viewer.c -lm", link_video);
+      } else {
+	ret = run("cl", flags, "/Fe:viewer icon.res ./src/viewer.c");
       }
-=======
-	if(use_gcc) {
-	  ret = run("gcc", flags, "-o viewer icon.o ./src/viewer.c -lcomdlg32", link_video);
-	} else {
-	  ret = run("cl", flags, "/Fe:viewer icon.res ./src/viewer.c");
-	}
->>>>>>> 9acdffca60a59186f17859f9abcfc5e1a58ee046
     } else {	
 	fprintf(stderr, "ERROR: Unknown target: '%s'\n", arg);
 	return 1;
