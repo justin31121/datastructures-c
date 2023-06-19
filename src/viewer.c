@@ -226,16 +226,14 @@ int main(int argc, char ** argv) {
 		z -= (float) event.as.amount;
 		clampf(&z, 1.f, 20.f);
 	    } else if(event.type == GUI_EVENT_DATARECEIVE) {
-		const char *filepath = (char *) event.as.data->data;
+		const char *filepath = (char *) event.as.data.data;
 		maybe_load_file(filepath);
-		if(IsIconic(gui.win)) {
+		if( IsIconic(gui.win) ) {
 		    if(GetActiveWindow() != gui.win) {
-			SetActiveWindow(gui.win);		    
+			SetActiveWindow(gui.win);
 		    }
 		    SetForegroundWindow(gui.win);		    
-		} else {
-
-		}
+		}		
 	    }
 	}
 

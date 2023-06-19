@@ -299,7 +299,7 @@ typedef struct{
 	char key;
 	int amount;
 	long long value;
-	Gui_Data *data;
+	Gui_Data data;
     }as;
     int mousex;
     int mousey;
@@ -339,7 +339,7 @@ typedef struct{
     BITMAPINFO info;
 
     bool has_data;
-    Gui_Data *data;
+    Gui_Data data;
 #endif //_WIN32
     bool running;
     Gui_Canvas *canvas;
@@ -1044,18 +1044,16 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 	COPYDATASTRUCT *cds = (COPYDATASTRUCT *) lParam;
 	Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
 	if(gui != NULL) {
-	    Gui_Data *gui_data = (Gui_Data *) malloc(sizeof(Gui_Data));
-	    if(gui_data) {
-		unsigned char *data = (unsigned char *) malloc(cds->cbData);
-		if(data) {
-		    gui->has_data = true;
-		    gui_data->data = data;
-		    gui_data->size = cds->cbData;
-			
-		    memcpy(data, cds->lpData, cds->cbData);
-		    gui->data = gui_data;
-		}
-	    }	    
+	    if(gui->data.data) {
+		free(gui->data.data);
+	    }
+	    gui->data.data = (unsigned char *) malloc(cds->cbData);
+	    if(gui->data.data) {
+		gui->has_data = true;
+		
+		gui->data.size = cds->cbData;
+		memcpy(gui->data.data, cds->lpData, cds->cbData);
+	    }
 	}	
 	return gui != NULL;
     } else if(message == WM_CLOSE) {
