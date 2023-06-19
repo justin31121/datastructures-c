@@ -1,5 +1,6 @@
 #define GUI_IMPLEMENTATION
 #define GUI_DRAG_N_DROP
+#define GUI_CONSOLE
 #include "../libs/gui.h"
 
 #define IO_IMPLEMENTATION
@@ -7,6 +8,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../thirdparty/stb_image.h"
+
+#include <psapi.h>
 
 GLuint textures;
 bool file_uploaded = false;
@@ -89,7 +92,6 @@ int main(int argc, char ** argv) {
 #ifdef _WIN32
     //TODO: Implement named pipe Inter-Proccess-Communication(ICP)
     //Example: https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ipc/transactions-on-named-pipes.md
-#include <psapi.h>
     
     DWORD processes[4096];
     DWORD bytesGot;
@@ -228,7 +230,9 @@ int main(int argc, char ** argv) {
 	    } else if(event.type == GUI_EVENT_DATARECEIVE) {
 		const char *filepath = (char *) event.as.data.data;
 		maybe_load_file(filepath);
-		if( IsIconic(gui.win) ) {
+
+		//TODO: add is visible functioniality
+		if( IsIconic(gui.win) ) {		
 		    if(GetActiveWindow() != gui.win) {
 			SetActiveWindow(gui.win);
 		    }
