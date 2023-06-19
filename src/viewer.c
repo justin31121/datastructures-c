@@ -1,6 +1,5 @@
 #define GUI_IMPLEMENTATION
 #define GUI_DRAG_N_DROP
-#define GUI_CONSOLE
 #include "../libs/gui.h"
 
 #define IO_IMPLEMENTATION
