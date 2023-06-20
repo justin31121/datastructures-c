@@ -8,6 +8,50 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../thirdparty/stb_image.h"
 
+bool rect_intersect(RECT a, RECT b) {
+
+    return (a.right > b.left) &&
+	(a.bottom > b.top) &&
+	(b.right > a.left) &&
+	(b.bottom > a.top);
+}
+
+bool is_window_visible(HWND hwnd) {
+    char buffer[MAX_PATH];
+
+    RECT hwnd_rect;
+    if(!GetWindowRect(hwnd, &hwnd_rect)) {
+	//SHOULD NOT HAPPEN
+	return false;
+    }
+
+    HWND window = GetTopWindow(GetDesktopWindow());
+    do{
+	if(window == hwnd) {
+	    return true;
+	}
+	
+	if(IsWindowVisible(window) && (GetWindowLong(window, GWL_STYLE) & WS_EX_APPWINDOW)
+	   && !IsIconic(window) ) {
+	    int n = GetWindowTextA(window, buffer, sizeof(buffer));
+	    if(n != 0) {
+
+		RECT rect;
+		if(GetWindowRect(window, &rect)) {
+		    if(rect_intersect(hwnd_rect, rect)) {
+			return false;
+		    }
+		}
+		
+	    }
+	}
+	
+	window = GetWindow(window, GW_HWNDNEXT);
+    }while(window);
+
+    return true;
+}
+
 #include <psapi.h>
 
 GLuint textures;
@@ -231,9 +275,9 @@ int main(int argc, char ** argv) {
 		maybe_load_file(filepath);
 
 		//TODO: add is visible functioniality
-		if( IsIconic(gui.win) ) {		
+		if( IsIconic(gui.win) || !is_window_visible(gui.win)) {
 		    if(GetActiveWindow() != gui.win) {
-			SetActiveWindow(gui.win);
+			SetActiveWindow(gui.win);			
 		    }
 		    SetForegroundWindow(gui.win);		    
 		}		

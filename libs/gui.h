@@ -1,3 +1,5 @@
+// Taken from: https://github.com/justin31121/datastructures-c
+
 #ifndef GUI_H_H
 #define GUI_H_H
 

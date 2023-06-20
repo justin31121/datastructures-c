@@ -53,7 +53,7 @@ int main(int argc, char ** argv) {
 		ret = run("gcc", "-o", obj_duktape,"-c ./thirdparty/duktape.c");
 		if(ret) return ret;
 	    }	    
-	    ret = run("gcc", flags, "-o", "player", obj_duktape, "./src/player_demo.c",
+	    ret = run("gcc", flags, "-o", "player", "rsc/musik.o", obj_duktape, "./src/player_demo.c",
 		      link_ssl, link_libav, link_swresample, link_video, link_audio);
 	} else {
 	    if(!io_exists(obj_duktape, NULL)) {
@@ -151,7 +151,7 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "viewer") == 0) {
       if(use_gcc) {
-	ret = run("gcc", flags, "-o viewer ./src/viewer.c -lm", link_video);
+	ret = run("gcc", flags, "-o viewer ./rsc/bisasam.o ./src/viewer.c -lcomdlg32", link_video);
       } else {
 	ret = run("cl", flags, "/Fe:viewer icon.res ./src/viewer.c");
       }

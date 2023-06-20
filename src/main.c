@@ -55,7 +55,7 @@ typedef struct {
 int main() {
 
   int width, height;
-  unsigned char *data = stbi_load("bisasam.png", &width, &height, 0, 4);
+  unsigned char *data = stbi_load("musik.png", &width, &height, 0, 4);
   if(!data) {
     fprintf(stderr, "ERORR: Failed to load image\n");
     return 1;
@@ -86,14 +86,14 @@ int main() {
     return 1;
   }
 
-  if(!io_write_file_len("bisasam_from_memory.png", memory.data, memory.size)) {
+  if(!io_write_file_len("musik_from_memory.png", memory.data, memory.size)) {
     fprintf(stderr, "ERROR: Failed to write_file_len\n");
     return 1;
   }
   
-  FILE *file = fopen("bisasam.ico", "wb");
+  FILE *file = fopen("musik.ico", "wb");
   if(!file) {
-    fprintf(stderr, "Failed to open: bisasam.ico\n");
+    fprintf(stderr, "Failed to open: musik.ico\n");
     return 1;
   }
 
