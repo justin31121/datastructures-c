@@ -1041,7 +1041,6 @@ static LARGE_INTEGER guiWin32PerfCountFrequency;
 //DefWindowProc vs LSMProc
 LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     if(message == WM_COPYDATA) {
-
 	//TODO: maybe introduce callbacks ?
 	COPYDATASTRUCT *cds = (COPYDATASTRUCT *) lParam;
 	Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);

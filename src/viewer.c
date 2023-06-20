@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #define GUI_IMPLEMENTATION
 #define GUI_DRAG_N_DROP
 #include "../libs/gui.h"
@@ -112,64 +114,56 @@ void clampf(float *f, float min, float max) {
     if(*f < min) *f = min;
 }
 
-HWND GetAllWindowsFromProcessID(DWORD dwProcessID)
-{
-    // find all hWnds (vhWnds) associated with a process id (dwProcessID)
-    HWND last = NULL;
-    HWND hCurWnd = NULL;
-    do
-    {
-        hCurWnd = FindWindowEx(NULL, hCurWnd, NULL, NULL);
-        DWORD checkProcessID = 0;
-        GetWindowThreadProcessId(hCurWnd, &checkProcessID);
-        if (checkProcessID == dwProcessID)
-        {
-	    last = hCurWnd;
-        }
-    }
-    while (hCurWnd != NULL);
-    return last;
-}
-
 int main(int argc, char ** argv) {
+
 #ifdef _WIN32
-    //TODO: Implement named pipe Inter-Proccess-Communication(ICP)
-    //Example: https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ipc/transactions-on-named-pipes.md
+  //TODO: Implement named pipe Inter-Proccess-Communication(ICP)
+  //Example: https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ipc/transactions-on-named-pipes.md
     
-    DWORD processes[4096];
-    DWORD bytesGot;
-    EnumProcesses(processes, sizeof processes, &bytesGot);
-    DWORD processesCount = bytesGot / sizeof(DWORD);
+  DWORD processes[4096];
+  DWORD bytesGot;
+  EnumProcesses(processes, sizeof processes, &bytesGot);
+  DWORD processesCount = bytesGot / sizeof(DWORD);
 
-    char currName[MAX_PATH];
-    GetModuleFileNameEx(GetCurrentProcess(), NULL, currName, MAX_PATH);
-    DWORD currProcessId = GetCurrentProcessId();
+  char currName[MAX_PATH];
+  GetModuleFileNameEx(GetCurrentProcess(), NULL, currName, MAX_PATH);
+  DWORD currProcessId = GetCurrentProcessId();
 
-    for(unsigned int x=0;x<processesCount;x++) {
-	HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processes[x]);
-	char name[MAX_PATH];
-	GetModuleFileNameEx(process, NULL, name, MAX_PATH);
-	//printf("\tname: %s (%d)\n", name, processes[x]);
-	if(processes[x] != currProcessId && strcmp(name, currName) == 0) {
-	    FreeConsole();
-	    if(argc > 1) {
-		HWND hwnd = GetAllWindowsFromProcessID(processes[x]);
-		//SendMessage(hwnd, WM_CLOSE, 0, 0);
-
-		size_t len = strlen(argv[1]);
+  for(unsigned int x=0;x<processesCount;x++) {
+    HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processes[x]);
+    char name[MAX_PATH];
+    GetModuleFileNameEx(process, NULL, name, MAX_PATH);
+    //printf("\tname: %s (%d)\n", name, processes[x]);
+    if(processes[x] != currProcessId && strcmp(name, currName) == 0) {
+      FreeConsole();
+      if(argc > 1) {
+	size_t len = strlen(argv[1]);
 				
-		COPYDATASTRUCT cds = {0};
-		cds.dwData = 0;
-		cds.cbData = len + 1;
-		cds.lpData = argv[1];
+	COPYDATASTRUCT cds = {0};
+	cds.dwData = 0;
+	cds.cbData = (DWORD) len + 1;
+	cds.lpData = argv[1];
+
+	HWND hCurWnd = NULL;
+	do {
+	  hCurWnd = FindWindowEx(NULL, hCurWnd, NULL, NULL);
+	  if(hCurWnd == NULL) break;
+	  
+	  DWORD checkProcessID = 0;
+	  GetWindowThreadProcessId(hCurWnd, &checkProcessID);
+	  if (checkProcessID == processes[x]) {
+	    SendMessage(hCurWnd, WM_COPYDATA, (WPARAM) 0, (LPARAM) &cds);	    
+	  }
+	  
+	} while (1);
 		
-		SendMessage(hwnd, WM_COPYDATA, (WPARAM) 0, (LPARAM) &cds);
-	    }
-	    return 0;
-	}
+      }
+      return 0;
     }
+  }
 
 #endif //_WIN32
+
     
     /////////////////////////////////////////////////////////
 
@@ -271,6 +265,7 @@ int main(int argc, char ** argv) {
 		z -= (float) event.as.amount;
 		clampf(&z, 1.f, 20.f);
 	    } else if(event.type == GUI_EVENT_DATARECEIVE) {
+	      
 		const char *filepath = (char *) event.as.data.data;
 		maybe_load_file(filepath);
 

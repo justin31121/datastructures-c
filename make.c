@@ -60,9 +60,8 @@ int main(int argc, char ** argv) {
 		ret = run("cl /Fe:", obj_duktape,"/c ./thirdparty/duktape.c");
 		if(ret) return ret;
 	    }	    
-	    ret = run("cl", flags, "/Fe:player", obj_duktape, "./src/player_demo.c");
-	}
-	
+	    ret = run("cl", flags, "/Fe:player ./rsc/musik.res", obj_duktape, "./src/player_demo.c");
+	}	
     } else if(strcmp(arg, "video") == 0) {
 	if(use_gcc) {
 	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl);
@@ -153,7 +152,7 @@ int main(int argc, char ** argv) {
       if(use_gcc) {
 	ret = run("gcc", flags, "-o viewer ./rsc/bisasam.o ./src/viewer.c -lcomdlg32", link_video);
       } else {
-	ret = run("cl", flags, "/Fe:viewer icon.res ./src/viewer.c");
+	ret = run("cl", flags, "/Fe:viewer ./rsc/icon.res ./src/viewer.c");
       }
     } else {	
 	fprintf(stderr, "ERROR: Unknown target: '%s'\n", arg);
