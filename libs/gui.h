@@ -308,6 +308,15 @@ typedef struct{
 }Gui_Event;
 
 typedef struct{
+#ifdef _WIN32
+    HDROP h_drop;
+    char path[MAX_PATH];
+#endif //_WIN32
+    int count;
+    int index;
+}Gui_Dragged_Files;
+
+typedef struct{
     unsigned int width, height;
     void *data;
 }Gui_Canvas;
@@ -348,9 +357,10 @@ typedef struct{
 }Gui;
 
 #ifdef _WIN32
-GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name);
 GUI_DEF void win32_opengl_init();
 #endif //_WIN32
+
+GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name);
 GUI_DEF void gui_render_canvas(Gui *gui);
 GUI_DEF void gui_toggle_fullscreen(Gui *gui);
 GUI_DEF bool gui_get_window_size(Gui *gui, int *width, int *height);
@@ -359,6 +369,10 @@ GUI_DEF void gui_time_capture(Gui_Time *time);
 GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);GUI_DEF unsigned long gui_time_measure(Gui_Time *reference);
 GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event);
 GUI_DEF bool gui_free(Gui *gui);
+
+GUI_DEF bool gui_dragged_files_init(Gui_Dragged_Files *files, Gui_Event *event);
+GUI_DEF bool gui_dragged_files_next(Gui_Dragged_Files *files, char **path);
+GUI_DEF void gui_dragged_files_free(Gui_Dragged_Files *files);
 
 GUI_DEF void gui_mouse_to_screen(int width, int height, int *mousex, int *mousey);
 GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, float *mousey);
@@ -1436,6 +1450,31 @@ GUI_DEF bool gui_use_vsync(int use) {
 GUI_DEF bool gui_free(Gui *gui) {
     ReleaseDC(gui->win, gui->dc);
     return DestroyWindow(gui->win);
+}
+
+GUI_DEF bool gui_dragged_files_init(Gui_Dragged_Files *files, Gui_Event *event) {
+    files->h_drop = (HDROP) event->as.value;
+    files->count = DragQueryFile(files->h_drop, 0xffffffff, files->path, MAX_PATH);
+    if(files->count <= 0) {
+	return false;
+    }
+    files->index = 0;
+
+    return true;
+}
+
+GUI_DEF bool gui_dragged_files_next(Gui_Dragged_Files *files, char **path) {
+    if(files->index >= files->count) {
+	return false;
+    }
+    DragQueryFile(files->h_drop, files->index++, files->path, MAX_PATH);
+    *path = files->path;
+
+    return true;
+}
+
+GUI_DEF void gui_dragged_files_free(Gui_Dragged_Files *files) {
+    DragFinish(files->h_drop);
 }
 
 GUI_DEF void gui_swap_buffers(Gui *gui) {

@@ -71,14 +71,16 @@ bool wav_load(const char *file_path,
   waveFormat->wBitsPerSample = header.bitsPerSample;
   waveFormat->cbSize = 0;
 
-  DWORD pos = SetFilePointer(wavFile, sizeof(WavHeader) + 32, NULL, FILE_BEGIN);
+  DWORD off = 32;
+
+  DWORD pos = SetFilePointer(wavFile, sizeof(WavHeader) + off, NULL, FILE_BEGIN);
   if(pos == INVALID_SET_FILE_POINTER) {
     CloseHandle(wavFile);
     return false;
   }
   //fseek(*file, sizeof(WavHeader), SEEK_SET); // Skip the header
 
-  *data_size = header.fileSize - sizeof(WAVEFORMATEX) - 32;
+  *data_size = header.fileSize - sizeof(WAVEFORMATEX) - off;
   *data = (unsigned char*) malloc(*data_size);
   if (!(*data)) {
     printf("Error allocating memory.\n");

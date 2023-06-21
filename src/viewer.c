@@ -190,7 +190,7 @@ int main(int argc, char ** argv) {
 	    if(event.type == GUI_EVENT_KEYPRESS) {		
 		if(event.as.key == 'Q') {
 		    gui.running = false;
-		} else if(event.as.key == 'K') {
+		} else if(event.as.key == 'P') {
 #ifdef _WIN32
 		    //TODO: Weird behaviour, if the window is not closed
 		    // It essentially blocks the thread, i think
@@ -243,24 +243,16 @@ int main(int argc, char ** argv) {
 		}
 #endif //_WIN32
 	    } else if(event.type == GUI_EVENT_FILEDROP) {
-#ifdef _WIN32
-		char path[MAX_PATH];
-		HDROP h_drop = (HDROP) event.as.value;
-		int count = DragQueryFile(h_drop, 0xffffffff, path, MAX_PATH);
-		//TODO: handle multiple files somehow
-		if(count > 1) {
-		    for(int i=0;i<count;i++) {
-			DragQueryFile(h_drop, i, path, MAX_PATH);
-			printf("%s\n", path);
-		    }
-		    fflush(stdout);
-		} else {
-		    DragQueryFile(h_drop, 0, path, MAX_PATH);
-		    maybe_load_file(path);
-		}
 
-		DragFinish(h_drop);
-#endif //_WIN32
+		char *path;
+		Gui_Dragged_Files files;
+		if(gui_dragged_files_init(&files, &event)) {
+		    if(gui_dragged_files_next(&files, &path)) {
+			maybe_load_file(path);
+		    }
+
+		    gui_dragged_files_free(&files);
+		}
 	    } else if(event.type == GUI_EVENT_MOUSEWHEEL) {
 		z -= (float) event.as.amount;
 		clampf(&z, 1.f, 20.f);

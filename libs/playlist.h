@@ -45,6 +45,7 @@ typedef struct{
 }Playlist;
 
 PLAYLIST_DEF void playlist_init(Playlist *playlist);
+PLAYLIST_DEF void playlist_reset(Playlist *playlist);
 PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *file_path);
 PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path);
 PLAYLIST_DEF bool playlist_from_url(Playlist *playlist, Player *player, const char *file_path);
@@ -113,6 +114,18 @@ PLAYLIST_DEF void playlist_init(Playlist *playlist) {
   string_buffer_reserve(&playlist->names, 1024);
 }
 
+PLAYLIST_DEF void playlist_reset(Playlist *playlist) {
+    playlist->sources.len = 0;
+    playlist->sources_offsets->count = 0;
+    playlist->names.len = 0;
+    playlist->names_offsets->count = 0;
+
+    playlist->using_yt_context = false;
+    playlist->pos = 0;
+    playlist->len = 0;
+    playlist->available = 0;
+}
+
 PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *arg) {
   if(playlist_from_file(playlist, player, arg)) {
     return true;
@@ -129,9 +142,6 @@ PLAYLIST_DEF bool playlist_from(Playlist *playlist, Player *player, const char *
 }
 
 PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const char *file_path) {
-  playlist->sources.len = 0;
-  playlist->names.len = 0;
-
   bool is_file;
   if(!io_exists(file_path, &is_file) || !is_file) {
     return false;
@@ -162,9 +172,6 @@ PLAYLIST_DEF bool playlist_from_file(Playlist *playlist, Player *player, const c
 }
 
 PLAYLIST_DEF bool playlist_from_url(Playlist *playlist, Player *player, const char *path) {
-  playlist->sources.len = 0;
-  playlist->names.len = 0;
-
   if(!player_open_url(player, path)) {
     return false;
   }
@@ -174,10 +181,7 @@ PLAYLIST_DEF bool playlist_from_url(Playlist *playlist, Player *player, const ch
   return true;
 }
 
-PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path) {
-  playlist->sources.len = 0;
-  playlist->names.len = 0;
-  
+PLAYLIST_DEF bool playlist_from_dir(Playlist *playlist, Player *player, const char *dir_path) {  
   size_t dir_path_len = strlen(dir_path);
 
   Io_Dir dir;
