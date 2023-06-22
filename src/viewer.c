@@ -2,6 +2,7 @@
 
 #define GUI_IMPLEMENTATION
 #define GUI_DRAG_N_DROP
+#define GUI_CONSOLE
 #include "../libs/gui.h"
 
 #define IO_IMPLEMENTATION
@@ -166,7 +167,6 @@ int main(int argc, char ** argv) {
 
     
     /////////////////////////////////////////////////////////
-
     z = 1.f;
 
     Gui gui;
@@ -191,57 +191,25 @@ int main(int argc, char ** argv) {
 		if(event.as.key == 'Q') {
 		    gui.running = false;
 		} else if(event.as.key == 'P') {
-#ifdef _WIN32
-		    //TODO: Weird behaviour, if the window is not closed
-		    // It essentially blocks the thread, i think
-		    char path[MAX_PATH];
-		    
-		    OPENFILENAME of = {0};
-		    of.lStructSize = sizeof(OPENFILENAME);
-		    of.hwndOwner = NULL;
-		    of.lpstrFile = path;
-		    of.lpstrFile[0] = '\0';
-		    of.nMaxFile = sizeof(path );
-		    of.lpstrFilter = "Image\0*.PNG;*.JPG\0All\0*.*\0";
-		    of.nFilterIndex = 1;
-		    of.lpstrFileTitle = NULL ;
-		    of.nMaxFileTitle = 0 ;
-		    of.lpstrInitialDir= NULL ;
-		    of.Flags = OFN_PATHMUSTEXIST|OFN_FILEMUSTEXIST ;
+
 #ifdef _MSC_VER
 #pragma comment(lib,"comdlg32.lib")
 #endif //_MSVC_
-		    if(GetOpenFileName(&of)) {
-			maybe_load_file(path);
-		    }
-#endif //_WIN32
+		  char path[MAX_PATH];
+		  if(gui_open_file_dialog(path, sizeof(path))) {
+		    maybe_load_file(path);
+		  }		  
+
 		} else if(event.as.key == 'V') {
-#ifdef WIN32
-		    if (! OpenClipboard(NULL)) {
-			
-		    }
 
-		    // Get handle of clipboard object for ANSI text
-		    HANDLE hData = GetClipboardData(CF_TEXT);
-		    if (hData == NULL) {
-			
-		    }
+		  char *text;
 
-		    // Lock the handle to get the actual text pointer
-		    char * pszText = GlobalLock(hData);
-		    if (pszText == NULL) {
-			
-		    }
-		    
-		    printf("%s\n", pszText); fflush(stdout);
-		    
-		    // Release the lock
-		    GlobalUnlock( hData );
-		    
-		    // Release the clipboard
-		    CloseClipboard();
-		}
-#endif //_WIN32
+		  Gui_Clipboard clipboard;
+		  if(gui_clipboard_init(&clipboard, &text)) {
+		    printf("'%s'", text); fflush(stdout);
+		    gui_clipboard_free(&clipboard);
+		  }
+		  
 	    } else if(event.type == GUI_EVENT_FILEDROP) {
 
 		char *path;
@@ -343,3 +311,4 @@ int main(int argc, char ** argv) {
     
     return 0;
 }
+

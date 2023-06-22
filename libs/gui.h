@@ -317,6 +317,12 @@ typedef struct{
 }Gui_Dragged_Files;
 
 typedef struct{
+#ifdef _WIN32
+  HANDLE handle;  
+#endif //_WIN32
+}Gui_Clipboard;
+
+typedef struct{
     unsigned int width, height;
     void *data;
 }Gui_Canvas;
@@ -373,6 +379,10 @@ GUI_DEF bool gui_free(Gui *gui);
 GUI_DEF bool gui_dragged_files_init(Gui_Dragged_Files *files, Gui_Event *event);
 GUI_DEF bool gui_dragged_files_next(Gui_Dragged_Files *files, char **path);
 GUI_DEF void gui_dragged_files_free(Gui_Dragged_Files *files);
+GUI_DEF bool gui_open_file_dialog(char *buffer, size_t buffer_cap);
+
+GUI_DEF bool gui_clipboard_init(Gui_Clipboard *clipboard, char **text);
+GUI_DEF void gui_clipboard_free(Gui_Clipboard *clipboard);
 
 GUI_DEF void gui_mouse_to_screen(int width, int height, int *mousex, int *mousey);
 GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, float *mousey);
@@ -1475,6 +1485,52 @@ GUI_DEF bool gui_dragged_files_next(Gui_Dragged_Files *files, char **path) {
 
 GUI_DEF void gui_dragged_files_free(Gui_Dragged_Files *files) {
     DragFinish(files->h_drop);
+}
+
+//TODO: Weird behaviour, if the window is not closed
+// It essentially blocks the thread, i think
+
+//UNHARDCODE filter
+GUI_DEF bool gui_open_file_dialog(char *buffer, size_t buffer_cap) {
+  OPENFILENAME of = {0};
+  of.lStructSize = sizeof(OPENFILENAME);
+  of.hwndOwner = NULL;
+  of.lpstrFile = buffer;
+  of.lpstrFile[0] = '\0';
+  of.nMaxFile = buffer_cap;
+  of.lpstrFilter = "Image\0*.PNG;*.JPG\0All\0*.*\0";
+  of.nFilterIndex = 1;
+  of.lpstrFileTitle = NULL ;
+  of.nMaxFileTitle = 0 ;
+  of.lpstrInitialDir= NULL ;
+  of.Flags = OFN_PATHMUSTEXIST|OFN_FILEMUSTEXIST ;
+  
+  return GetOpenFileName(&of);
+}
+
+GUI_DEF bool gui_clipboard_init(Gui_Clipboard *clipboard, char **text) {
+  if (!OpenClipboard(NULL)) {
+    return false;
+  }
+  
+  clipboard->handle = GetClipboardData(CF_TEXT);
+  if(clipboard->handle == NULL) {
+    CloseClipboard();
+    return false;
+  }
+
+  *text = GlobalLock(clipboard->handle);
+  if((*text) == NULL) {
+    CloseClipboard();
+    return false;
+  }  
+  
+  return true;
+}
+
+GUI_DEF void gui_clipboard_free(Gui_Clipboard *clipboard) {
+  GlobalUnlock(clipboard->handle);
+  CloseClipboard();
 }
 
 GUI_DEF void gui_swap_buffers(Gui *gui) {
