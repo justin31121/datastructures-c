@@ -901,7 +901,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
 	    }
 	    event->as.key = XkbKeycodeToKeysym(gui->display, e->xkey.keycode, 0, 1);
 	}
-	return true;
+	return event->type != GUI_EVENT_NONE;
     }
 
     return false;
@@ -1065,6 +1065,7 @@ static LARGE_INTEGER guiWin32PerfCountFrequency;
 //DefWindowProc vs LSMProc
 LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     if(message == WM_COPYDATA) {
+      
 	//TODO: maybe introduce callbacks ?
 	COPYDATASTRUCT *cds = (COPYDATASTRUCT *) lParam;
 	Gui *gui = (Gui *) GetWindowLongPtr(hWnd, 0);
@@ -1074,8 +1075,7 @@ LRESULT CALLBACK Gui_Implementation_WndProc(HWND hWnd, UINT message, WPARAM wPar
 	    }
 	    gui->data.data = (unsigned char *) malloc(cds->cbData);
 	    if(gui->data.data) {
-		gui->has_data = true;
-		
+		gui->has_data = true;		
 		gui->data.size = cds->cbData;
 		memcpy(gui->data.data, cds->lpData, cds->cbData);
 	    }
@@ -1231,6 +1231,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas,  char *name) {
 
     gui->running = true;
     gui->has_data = false;
+    gui->data.data = NULL;
 
     ShowWindow(gui->win, nCmdShow);
     UpdateWindow(gui->win);
@@ -1348,7 +1349,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
     if(!result) {
 
 	if(gui->has_data) {
-	    gui->has_data = false;
+	    gui->has_data = false;	    
 	    event->type = GUI_EVENT_DATARECEIVE;
 	    event->as.data = gui->data;
 	    return true;
@@ -1408,7 +1409,7 @@ GUI_DEF bool gui_peek(Gui *gui, Gui_Event *event) {
     } break;
     }
 
-    return result;
+    return event->type != GUI_EVENT_NONE;
 }
 
 GUI_DEF void gui_time_capture(Gui_Time *time) {
@@ -1497,7 +1498,7 @@ GUI_DEF bool gui_open_file_dialog(char *buffer, size_t buffer_cap) {
   of.hwndOwner = NULL;
   of.lpstrFile = buffer;
   of.lpstrFile[0] = '\0';
-  of.nMaxFile = buffer_cap;
+  of.nMaxFile = (DWORD) buffer_cap;
   of.lpstrFilter = "Image\0*.PNG;*.JPG\0All\0*.*\0";
   of.nFilterIndex = 1;
   of.lpstrFileTitle = NULL ;
