@@ -202,7 +202,22 @@ int main(int argc, char **argv) {
 	  gui.running = false;	  
 	} break;
 	case 'P': {
-	  //Implement file dialog
+#ifdef _MSC_VER
+#pragma comment(lib,"comdlg32.lib")
+#endif //_MSVC_
+	  char path[4096];
+	  if(gui_open_file_dialog(path, sizeof(path))) {
+	    player_close(&player);		      
+	    playlist_reset(&playlist);
+	    playlist_from(&playlist, &player, path);
+	    loading = false;
+	    if(!player_open(&player, playlist_get_source(&playlist, playlist.pos))) {
+	      panic("player_open");
+	    }
+	    if(!player_play(&player)) {
+	      panic("player_play");
+	    }
+	  }
 	} break;
 	case 'W': {
 	  holding_w = true;

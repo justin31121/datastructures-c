@@ -49,7 +49,7 @@ AUDIO_DEF bool audio_init(Audio *audio, int channels, int sample_rate) {
 
   WAVEFORMATEX waveFormat;
   waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-  waveFormat.nChannels = channels;
+  waveFormat.nChannels = (WORD) channels;
   waveFormat.nSamplesPerSec = sample_rate;
   waveFormat.wBitsPerSample = 16;
   waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;

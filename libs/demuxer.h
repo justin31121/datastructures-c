@@ -13,8 +13,8 @@
 #  define PLAYER_IMPLEMENTATION
 #endif //DEMUXER_IMPLEMENTATION
 
-#include "io.h"
 #include "player.h"
+#include "io.h"
 #include <assert.h>
 
 #ifndef DEMUXER_DEF
@@ -76,6 +76,14 @@ DEMUXER_DEF int demuxer_file_read(void *opaque, uint8_t *buf, int buf_size);
 DEMUXER_DEF int64_t demuxer_file_seek(void *opaque, int64_t offset, int whence);
 
 #ifdef DEMUXER_IMPLEMENTATION
+
+#ifdef _MSC_VER
+#pragma comment(lib, "avcodec.lib")
+#pragma comment(lib, "avformat.lib")
+#pragma comment(lib, "avutil.lib")
+#pragma comment(lib, "swresample.lib")
+#pragma comment(lib, "swscale.lib")
+#endif //_WIN32
 
 DEMUXER_DEF bool demuxer_av_codec_init(AVCodecContext **av_codec_context, AVCodecParameters *av_codec_parameters) {
   const AVCodec *av_codec = avcodec_find_decoder(av_codec_parameters->codec_id);

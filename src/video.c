@@ -1,8 +1,8 @@
-#define THREAD_IMPLEMENTATION
-#include "../libs/thread.h"
-
 #define DEMUXER_IMPLEMENTATION
 #include "../libs/demuxer.h"
+
+#define THREAD_IMPLEMENTATION
+#include "../libs/thread.h"
 
 #define AUDIO_IMPLEMENTATION
 #include "../libs/audio.h"

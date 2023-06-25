@@ -428,7 +428,7 @@ PLAYER_DEF int player_decoder_url_read(void *opaque, uint8_t *buf, int _buf_size
 
     int buf_size = _buf_size;
     int buf_off = 0;
-    int last_socket_pos = socket->pos;
+    int last_socket_pos = (int) socket->pos;
 
     while(buf_size > 0) {
 	ssize_t nbytes_total = http_read(&socket->http, buf + buf_off, buf_size);
@@ -491,8 +491,8 @@ PLAYER_DEF int64_t player_decoder_url_seek(void *opaque, int64_t offset, int whe
     }
 
     while(socket->pos < pos){
-	int count = pos - socket->pos;
-	ssize_t nbytes_total = http_read(&socket->http, NULL, count);
+      int64_t count = pos - socket->pos;
+      ssize_t nbytes_total = http_read(&socket->http, NULL, (int) count);
 	if(nbytes_total != -1) {
 	    socket->pos += (int64_t) nbytes_total;
 	} else {	    
