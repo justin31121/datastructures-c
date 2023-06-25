@@ -35,23 +35,21 @@ typedef int SOCKET;
 #endif //
 
 #ifdef HTTP_IMPLEMENTATION
-
-#define SHA1_IMPLEMENTATION
-#define BASE64_IMPLEMENTATION
-#define STRING_IMPLEMENTATION
-#define THREAD_IMPLEMENTATION
-#define IO_IMPLEMENTATION
-
+#  define SHA1_IMPLEMENTATION
+#  define BASE64_IMPLEMENTATION
+#  define STRING_IMPLEMENTATION
+#  define THREAD_IMPLEMENTATION
+#  define IO_IMPLEMENTATION
 #endif //HTTP_IMPLEMENTATION
 
 #include <assert.h>
 #include <stdbool.h>
 
-#include "./string.h"
-#include "./base64.h"
-#include "./sha1.h"
-#include "./thread.h"
-#include "./io.h"
+#include "string.h"
+#include "base64.h"
+#include "sha1.h"
+#include "thread.h"
+#include "io.h"
 
 #ifndef HTTP_DEF
 #define HTTP_DEF static inline

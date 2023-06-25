@@ -10,6 +10,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../thirdparty/stb_image.h"
 
+#ifdef _WIN32
 bool rect_intersect(RECT a, RECT b) {
 
   return (a.right > b.left) &&
@@ -53,8 +54,8 @@ bool is_window_visible(HWND hwnd) {
 
   return true;
 }
+#endif //_WIN32
 
-#include <psapi.h>
 
 GLuint textures;
 bool file_uploaded = false;
@@ -116,12 +117,9 @@ void clampf(float *f, float min, float max) {
 
 int main(int argc, char **argv) {
 
-  printf("argc: %d\n", argc); fflush(stdout);
-
 #ifdef _WIN32
-  //TODO: Implement named pipe Inter-Proccess-Communication(ICP)
-  //Example: https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ipc/transactions-on-named-pipes.md
-    
+#include <psapi.h>
+  
   DWORD processes[4096];
   DWORD bytesGot;
   EnumProcesses(processes, sizeof processes, &bytesGot);
@@ -188,7 +186,7 @@ int main(int argc, char **argv) {
   Gui_Event event;
   while(gui.running) {
     while(gui_peek(&gui, &event)) {
-      if(event.type == GUI_EVENT_KEYPRESS) {		
+      if(event.type == GUI_EVENT_KEYPRESS) {
 	if(event.as.key == 'Q') {
 	  gui.running = false;
 	} else if(event.as.key == 'P') {
@@ -196,17 +194,17 @@ int main(int argc, char **argv) {
 #ifdef _MSC_VER
 #pragma comment(lib,"comdlg32.lib")
 #endif //_MSVC_
-	  char path[MAX_PATH];
+	  char path[1024];
 	  if(gui_open_file_dialog(path, sizeof(path))) {
 	    maybe_load_file(path);
-	  }		  
+	  }
 
 	} else if(event.as.key == 'V') {
 
 	  char *text;
 
 	  Gui_Clipboard clipboard;
-	  if(gui_clipboard_init(&clipboard, &text)) {
+	  if(gui_clipboard_init(&clipboard, &gui, &text)) {
 	    printf("'%s'", text); fflush(stdout);
 	    gui_clipboard_free(&clipboard);
 	  }
@@ -231,85 +229,85 @@ int main(int argc, char **argv) {
 	const char *filepath = (char *) event.as.data.data;
 	maybe_load_file(filepath);
 
-	//TODO: add is visible functioniality
+#ifdef _WIN32
 	if( IsIconic(gui.win) || !is_window_visible(gui.win)) {
 	  if(GetActiveWindow() != gui.win) {
 	    SetActiveWindow(gui.win);			
 	  }
 	  SetForegroundWindow(gui.win);		    
-	}		
+	}
+#endif //_WIN32
       }
     }
 
-    gui_get_window_sizef(&gui, &width, &height);
-    glViewport(0, 0, (int) width, (int) height);
-    glClearColor(0.2f, 0.2f, 0.2f, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+  gui_get_window_sizef(&gui, &width, &height);
+  glViewport(0, 0, (int) width, (int) height);
+  glClearColor(0.2f, 0.2f, 0.2f, 1);
+  glClear(GL_COLOR_BUFFER_BIT);
 
-    if(file_uploaded) {
+  if(file_uploaded) {
 
-      glEnable(GL_TEXTURE_2D);
+    glEnable(GL_TEXTURE_2D);
 
-      //float zoom = z * (high - low) / 20.f + low;
-      float zoom = z / 20.f;
+    //float zoom = z * (high - low) / 20.f + low;
+    float zoom = z / 20.f;
 	    
-      //printf("z: %f, zoom: %f\n", z, zoom); fflush(stdout);
+    //printf("z: %f, zoom: %f\n", z, zoom); fflush(stdout);
 	    
-      float x1 = 0;
-      float x2 = 0;
-      float y1 = 0;
-      float y2 = 0;
+    float x1 = 0;
+    float x2 = 0;
+    float y1 = 0;
+    float y2 = 0;
 
-      bool a = img_width > width;
-      bool b = img_height > height;
+    bool a = img_width > width;
+    bool b = img_height > height;
 
-      float ratio =  img_width / img_height;
+    float ratio =  img_width / img_height;
 
-      if(!a && !b) {
-	x1 = ((width - img_width) / 2.f) / width;
-	x2 = ((width - img_width) / 2.f + img_width) / width;
-	y1 = ((height - img_height) / 2.f) / height;
-	y2 = ((height - img_height) / 2.f + img_height) / height;	
-      } else {		
-	float _img_height = width / ratio;
-	if(_img_height < height) {
-	  x1 = 0;
-	  x2 = 1;
-	  y1 = ((height - _img_height) / 2.f) / height;
-	  y2 = ((height - _img_height) / 2.f + _img_height) / height;
-	} else {
-	  float _img_width = ratio * height;
-	  y1 = 0;
-	  y2 = 1;
-	  x1 = ((width - _img_width) / 2.f) / width;
-	  x2 = ((width - _img_width) / 2.f + _img_width) / width;
-	}	      
-
+    if(!a && !b) {
+      x1 = ((width - img_width) / 2.f) / width;
+      x2 = ((width - img_width) / 2.f + img_width) / width;
+      y1 = ((height - img_height) / 2.f) / height;
+      y2 = ((height - img_height) / 2.f + img_height) / height;	
+    } else {		
+      float _img_height = width / ratio;
+      if(_img_height < height) {
+	x1 = 0;
+	x2 = 1;
+	y1 = ((height - _img_height) / 2.f) / height;
+	y2 = ((height - _img_height) / 2.f + _img_height) / height;
+      } else {
+	float _img_width = ratio * height;
+	y1 = 0;
+	y2 = 1;
+	x1 = ((width - _img_width) / 2.f) / width;
+	x2 = ((width - _img_width) / 2.f + _img_width) / width;
       }
-
-      x1 = x1 * 2.f - 1.f;
-      x2 = x2 * 2.f - 1.f;
-      y1 = y1 * 2.f - 1.f;
-      y2 = y2 * 2.f - 1.f;
-
-      x1 /= zoom;
-      x2 /= zoom;
-      y1 /= zoom;
-      y2 /= zoom;
-	    
-      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      glEnable(GL_BLEND);
-
-      glBegin(GL_QUADS);
-      glTexCoord2f(0, 0); glVertex2f(x1, y2);
-      glTexCoord2f(1, 0); glVertex2f(x2, y2);
-      glTexCoord2f(1, 1); glVertex2f(x2, y1);
-      glTexCoord2f(0, 1); glVertex2f(x1, y1);
-      glEnd();			
     }
 
-    gui_swap_buffers(&gui);
+    x1 = x1 * 2.f - 1.f;
+    x2 = x2 * 2.f - 1.f;
+    y1 = y1 * 2.f - 1.f;
+    y2 = y2 * 2.f - 1.f;
+
+    x1 /= zoom;
+    x2 /= zoom;
+    y1 /= zoom;
+    y2 /= zoom;
+	    
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(x1, y2);
+    glTexCoord2f(1, 0); glVertex2f(x2, y2);
+    glTexCoord2f(1, 1); glVertex2f(x2, y1);
+    glTexCoord2f(0, 1); glVertex2f(x1, y1);
+    glEnd();			
   }
 
-  return 0;
+  gui_swap_buffers(&gui);
+}
+
+return 0;
 }

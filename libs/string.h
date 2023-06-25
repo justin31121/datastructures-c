@@ -10,11 +10,11 @@
 #include <stdlib.h>
 
 #ifdef STRING_IMPLEMENTATION
-#define UTIL_IMPLEMENTATION
+#  define UTIL_IMPLEMENTATION
 #endif //STRING_IMPLEMENTATION
 
 #ifndef STRING_DEF
-#define STRING_DEF static inline
+#  define STRING_DEF static inline
 #endif //STRING_DEF
 
 #include "util.h"

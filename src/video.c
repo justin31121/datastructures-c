@@ -1,5 +1,3 @@
-#include "../libs/util.h"
-
 #define THREAD_IMPLEMENTATION
 #include "../libs/thread.h"
 
@@ -77,9 +75,9 @@ void *audio_thread(void *arg) {
 	if(audio_index < demuxer_audio.audio_buffer_count && local_now >= audio_ms) {
 	    audio_play(&audio, buffer, SAMPLES * 4);
 
+
 	    audio_index++;
-	    
-	    index = audio_index % demuxer_audio.audio_buffer_cap;	    
+	    index = audio_index % demuxer_audio.audio_buffer_cap;
 	    buffer = demuxer_audio.audio_buffer + index * demuxer_audio.audio_buffer_size;
 	    audio_ms = (double) (av_rescale_q(demuxer_audio.audio_ptss[index], demuxer_audio.audio_time_base, AV_TIME_BASE_Q) * 1000 / AV_TIME_BASE);
 	}
@@ -97,7 +95,7 @@ int main(int argc, char **argv) {
 	panic("mutex_create");
     }
     
-    const char *filepath = "rsc\\videoplayback.mp4";           
+    const char *filepath = "videoplayback.mp4";
 
     if(argc > 1) {
 	filepath = argv[1];

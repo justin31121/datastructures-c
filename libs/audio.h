@@ -92,10 +92,14 @@ AUDIO_DEF bool audio_init(Audio *audio, int channels, int sample_rate) {
 AUDIO_DEF void audio_play(Audio *audio, unsigned char *data, unsigned int data_size) {
   data_size = data_size / (unsigned int) 4;
 
-  int ret = snd_pcm_writei(audio->device, data, data_size);
-  if(ret < 0) {
-    snd_pcm_recover(audio->device, ret, 1);
-    snd_pcm_prepare(audio->device);
+  while(data_size > 0) {
+    int ret = snd_pcm_writei(audio->device, data, data_size);
+    if(ret <= 0) {
+      snd_pcm_recover(audio->device, ret, 1);
+      //snd_pcm_prepare(audio->device);
+    } else {
+      data_size -= (unsigned int) ret;
+    }
   }
 }
 

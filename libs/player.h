@@ -2,18 +2,16 @@
 #define PLAYER_H_H
 
 #ifdef PLAYER_IMPLEMENTATION
-
-#ifdef _WIN32
-#define XAUDIO_IMPLEMENTATION
-#endif //_WIN32
-
-#define THREAD_IMPLEMENTATION
-#define DECODER_IMPLEMENTATION
-#define HTTP_IMPLEMENTATION
+#  define HTTP_IMPLEMENTATION
+#  ifdef _WIN32
+#    define XAUDIO_IMPLEMENTATION
+#  endif //_WIN32
+#  define THREAD_IMPLEMENTATION
+#  define DECODER_IMPLEMENTATION
 #endif //PLAYER_IMPLEMENTATION
 
 #ifndef PLAYER_DEF
-#define PLAYER_DEF static inline
+#  define PLAYER_DEF static inline
 #endif //PLAYER_DEF
 
 #define PLAYER_BUFFER_SIZE 8192
@@ -25,7 +23,7 @@
 #define PLAYER_BUFFER_CAP 1024
 
 #ifdef linux
-#include <alsa/asoundlib.h>
+#  include <alsa/asoundlib.h>
 #endif //linux
 
 #include "http.h"

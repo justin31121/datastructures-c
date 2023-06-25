@@ -52,9 +52,16 @@ int main(int argc, char ** argv) {
 	    if(!io_exists(obj_duktape, NULL)) {
 		ret = run("gcc", "-o", obj_duktape,"-c ./thirdparty/duktape.c");
 		if(ret) return ret;
-	    }	    
-	    ret = run("gcc", flags, "-o", "player", "rsc/musik.o", obj_duktape, "./src/player_demo.c",
-		      link_ssl, link_libav, link_swresample, link_video, link_audio);
+	    }
+	    if(is_windows()) {
+	      ret = run("gcc", flags, "-o", "player", "rsc/musik.o", obj_duktape, "./src/player_demo.c",
+			link_ssl, link_libav, link_swresample, link_video, link_audio);
+	      
+	    } else {
+	      ret = run("gcc", flags, "-o", "player", obj_duktape, "./src/player_demo.c",
+			link_ssl, link_libav, link_swresample, link_video, link_audio);
+	      
+	    }
 	} else {
 	    if(!io_exists(obj_duktape, NULL)) {
 		ret = run("cl /Fe:", obj_duktape,"/c ./thirdparty/duktape.c");
@@ -150,7 +157,14 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "viewer") == 0) {
       if(use_gcc) {
-	ret = run("gcc", flags, "-o viewer ./rsc/bisasam.o ./src/viewer.c -lcomdlg32", link_video);
+	if(is_windows()) {
+	  const char *icon_obj  = "./rsc/bisasam.o";
+	  const char *link_filedialog = "-lcomdlg32";
+	  ret = run("gcc", flags, "-o viewer", icon_obj, "./src/viewer.c", link_filedialog, link_video);
+	} else {
+	  ret = run("gcc", flags, "-o viewer", "./src/viewer.c", link_video, "-lm");
+	}
+
       } else {
 	ret = run("cl", flags, "/Fe:viewer ./rsc/icon.res ./src/viewer.c");
       }
