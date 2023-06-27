@@ -488,6 +488,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   if(!gui_init_opengl(gui)) {
     return false;
   }
+  gl_use_vsync(1);
   
   gui->win = XCreateWindow(gui->display, RootWindow(gui->display, vi->screen), 
 			   0, 0, width, height, 0, vi->depth, InputOutput, 
@@ -579,6 +580,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
 #endif //GUI_DRAG_N_DROP  
   
   XConvertSelection(gui->display, sel, utf8, sel, gui->win, CurrentTime);
+
   return true;
 }
 
@@ -1382,6 +1384,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
     if(!gui_init_opengl(gui)) {
       return false;
     }
+    gui_use_vsync(1);
   }
 
   if(canvas != NULL) {
