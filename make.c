@@ -71,7 +71,7 @@ int main(int argc, char ** argv) {
 	}	
     } else if(strcmp(arg, "video") == 0) {
 	if(use_gcc) {
-	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl);
+	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl, is_windows() ? "-lwinmm" : "");xb
 	} else {
 	    ret = run("cl", flags, "/Fe:video ./src/video.c");
 	}
@@ -127,7 +127,7 @@ int main(int argc, char ** argv) {
 	}
     } else if(strcmp(arg, "imgui_demo") == 0) {
 	if(use_gcc) {
-	  ret = run("gcc", flags, "-o imgui ./src/imgui_demo.c", link_video);
+	    ret = run("gcc", flags, "-o imgui ./src/imgui_demo.c", link_video);	
 	} else {
 	  ret = run("cl", flags, "/Fe:imgui ./src/imgui_demo.c");
 	}

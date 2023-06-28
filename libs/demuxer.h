@@ -192,7 +192,7 @@ DEMUXER_DEF bool demuxer_init(Demuxer *demuxer, const char *filepath) {
     demuxer->video_height = video_height;  
     demuxer->video_stride = video_width * 3;       
 
-    demuxer->video_buffer_cap = 100;
+    demuxer->video_buffer_cap = 60;
     demuxer->video_buffer_size = video_width * video_height * 3;
     demuxer->video_buffer = malloc(demuxer->video_buffer_size * demuxer->video_buffer_cap);
     if(!demuxer->video_buffer) {
