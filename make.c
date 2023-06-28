@@ -54,8 +54,8 @@ int main(int argc, char ** argv) {
 		if(ret) return ret;
 	    }
 	    if(is_windows()) {
-	      ret = run("gcc", flags, "-o", "player", "rsc/musik.o", obj_duktape, "./src/player_demo.c",
-			link_ssl, link_libav, link_swresample, link_video, link_audio);
+	      ret = run("gcc", flags, "-o", "player", "rsc/musik.o",  obj_duktape, "./src/player_demo.c",
+			"-lcomdlg32", link_ssl, link_libav, link_swresample, link_video, link_audio);
 	      
 	    } else {
 	      ret = run("gcc", flags, "-o", "player", obj_duktape, "./src/player_demo.c",

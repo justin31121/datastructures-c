@@ -321,6 +321,18 @@ HTTP_DEF bool http_init3(Http *http, const char *hostname, size_t hostname_len, 
     }
 
 #ifndef HTTP_NO_SSL
+
+#ifdef _WIN32
+    char *name = (char *) alloca(hostname_len + 1);
+#elif linux
+    char name[hostname_len+1];
+#endif //_MSC_VER_
+    memcpy(name, hostname, hostname_len);
+    name[hostname_len] = 0;
+    
+    SSL_set_connect_state(http->conn);
+    SSL_set_tlsext_host_name(http->conn, name);
+    
     int ret;
     if(ssl && (ret = SSL_connect(http->conn)) != 1) {
 	if(SSL_get_error(http->conn, ret) == SSL_ERROR_SSL) {
