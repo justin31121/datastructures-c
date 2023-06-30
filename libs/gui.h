@@ -1649,9 +1649,6 @@ GUI_DEF void gui_dragged_files_free(Gui_Dragged_Files *files) {
   DragFinish(files->h_drop);
 }
 
-//TODO: Weird behaviour, if the window is not closed
-// It essentially blocks the thread, i think
-
 //UNHARDCODE filter
 GUI_DEF bool gui_open_file_dialog(char *buffer, size_t buffer_cap) {
   OPENFILENAME of = {0};
