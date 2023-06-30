@@ -79,17 +79,17 @@ int stream_from_id(String_Buffer *temp, string id) {
 
   printf("%s\n", url);
 
-  //TODO: implement http2 since it is required
-  //But then this should be done
-    
-  /*
-    temp.len = 0;
-    if(!http_get(url, string_buffer_callback, &temp, NULL, NULL)) {
-    return 1;
-    }
+    // TODO: Parse formats and download one, maybe ?
 
-    printf("%.*s\n", (int) temp.len, temp.data);
-  */
+    /*
+  temp->len = 0;
+  if(!http_get(url, string_buffer_callback, temp, NULL, NULL)) {
+      return 1;
+  }
+
+  printf("%.*s\n", (int) temp->len, temp->data);
+    */
+
 
   return 0;
 }
