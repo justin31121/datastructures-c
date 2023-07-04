@@ -71,7 +71,7 @@ int main(int argc, char ** argv) {
 	}	
     } else if(strcmp(arg, "video") == 0) {
 	if(use_gcc) {
-	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl, is_windows() ? "-lwinmm" : "");xb
+	    ret = run("gcc", flags, "-o video ./src/video.c", link_video, link_audio, link_libav, link_swresample, link_swscale, link_ssl, is_windows() ? "-lwinmm" : "");
 	} else {
 	    ret = run("cl", flags, "/Fe:video ./src/video.c");
 	}
