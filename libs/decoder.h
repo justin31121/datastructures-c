@@ -465,76 +465,81 @@ DECODER_DEF bool decoder_init(Decoder *decoder,
     
 }
 
-DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
-  if(!decoder->continue_convert) {
+DECODER_DEF bool decoder_decode_in(Decoder *decoder, int *out_samples, unsigned char *buffer) {
+    if(!decoder->continue_convert) {
     
-    if(!decoder->continue_receive) {
-      if(av_read_frame(decoder->av_format_context, decoder->packet) < 0) {
-	decoder->continue_receive = false;
-	decoder->continue_convert = false;
-	return false;
-      }
-      if(decoder->packet->stream_index != decoder->stream_index) {
-	decoder->continue_receive = false;
-	decoder->continue_convert = false;
+	if(!decoder->continue_receive) {
+	    if(av_read_frame(decoder->av_format_context, decoder->packet) < 0) {
+		decoder->continue_receive = false;
+		decoder->continue_convert = false;
+		return false;
+	    }
+	    if(decoder->packet->stream_index != decoder->stream_index) {
+		decoder->continue_receive = false;
+		decoder->continue_convert = false;
 
-	av_packet_unref(decoder->packet);
+		av_packet_unref(decoder->packet);
+		return true;
+	    }
+    
+	    decoder->continue_receive = true;
+
+	    if(avcodec_send_packet(decoder->av_codec_context, decoder->packet) < 0) {
+		fprintf(stderr, "ERROR: fatal error in avcodec_send_packet\n");
+		exit(1);
+	    }
+	}  
+
+	if(avcodec_receive_frame(decoder->av_codec_context, decoder->frame) >= 0) {
+
+	    if(decoder->target_volume != decoder->volume) {
+		av_opt_set_double(decoder->swr_context, "rmvol", decoder->target_volume, 0);
+		double volume;
+		swr_init(decoder->swr_context);
+		av_opt_get_double(decoder->swr_context, "rmvol", 0, &volume);
+		decoder->volume = (float) volume;
+	    }
+
+	    decoder->pts = decoder->frame->pts;
+      
+	    *out_samples = swr_convert(decoder->swr_context, &buffer, decoder->samples,
+				       (const unsigned char **) (decoder->frame->data),
+				       decoder->frame->nb_samples);
+      
+	    if(*out_samples > 0) {
+		decoder->continue_convert = true;
+	    } else {
+		decoder->continue_convert = false;
+
+		av_frame_unref(decoder->frame);
+	    }
+	} else {
+	    *out_samples = 0;
+      
+	    decoder->continue_convert = false;
+	    decoder->continue_receive = false;
+
+	    av_packet_unref(decoder->packet);
+	}
+
 	return true;
-      }
-    
-      decoder->continue_receive = true;
-
-      if(avcodec_send_packet(decoder->av_codec_context, decoder->packet) < 0) {
-	fprintf(stderr, "ERROR: fatal error in avcodec_send_packet\n");
-	exit(1);
-      }
-    }  
-
-    if(avcodec_receive_frame(decoder->av_codec_context, decoder->frame) >= 0) {
-
-      if(decoder->target_volume != decoder->volume) {
-	av_opt_set_double(decoder->swr_context, "rmvol", decoder->target_volume, 0);
-	double volume;
-	swr_init(decoder->swr_context);
-	av_opt_get_double(decoder->swr_context, "rmvol", 0, &volume);
-	decoder->volume = (float) volume;
-      }
-
-      decoder->pts = decoder->frame->pts;
+    }
       
-      *out_samples = swr_convert(decoder->swr_context, &decoder->buffer, decoder->samples,
-				 (const unsigned char **) (decoder->frame->data),
-				 decoder->frame->nb_samples);
-      
-      if(*out_samples > 0) {
+    *out_samples = swr_convert(decoder->swr_context, &buffer, decoder->samples, NULL, 0);
+
+    if(*out_samples > 0) {
 	decoder->continue_convert = true;
-      } else {
-	decoder->continue_convert = false;
-
-	av_frame_unref(decoder->frame);
-      }
     } else {
-      *out_samples = 0;
-      
-      decoder->continue_convert = false;
-      decoder->continue_receive = false;
-
-      av_packet_unref(decoder->packet);
+	decoder->continue_convert = false;    
+	av_packet_unref(decoder->packet);
     }
 
     return true;
-  }
-      
-  *out_samples = swr_convert(decoder->swr_context, &decoder->buffer, decoder->samples, NULL, 0);
 
-  if(*out_samples > 0) {
-    decoder->continue_convert = true;
-  } else {
-    decoder->continue_convert = false;    
-    av_packet_unref(decoder->packet);
-  }
+}
 
-  return true;
+DECODER_DEF bool decoder_decode(Decoder *decoder, int *out_samples) {
+    return decoder_decode_in(decoder, out_samples, decoder->buffer);
 }
 
 

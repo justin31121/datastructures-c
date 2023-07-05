@@ -404,6 +404,9 @@ GUI_DEF void gui_mouse_to_screenf(float width, float height, float *mousex, floa
 GUI_DEF bool gui_init_opengl(Gui *gui); //-lgdi32 -lopengl32
 GUI_DEF bool gui_use_vsync(int use);
 GUI_DEF void gui_swap_buffers(Gui *gui);
+GUI_DEF const char *gui_shader_type_as_cstr(GLuint shader);
+GUI_DEF bool gui_compile_shader(GLuint *shader, GLenum shaderType, const char *shader_source);
+GUI_DEF bool gui_link_program(GLuint *program, GLuint vertex_shader, GLuint fragment_shader);
 
 #ifdef GUI_IMPLEMENTATION
 
@@ -1704,6 +1707,64 @@ GUI_DEF void gui_swap_buffers(Gui *gui) {
 }
 
 #endif //_WIN32
+
+GUI_DEF const char *gui_shader_type_as_cstr(GLuint shader) {
+    switch (shader) {
+    case GL_VERTEX_SHADER:
+        return "GL_VERTEX_SHADER";
+    case GL_FRAGMENT_SHADER:
+        return "GL_FRAGMENT_SHADER";
+    default:
+        return "(Unknown)";
+    }
+}
+
+GUI_DEF bool gui_compile_shader(GLuint *shader, GLenum shaderType, const char *shader_source) {
+    *shader  =glCreateShader(shaderType);
+    glShaderSource(*shader, 1, &shader_source, NULL);
+    glCompileShader(*shader);
+
+    GLint compiled = 0;
+    glGetShaderiv(*shader, GL_COMPILE_STATUS, &compiled);
+
+    if (!compiled) {
+	/*
+	GLchar message[1024];
+	GLsizei message_size = 0;
+	glGetShaderInfoLog(*shader, sizeof(message), &message_size, message);
+	fprintf(stderr, "ERROR: could not compile %s\n", shader_type_as_cstr(shaderType));
+	fprintf(stderr, "%.*s\n", message_size, message);
+	*/
+	return false;
+    }
+
+    return true;
+
+}
+
+GUI_DEF bool gui_link_program(GLuint *program, GLuint vertex_shader, GLuint fragment_shader) {
+    *program = glCreateProgram();
+    glAttachShader(*program, vertex_shader);
+    glAttachShader(*program, fragment_shader);
+
+    glLinkProgram(*program);
+  
+    GLint linked = 0;
+    glGetProgramiv(*program, GL_LINK_STATUS, &linked);
+    if(!linked) {
+	/*
+	GLsizei message_size = 0;
+	GLchar message[1024];
+
+	glGetProgramInfoLog(*program, sizeof(message), &message_size, message);
+	fprintf(stderr, "ERROR: Program Linking: %.*s\n", message_size, message);
+	*/
+	return false;
+    }
+  
+    return true;
+    
+}
 
 #endif //GUI_IMPLEMENTATION
 

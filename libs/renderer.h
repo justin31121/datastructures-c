@@ -216,6 +216,7 @@ RENDER_DEF bool renderer_link_program(GLuint *program, GLuint vertex_shader, GLu
 
     glGetProgramInfoLog(*program, sizeof(message), &message_size, message);
     fprintf(stderr, "ERROR: Program Linking: %.*s\n", message_size, message);
+    return false;
   }
   
   return true;
