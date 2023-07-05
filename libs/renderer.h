@@ -44,7 +44,7 @@ typedef struct{
 }Renderer_Texture;
 */
 
-#define RENDERER_VERTEX_CAP 1024
+#define RENDERER_VERTEX_CAP (1024 * 2)
 
 typedef struct{
   GLuint vao;
@@ -216,6 +216,7 @@ RENDER_DEF bool renderer_link_program(GLuint *program, GLuint vertex_shader, GLu
 
     glGetProgramInfoLog(*program, sizeof(message), &message_size, message);
     fprintf(stderr, "ERROR: Program Linking: %.*s\n", message_size, message);
+    return false;
   }
   
   return true;
@@ -277,12 +278,15 @@ RENDER_DEF bool renderer_init(Renderer *r) {
 }
 
 RENDER_DEF void renderer_vertex(Renderer *r, Vec2f p, Vec4f c, Vec2f uv) {
-  assert(r->verticies_count < RENDERER_VERTEX_CAP);
-  Renderer_Vertex *last = &r->verticies[r->verticies_count];
-  last->position = p;
-  last->color = c;
-  last->uv = uv;
-  r->verticies_count++;
+    //assert(r->verticies_count < RENDERER_VERTEX_CAP);
+    if(r->verticies_count < RENDERER_VERTEX_CAP) {
+	Renderer_Vertex *last = &r->verticies[r->verticies_count];
+	last->position = p;
+	last->color = c;
+	last->uv = uv;
+	r->verticies_count++;
+	
+    }
 }
 
 RENDER_DEF void renderer_triangle(Renderer *r,
