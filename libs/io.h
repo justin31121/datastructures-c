@@ -391,7 +391,8 @@ IO_DEF bool io_write_file_len(const char *name, char *buffer, size_t buffer_size
     }
 
     CloseHandle(handle);  
-    return result;}
+    return result;
+}
 
 
 IO_DEF bool io_file_open(Io_File *file, const char *file_path) {

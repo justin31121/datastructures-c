@@ -121,7 +121,6 @@ int main(int argc, char **argv) {
   playlist_init(&playlist);
 
   Gui gui;
-  //Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
   Gui_Canvas canvas = {WIDTH, HEIGHT, NULL};
   Gui_Event event;
   if(!gui_init(&gui, &canvas, "JPlayer")) {
