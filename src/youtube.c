@@ -162,9 +162,37 @@ int main(int argc, char **argv) {
   }
 
   duk_context *duk_ctx = duk_create_heap_default();
+
   const char* url;
-  if(!youtube_decoder_decode(&decoder, &temp, duk_ctx, signature, &url)) {
-    panic("youtube_decoder_decode");
+  HttpHeader header;
+  int i=0;
+  for(;i<2;i++) {
+    if(!youtube_decoder_decode(&decoder, &temp, duk_ctx, signature, &url)) {
+      panic("youtube_decoder_decode");
+    }
+
+  check:
+    if(!http_head(url, &header, NULL)) {
+      panic("http_head");
+    }
+    
+    int res = http_header_response_code(&header);
+    if(res == 200) {
+      break;
+    } else if(res == 301 || res == 302 || res ==304 ) {
+
+      string key = STRING_STATIC("Location");
+      string value;
+      if(!http_header_has(&header, key, &value)) {
+	panic("Rediraction with code: %d has not Location", res);
+      }
+
+      url = tprintf(&temp, String_Fmt, String_Arg(value) );
+      goto check;
+    }
+  }
+  if(i == 2) {
+    panic("Can not find url");
   }
 
   if(download) {
