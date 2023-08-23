@@ -1719,7 +1719,7 @@ HTTP_DEF bool http_read_body(Http *http, HttpWriteCallback write_callback,
 		    if(!string_chop_int64_t(&value, &content_length)) {
 			warn("Failed to parse content length");
 			content_length = -1;
-		    } 
+		    }
 		}
 		else if(string_eq(key, STRING("Transfer-Encoding")) &&
 			string_eq(value, STRING("chunked"))) {

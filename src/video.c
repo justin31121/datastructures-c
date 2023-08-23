@@ -47,8 +47,8 @@ void *demuxing_thread(void *arg) {
     (void) arg;
 
     do{
-	int audio_diff = demuxer_audio.audio_buffer_count - (audio_index + PRE_CALC_BUFFER);
-	int video_diff = demuxer_video.video_buffer_count - (video_index + PRE_CALC_BUFFER);
+	int64_t audio_diff = demuxer_audio.audio_buffer_count - (audio_index + PRE_CALC_BUFFER);
+	int64_t video_diff = demuxer_video.video_buffer_count - (video_index + PRE_CALC_BUFFER);
 
 	if(audio_diff > video_diff) {
 	    demux(false);
@@ -106,7 +106,10 @@ void *audio_thread(void *arg) {
 }
 
 int main(int argc, char **argv) {
-    
+
+#ifdef _MSC_VER
+#pragma comment(lib,"winmm.lib")
+#endif //_MSC_VER
     timeBeginPeriod(1);
 
     if(!mutex_create(&mutex_now)) {
