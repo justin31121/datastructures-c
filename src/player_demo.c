@@ -4,7 +4,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../thirdparty/stb_truetype.h"
 
-//#define GUI_CONSOLE
+#define GUI_CONSOLE
 #define GUI_DRAG_N_DROP
 #define IMGUI_RENDERER_IMPLEMENTATION
 #include "../libs/imgui.h"

@@ -40,7 +40,7 @@ int main() {
       
     while(imgui_peek()) {
       if(event.type == GUI_EVENT_KEYPRESS &&
-	 event.key == 'Q')  {
+	 event.as.key == 'Q')  {
 	gui.running = false;
       }
     }
@@ -60,8 +60,8 @@ int main() {
 		 FOREGROUND, WHITE, duration, &slider)) {
       duration = slider;
     }
-    imgui_text(vec2f(100, 200), tprintf(&temp, "%.2f", slider));
-    imgui_text(vec2f(700, 200), tprintf(&temp, "%.2f", 1.0));
+    imgui_text(vec2f(100, 200), tprintf(&temp, "%.2f", slider), vec4f(1, 1, 1, 1) );
+    imgui_text(vec2f(700, 200), tprintf(&temp, "%.2f", 1.0), vec4f(1, 1, 1, 1) );    
 	
     imgui_update();
   }

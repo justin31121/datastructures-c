@@ -636,13 +636,13 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *s
       
       string response;
       if(!youtube_get_response(videoId, http, sb, &response)) {
-	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not get youtube response\n", String_Arg(videoId) );
+	  //  fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not get youtube response\n", String_Arg(videoId) );
 	continue;
       }
   
       if(!youtube_info_first_stream(response, STRING("140"), &signature, &is_signature)) {
-	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not find stream \"140\"\n", String_Arg(videoId) );
-	  continue;
+	  //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not find stream \"140\"\n", String_Arg(videoId) );
+	continue;
       }
       
       if(!is_signature) {
@@ -652,23 +652,23 @@ YOUTUBE_DEF bool youtube_get_audio2(string videoId, Http* http, String_Buffer *s
       }
 
       if(!youtube_decoder_init(response, http, sb, &decoder)) {
-	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not init decoder\n", String_Arg(videoId) );
+	  //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not init decoder\n", String_Arg(videoId) );
 	continue;
       }
 
       const char *stream_url;
       if(!youtube_decoder_decode(&decoder, sb, duk_ctx, signature, &stream_url)) {
-	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not decode\n", String_Arg(videoId) );
+	  //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Can not decode\n", String_Arg(videoId) );
 	  continue;
       }
 
       if(!http_head(stream_url, &header, NULL)) {
-	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
+	  //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
 	continue;
       }
 
       if(200 != http_header_response_code(&header)) {
-	//fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
+	  //fprintf(stderr, "INFO: youtube_get_audio2("String_Fmt") Stream is invalid\n", String_Arg(videoId) );
 	continue;
       }
 
@@ -847,6 +847,7 @@ YOUTUBE_DEF bool youtube_info_first_stream(string response_string, string tag, s
   events.arg = &js_content;
   
   if(!html_parse(response_string.data, response_string.len, &events)) {
+      //fprintf(stderr, "INFO: youtube_info_first_stream: html_parse failed\n");
     return false;
   }
   string json_string = js_content.content;
@@ -862,10 +863,12 @@ YOUTUBE_DEF bool youtube_info_first_stream(string response_string, string tag, s
   json_events.arg = &info;
 
   if(!json_parse2(json_string.data, json_string.len, &json_events)) {
+      //fprintf(stderr, "INFO: youtube_info_first_stream: json_parse2 failed\n");
       return false;
   }
 
   if(!info.signature.len) {
+      //fprintf(stderr, "INFO: youtube_info_first_stream: no signature found\n");
       return false;
   }
 
@@ -1265,7 +1268,7 @@ YOUTUBE_DEF bool youtube_decoder_decode(Youtube_Decoder *decoder, String_Buffer 
   }
 
   if(!url.len) {
-      fprintf(stderr, "INFO: youtube_decoder_decode: Can not find url in '"String_Fmt"'\n", String_Arg(signature) );
+      //fprintf(stderr, "INFO: youtube_decoder_decode: Can not find url in '"String_Fmt"'\n", String_Arg(signature) );
     return false;
   }
 

@@ -1288,7 +1288,7 @@ GUI_DEF bool gui_init(Gui *gui, Gui_Canvas *canvas, const char *name) {
   SetProcessDPIAware();
   
   if(!guiWin32PerfCountFrequency.QuadPart) {
-    QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
+      QueryPerformanceFrequency(&guiWin32PerfCountFrequency);
   }
 
   HMODULE hInstance = GetModuleHandle(NULL);
@@ -1622,7 +1622,7 @@ GUI_DEF bool gui_init_opengl(Gui *gui) {
 }
 
 GUI_DEF bool gui_use_vsync(int use) {
-  return wglSwapIntervalEXT(use);
+    return wglSwapIntervalEXT(use);
 }
 
 GUI_DEF bool gui_free(Gui *gui) {

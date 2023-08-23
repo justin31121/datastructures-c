@@ -726,7 +726,6 @@ HTTP_DEF bool http_server_init(HttpServer *server, size_t port, const char *cert
 
     http_make_nonblocking(server->socket);
 
-
     return true;
 }
 
