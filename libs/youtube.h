@@ -1165,6 +1165,8 @@ YOUTUBE_DEF string youtube_response_match_var_declare_matches(string var_name, s
       continue;
     }
 
+    return (string) {.data = response.data + pre_pos, .len = mid2_pos - pre_pos + midfix2_len };
+    /*
     offset = (size_t) mid2_pos + midfix2_len;
     int mid3_pos = string_index_of_offset(response, midfix3, offset);
     if(mid3_pos < 0) {
@@ -1199,7 +1201,8 @@ YOUTUBE_DEF string youtube_response_match_var_declare_matches(string var_name, s
       continue;
     }
 
-    return (string) {.data = response.data + pre_pos, .len = suf_pos - pre_pos + suffix_len };	
+    return (string) {.data = response.data + pre_pos, .len = suf_pos - pre_pos + suffix_len };
+    */
   }
     
   return empty;
