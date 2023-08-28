@@ -361,7 +361,7 @@ FONT_DEF void font_render2(Font2 *font, const char* data, u32 data_len,
 	  c = '?';
 	}
 
-q	for(u32 j=0;j<font->height;j++) {
+	for(u32 j=0;j<font->height;j++) {
 	    for(s32 i=0;i<font->ws[c - 32];i++) {
 		s32 y = y_off + j + font->ys[c - 32];
 		s32 x = x_off + i + font->xs[c - 32];
