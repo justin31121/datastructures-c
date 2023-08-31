@@ -1130,8 +1130,10 @@ YOUTUBE_DEF string youtube_response_match_var_declare_matches(string var_name, s
   size_t midfix2_len = strlen(midfix2);
   const char *midfix3 = ".";
   size_t midfix3_len = strlen(midfix3);
+  (void) midfix3_len;
   const char *suffix = ".prototype";
   size_t suffix_len = strlen(suffix);
+  (void) suffix_len;
 
   size_t offset = 0;
   while(offset < response.len) {
