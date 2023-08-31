@@ -388,7 +388,7 @@ void buildMpd(Youtube_Info *info, Youtube_Decoder *decoder, String_Buffer *temp,
 
 }
 
-int main() {
+int main2() {
 
   const char *videoId_cstr = "tIstVOX-9Hw";
 
@@ -430,7 +430,7 @@ int main() {
   return 0;
 }
 
-int main2(int argc, char **argv) {
+int main(int argc, char **argv) {
     
   State state = STATE_NONE;
   bool download = false;
