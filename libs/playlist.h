@@ -224,7 +224,7 @@ PLAYLIST_DEF bool playlist_from_youtube(Playlist *playlist, Player *player, cons
 
   string _url;
   if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
-    panic("youtube_get_audio2");
+      panic("youtube_get_audio2");
   }
 
   PLAYLIST_NAME_APPEND(playlist, "youtube video ...");

@@ -52,10 +52,19 @@ typedef struct {
 } IcoImageEntry;
 #pragma pack(pop)
 
-int main() {
+int main(int argc, char **argv) {
+
+   if(argc < 3) {
+   		fprintf(stderr, "ERROR: Please provide enough arguments\n");
+   		fprintf(stderr, "USAGE: %s <image_in> <image_out>\n", argv[0]);
+   		return 1;
+   }
+
+   const char *input = argv[1];
+      const char *output = argv[2];
 
   int width, height;
-  unsigned char *data = stbi_load("musik.png", &width, &height, 0, 4);
+  unsigned char *data = stbi_load(input, &width, &height, 0, 4);
   if(!data) {
     fprintf(stderr, "ERORR: Failed to load image\n");
     return 1;
@@ -86,12 +95,14 @@ int main() {
     return 1;
   }
 
+/*
   if(!io_write_file_len("musik_from_memory.png", memory.data, memory.size)) {
     fprintf(stderr, "ERROR: Failed to write_file_len\n");
     return 1;
   }
+  */
   
-  FILE *file = fopen("musik.ico", "wb");
+  FILE *file = fopen(output, "wb");
   if(!file) {
     fprintf(stderr, "Failed to open: musik.ico\n");
     return 1;
@@ -119,7 +130,7 @@ int main() {
 
   fclose(file);
 
-  printf("Written PNG to disk!\n");
+  printf("Written ICO to disk!\n");
      
   return 0;
 }
