@@ -181,6 +181,8 @@ int main(int argc, char **argv) {
       break;
     } else if(res == 301 || res == 302 || res ==304 ) {
 
+      printf("%.*s\n", (int) header.size, header.data);
+
       string key = STRING_STATIC("Location");
       string value;
       if(!http_header_has(&header, key, &value)) {

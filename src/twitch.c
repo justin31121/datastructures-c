@@ -52,6 +52,8 @@ int stream_from_id(String_Buffer *temp, string id) {
   }
   Foo foo = {0};
 
+  printf("'%.*s'\n", (int) temp->len, temp->data );
+
   Json_Parse_Events events = {0};
   events.on_elem = on_elem;
   events.on_object_elem = on_object_elem;
@@ -78,18 +80,6 @@ int stream_from_id(String_Buffer *temp, string id) {
   const char *url = tprintf(temp, "https://usher.ttvnw.net/vod/"String_Fmt".m3u8?nauthsig="String_Fmt"&allow_spectre=true&playlist_include_framerate=true&allow_audio_only=true&nauth=%s&allow_source=true&player=twitchweb", String_Arg(id), String_Arg(foo.signature), buf);
 
   printf("%s\n", url);
-
-    // TODO: Parse formats and download one, maybe ?
-
-    /*
-  temp->len = 0;
-  if(!http_get(url, string_buffer_callback, temp, NULL, NULL)) {
-      return 1;
-  }
-
-  printf("%.*s\n", (int) temp->len, temp->data);
-    */
-
 
   return 0;
 }
@@ -139,6 +129,119 @@ int stream_from_channel(String_Buffer *temp, string channel) {
   printf("%s\n", url);
   
   return 0;
+}
+
+bool worst_stream(string m3u8string, string *url) {
+  
+  if(!string_chop_string(&m3u8string, STRING("#EXTM3U\n") )) {
+    return false;
+  }
+
+  string last = {0};
+
+  while(m3u8string.len) {
+    string line = string_chop_by_delim(&m3u8string, '\n');
+    string directive = string_chop_by_delim(&line, ':');
+
+    if(string_eq_cstr(directive, "#EXT-X-TWITCH-INFO")) {
+      //printf( String_Fmt"\n", String_Arg(line) );
+      continue;
+    } else if(!string_eq_cstr(directive, "#EXT-X-MEDIA")) {
+      printf("Bad M3U File!\n");
+      return false;
+    }    
+
+    line = string_chop_by_delim(&m3u8string, '\n');
+    directive = string_chop_by_delim(&line, ':');
+
+    if(!string_eq_cstr(directive, "#EXT-X-STREAM-INF")) {
+      printf("Bad M3U Content\n");
+      return false;
+    }
+    
+    while(line.len) {
+      
+      string key = string_chop_by_delim(&line, '=');
+      (void) key;
+      string value;
+      (void) value;
+      if(line.len && line.data[0] == '\"') {
+	value = string_chop_parenthesis(&line);
+	string_chop_left(&line, 1);
+      } else {
+	value = string_chop_by_delim(&line, ',');
+      }	
+
+    }
+
+    line = string_chop_by_delim(&m3u8string, '\n');
+    last = line;
+  }
+
+  if(last.len == 0)
+    return false;
+
+  *url = last;
+  return true;
+}
+
+typedef struct{
+  string curr_copy;
+  string curr;
+
+  string prefix;
+}M3u8;
+
+bool m3u8_init(String_Buffer *temp, string m3u8_url, M3u8* m) {
+  
+  size_t temp_len = temp->len;
+  if(!http_get(string_to_cstr(m3u8_url), string_buffer_callback, temp, NULL, NULL)) {
+    return false;
+  }
+  m->curr = string_from(temp->data, temp->len);
+  temp->len = temp_len;  
+    
+  int last = -1;
+  string url_copy = m3u8_url;
+  while(url_copy.len) {
+    string path = string_chop_by_delim(&url_copy, '/');
+    last = path.data - m3u8_url.data;
+  }
+
+  if(last < 0)
+    return false;
+
+  m->prefix = string_from(m3u8_url.data, (size_t) last);
+  
+  if(!string_chop_string(&m->curr, STRING("#EXTM3U\n") ))
+    return false;
+
+  string extinf = STRING("#EXTINF");
+
+  int pos = string_index_of2(m->curr, extinf);
+  if(pos < 0)
+    return false;
+
+  string_chop_left(&m->curr, (size_t) pos);
+  m->curr_copy = m->curr;
+  
+  return true;
+}
+
+bool m3u8_next(String_Buffer *temp, M3u8 *m, const char **url) {
+  string extinf = STRING("#EXTINF");
+
+  int pos = string_index_of2(m->curr, extinf);
+  if(pos != 0)
+    return false;
+
+  string_chop_by_delim(&m->curr, '\n');
+  string suffix = string_chop_by_delim(&m->curr, '\n');
+
+  printf("suffix: "String_Fmt"\n", String_Arg(suffix));
+
+  *url = tprintf(temp, String_Fmt String_Fmt, String_Arg(m->prefix), String_Arg(suffix) );
+  return true;
 }
 
 String_Buffer temp = {0};

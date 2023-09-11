@@ -37,6 +37,7 @@ STRING_DEF string string_trim(string s);
 STRING_DEF string string_chop_by_delim(string *s, char delim);
 STRING_DEF string string_chop_left(string *s, size_t n);
 STRING_DEF string string_chop_right(string *s, size_t n);
+STRING_DEF string string_chop_parenthesis(string *s);
 STRING_DEF bool string_chop_string(string *s, string dst);
 STRING_DEF bool string_chop_cstr(string *s, const char *dst);
 STRING_DEF bool string_chop_int(string *s, int *n);
@@ -53,7 +54,7 @@ STRING_DEF string string_substring(string s, size_t start, size_t end);
 STRING_DEF bool string_eq(string s, string t);
 STRING_DEF bool string_eq_cstr(string s, const char *cstr);
 
-STRING_DEF char* string_to_cstr(string *s);
+STRING_DEF char* string_to_cstr(string s);
 STRING_DEF string string_copy(string s);
 STRING_DEF string string_copy_cstr(const char *cstr);
 
@@ -294,16 +295,16 @@ STRING_DEF void string_in_cstr(string s, char* target) {
     target[s.len]='\0';
 }
 
-STRING_DEF char* string_to_cstr(string *s) {
-    char* res = (char *) malloc( s->len * sizeof(char) );
+STRING_DEF char* string_to_cstr(string s) {
+    char* res = (char *) malloc( s.len * sizeof(char) );
     if(!res) {
 	panic("Not enough memory");
     }
   
-    for(size_t i=0;i<s->len;i++) {
-	res[i]=s->data[i];
+    for(size_t i=0;i<s.len;i++) {
+	res[i]=s.data[i];
     }
-    res[s->len]='\0';
+    res[s.len]='\0';
     return res;
 }
 
@@ -369,6 +370,39 @@ STRING_DEF string string_chop_right(string *s, size_t n) {
     s->len -= n;
 
     return result;
+}
+
+STRING_DEF string string_chop_parenthesis(string *s) {
+  if(!s->len) {
+    s->len = 0;
+    return *s;
+  }
+
+  char open_parenthesis = s->data[0];
+  char close_parenthesis = s->data[0];
+  if( open_parenthesis == '(')  close_parenthesis = ')';
+  if( open_parenthesis == '[')  close_parenthesis = ']';
+  if( open_parenthesis == '{')  close_parenthesis = '}';
+
+  int index = -1;
+  size_t i = 1;
+  for(;i<s->len;i++) {
+    if(s->data[i] == close_parenthesis) {
+      index = (int) i;
+      break;
+    }
+  }
+
+  if(index < 0) {
+    s->len = 0;
+    return *s;
+  }
+
+  //(1234)asdf
+  string ret = string_from(s->data + 1, (size_t) index - 1);
+  s->data += index + 1;
+  s->len -= (size_t) index + 1;
+  return ret;
 }
 
 STRING_DEF bool string_chop_string(string *s, string dst) {
@@ -510,7 +544,7 @@ STRING_DEF string tsprintf(String_Buffer *sb, const char *format, ...) {
     va_list two;
     va_copy(two, args);
 #endif
-    size_t len = vsnprintf(NULL, 0, format, args);
+    size_t len = vsnprintf(NULL, 0, format, args) + 1;
     va_end(args);
   
     string_buffer_reserve(sb, sb->len + len);
