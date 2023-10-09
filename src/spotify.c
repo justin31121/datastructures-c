@@ -34,12 +34,13 @@ int main(int argc, char **argv) {
   const char *program = next(&argc, &argv);
 
   bool download = false;
+  bool m3u8_playlist = false;
   const char *out_name = NULL;
 
   const char *in = next(&argc, &argv);
   if(in == NULL) {
     fprintf(stderr, "ERROR: Please provide enough arguments\n");
-    fprintf(stderr, "USAGE: %s [-o <output_name>] [-d] <spotfiy-link>\n", program);
+    fprintf(stderr, "USAGE: %s [-o <output_name>] [-d / -m] <spotfiy-link>\n", program);
     return 1;
   }  
   
@@ -53,11 +54,21 @@ int main(int argc, char **argv) {
     in = next(&argc, &argv);
   }
 
+  if(strcmp(in, "-m") == 0) {
+    m3u8_playlist = true;
+    in = next(&argc, &argv);
+  }
+
   if(in == NULL) {
     fprintf(stderr, "ERROR: Please provide enough arguments\n");
     fprintf(stderr, "USAGE: %s [-o <output_name>] [-d] <spotfiy-link>\n", program);
     return 1;
-  }  
+  }
+
+  if(download && m3u8_playlist) {
+    fprintf(stderr, "ERROR: Either download or create m3u8-playlist\n");
+    return 1;
+  }
 
   char spotify_creds[1024];
   if(!io_getenv("SPOTIFY_CREDS", spotify_creds, sizeof(spotify_creds))) {
@@ -170,6 +181,17 @@ int main(int argc, char **argv) {
       }
     }
 
+    FILE *file;
+    if(m3u8_playlist) {
+      file = fopen(out_name, "wb");
+      if(file == NULL) {
+	fprintf(stderr, "ERROR: Can not open '%s'\n", out_name);
+	return 1;
+      }
+
+      fprintf(file, "#EXTM3U\n\n");
+    }
+    
     size_t temp_len = temp.len;
     char name_buf[1024];
     size_t name_size, name_off;
@@ -237,6 +259,22 @@ int main(int argc, char **argv) {
 	  }
 		
 	}
+      } else if(m3u8_playlist) {
+	
+	string videoId;
+	if(!youtube_results_first(name, &http, &temp, &videoId)) {
+	  panic("youtube_results_first");
+	}
+
+	string _url;
+	if(!youtube_get_audio2(videoId, &http, &temp, duk_ctx, &_url, NULL)) {
+	  panic("youtube_get_audio2");
+	}
+
+	
+	printf(String_Fmt"\n", String_Arg(short_name)); fflush(stdout);
+	fprintf(file, "#EXTINF:,"String_Fmt"\n"String_Fmt"\n\n", String_Arg(short_name), String_Arg(_url));
+	
       } else {
 	string videoId;
 	if(!youtube_results_first(name, &http, &temp, &videoId)) {
@@ -253,7 +291,13 @@ int main(int argc, char **argv) {
       }
     }
 
+    if(m3u8_playlist) {
+      fclose(file);
+    }
+
+
   }
+
 
   /*
     Arr *names = arr_init2(sizeof(string), 32);
