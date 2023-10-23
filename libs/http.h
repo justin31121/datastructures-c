@@ -1127,6 +1127,8 @@ HTTP_DEF void http_send_files(Http *client, const char *dir, const char *home, s
 	file_path = string_from_cstr(home);
     }
 
+    file_path = string_chop_by_delim(&file_path, '?');
+
     Io_File file;
     if(!http_open_file3(&file, dir, file_path)) {
 	http_send_not_found(client);
